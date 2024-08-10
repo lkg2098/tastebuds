@@ -10,6 +10,7 @@ export const Colors = {
   light: {
     text: "#11181C",
     background: "#fff",
+    transparentBackground: "rgba(255,255,255,0.8)",
     tint: tintColorLight,
     icon: "#687076",
     subduedText: "#595959",
@@ -20,6 +21,7 @@ export const Colors = {
   dark: {
     text: "#FFFFFF",
     background: "#1A1723",
+    transparentBackground: "rgba(26,23,35,0.8)",
     tint: tintColorDark,
     icon: "#F43625",
     subduedText: "#A6A6A6",

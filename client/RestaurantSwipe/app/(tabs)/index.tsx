@@ -19,9 +19,9 @@ import { useThemeColor } from "@/hooks/useThemeColor";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import axiosAuth from "@/api/auth";
-import SessionListItem from "@/components/SessionListItem";
+import MealListItem from "@/components/MealListItem";
 
-type Session = {
+type Meal = {
   id: number;
   title: string;
   image: ImageSourcePropType;
@@ -30,30 +30,30 @@ type Session = {
   matched: boolean;
 };
 
-export default function UpcomingSessions() {
+export default function UpcomingMeals() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const [sessions, setSessions] = useState<Array<Session>>([]);
-  const getSessions = async () => {
+  const [meals, setMeals] = useState<Array<Meal>>([]);
+  const getMeals = async () => {
     try {
-      const response = await axiosAuth.get("http://localhost:3000/sessions/", {
+      const response = await axiosAuth.get("/meals/", {
         params: { time: "future" },
       });
       if (response.status == 200) {
-        setSessions(
-          response.data.sessions.map(
+        setMeals(
+          response.data.meals.map(
             (item: {
-              session_id: number;
-              created_at: Date;
-              location_lat: number;
-              location_long: number;
+              meal_id: number;
+              meal_name: string;
+              scheduled_at: Date;
+              location_id: string;
               chosen_restaurant: string | null;
             }) => ({
-              id: item.session_id,
-              title: "Test Title",
+              id: item.meal_id,
+              title: item.meal_name,
               image: require("../../assets/images/react-logo.png"),
-              date: new Date(item.created_at),
-              location: [item.location_lat, item.location_long],
+              date: new Date(item.scheduled_at),
+              location: item.location_id,
               matched: item.chosen_restaurant,
             })
           )
@@ -69,14 +69,7 @@ export default function UpcomingSessions() {
 
   useFocusEffect(
     useCallback(() => {
-      getSessions()
-        .then((value) => {
-          if (!value) {
-            console.log(value);
-            // router.push("../login");
-          }
-        })
-        .catch((err) => console.log(err));
+      getMeals().catch((err) => console.log(err));
     }, [])
   );
 
@@ -89,15 +82,15 @@ export default function UpcomingSessions() {
       }}
     >
       <FlatList
-        data={sessions}
+        data={meals}
         style={{
           flex: 1,
           alignSelf: "stretch",
           paddingHorizontal: 15,
           paddingTop: 10,
         }}
-        renderItem={({ item }: { item: Session }) => (
-          <SessionListItem
+        renderItem={({ item }: { item: Meal }) => (
+          <MealListItem
             id={item.id}
             title={item.title}
             imageSrc={item.image}

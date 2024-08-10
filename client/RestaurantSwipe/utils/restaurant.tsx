@@ -1,8 +1,12 @@
 export default class Restaurant {
   id: string;
-  score: number | null;
-  disliked: boolean;
-  seenByUser: boolean;
+  score?: number;
+  disliked?: boolean;
+  userScore?: number;
+  hidden?: boolean;
+  vetoed?: boolean;
+  unseen?: boolean;
+  approvedByUser?: 0 | 1 | -1;
   name?: string;
   address?: string;
   location?: { latitude: string; longitude: string };
@@ -19,7 +23,8 @@ export default class Restaurant {
     id: string,
     score: number | null,
     disliked: boolean,
-    seenByUser: boolean,
+    userScore?: number,
+    approvedByUser?: 0 | 1 | -1,
     name?: string,
     address?: string,
     location?: { latitude: string; longitude: string },
@@ -33,9 +38,10 @@ export default class Restaurant {
     website?: string
   ) {
     this.id = id;
-    this.score = score || null;
+    this.score = score || undefined;
+    this.userScore = userScore || undefined;
     this.disliked = disliked;
-    this.seenByUser = seenByUser;
+    this.approvedByUser = approvedByUser || undefined;
     this.name = name;
     this.address = address;
     this.location = location;

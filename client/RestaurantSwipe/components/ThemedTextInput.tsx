@@ -5,32 +5,19 @@ import { ThemedView } from "./ThemedView";
 import { ThemedText } from "./ThemedText";
 import { useEffect, useState } from "react";
 
-export type ThemedTextProps = TextInputProps & {
+export type ThemedTextInputProps = TextInputProps & {
   lightColor?: string;
   darkColor?: string;
-  interactive?: boolean;
-  subdued?: boolean;
   helpText?: string;
-  type?:
-    | "default"
-    | "title"
-    | "defaultSemiBold"
-    | "defaultBold"
-    | "defaultMedium"
-    | "subtitle"
-    | "link";
 };
 
 export function ThemedTextInput({
   style,
-  interactive,
-  subdued,
   lightColor,
   darkColor,
   helpText,
-  type = "default",
   ...rest
-}: ThemedTextProps) {
+}: ThemedTextInputProps) {
   const subduedColor = useThemeColor(
     { light: lightColor, dark: darkColor },
     "subduedText"
@@ -57,7 +44,11 @@ export function ThemedTextInput({
         placeholderTextColor={subduedColor}
         onFocus={() => handleFocused(true)}
         onBlur={() => handleFocused(false)}
-        style={[{ backgroundColor, color }, styles.textInput, style]}
+        style={[
+          { backgroundColor, color, borderColor: subduedColor },
+          styles.textInput,
+          style,
+        ]}
         {...rest}
       />
       {helpText && focused && (
@@ -78,10 +69,9 @@ const styles = StyleSheet.create({
   textInput: {
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#d0d0d0",
     borderRadius: 8,
     lineHeight: 20,
-    padding: 12,
+    padding: 15,
     width: "100%",
   },
   instructions: {

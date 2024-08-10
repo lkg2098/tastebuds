@@ -9,9 +9,14 @@ import {
   Animated,
   ScrollView,
 } from "react-native";
-import { Link, useFocusEffect, useRouter } from "expo-router";
+import {
+  Link,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { axiosLogin } from "@/api/auth";
+import axiosAuth from "@/api/auth";
 import axios from "axios";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -19,20 +24,24 @@ import { useThemeColor } from "@/hooks/useThemeColor";
 import { ThemedTextInput } from "@/components/ThemedTextInput";
 import GradientButton from "@/components/GradientButton";
 import DividerText from "@/components/DividerText";
-import { PasswordInput } from "@/components/PasswordInput";
+import { PasswordInput } from "@/components/userInfoComponents/PasswordInput";
 import PhoneInput from "react-native-phone-input";
 import { ThemedPhoneInput } from "@/components/ThemedPhoneInput";
 import VerifyCodeInput from "@/components/VerifyCodeInput";
 
 export default function ProfileInfo() {
   const router = useRouter();
+  const { userId } = useLocalSearchParams();
   const [name, setName] = useState("");
-  const handleLogin = async () => {
+  const handleAddName = async () => {
+    console.log(name);
     try {
-      // let response = await axios.post(
-      //   "http://localhost:3000/signup",
-      //   loginInfo
-      // );
+      let response = await axiosAuth.put(`/users/account`, {
+        name: name,
+      });
+      if (response.status == 200) {
+        router.replace("(tabs)");
+      }
     } catch (err) {
       console.log(err);
     }
@@ -74,7 +83,7 @@ export default function ProfileInfo() {
       <GradientButton
         buttonText="Let's Go!"
         style={styles.button}
-        handlePress={() => router.replace("(tabs)")}
+        handlePress={handleAddName}
       />
     </ScrollView>
   );
@@ -84,6 +93,7 @@ const styles = StyleSheet.create({
   flavorText: { textAlign: "center" },
   textInput: {
     marginVertical: 20,
+    padding: 15,
     width: "50%",
     textAlign: "center",
   },

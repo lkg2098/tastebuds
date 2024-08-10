@@ -42,6 +42,7 @@ export default function DateSetting({
       <DateTimePickerModal
         isVisible={pickerOpen}
         mode="datetime"
+        minuteInterval={15}
         onConfirm={(value) => {
           setPickerOpen(false);
           setDate(value);
@@ -54,7 +55,7 @@ export default function DateSetting({
 
 const styles = StyleSheet.create({
   item: {
-    paddingVertical: 17,
+    paddingVertical: 25,
     display: "flex",
     justifyContent: "space-between",
     flexDirection: "row",

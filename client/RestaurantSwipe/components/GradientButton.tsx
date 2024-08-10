@@ -1,25 +1,37 @@
+import { useThemeColor } from "@/hooks/useThemeColor";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { Pressable, StyleProp, StyleSheet, ViewStyle } from "react-native";
+import {
+  Pressable,
+  PressableProps,
+  StyleProp,
+  StyleSheet,
+  ViewStyle,
+} from "react-native";
 import { ThemedText } from "./ThemedText";
 
-export default function GradientButton({
-  handlePress,
-  buttonText,
-  style,
-}: {
+export type GradientButtonProps = PressableProps & {
   handlePress: Function;
   buttonText: string;
   style?: StyleProp<ViewStyle>;
-}) {
+};
+export default function GradientButton({
+  handlePress,
+  buttonText,
+  disabled,
+  style,
+  ...rest
+}: GradientButtonProps) {
+  const subduedColor = useThemeColor({}, "subduedText");
   return (
     <Pressable
+      disabled={disabled}
       onPress={() => handlePress()}
       style={[styles.submitButton, style]}
     >
       <LinearGradient
-        locations={[0.2, 1]}
-        colors={["#F43625", "#F5C341"]}
+        locations={disabled ? [1] : [0.2, 1]}
+        colors={disabled ? [subduedColor] : ["#F43625", "#F5C341"]}
         style={{ padding: 15 }}
       >
         <ThemedText type="defaultBold" style={styles.submitButtonText}>

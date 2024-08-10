@@ -16,7 +16,7 @@ import {
   useRouter,
 } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { axiosLogin } from "@/api/auth";
+import axiosAuth from "@/api/auth";
 import axios from "axios";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -24,10 +24,12 @@ import { useThemeColor } from "@/hooks/useThemeColor";
 import { ThemedTextInput } from "@/components/ThemedTextInput";
 import GradientButton from "@/components/GradientButton";
 import DividerText from "@/components/DividerText";
-import { PasswordInput } from "@/components/PasswordInput";
+import { PasswordInput } from "@/components/userInfoComponents/PasswordInput";
 import PhoneInput from "react-native-phone-input";
 import { ThemedPhoneInput } from "@/components/ThemedPhoneInput";
 import { Collapsible } from "@/components/Collapsible";
+import { CreateUsernameInput } from "@/components/userInfoComponents/CreateUsernameInput";
+import { CreatePasswordInput } from "@/components/userInfoComponents/CreatePasswordInput";
 
 export default function Signup() {
   const router = useRouter();
@@ -45,36 +47,42 @@ export default function Signup() {
 
   const backgroundColor = useThemeColor({}, "background");
   const [errors, setErrors] = useState({ username: "", password: "" });
-  const [validPhone, setValidPhone] = useState(false);
+  const [validInfo, setValidInfo] = useState({
+    phoneNumber: false,
+    username: false,
+    password: false,
+  });
 
-  const handleInput = (key: keyof typeof loginInfo, value: string) => {
-    console.log(`${key}: ${value}`);
-    setLoginInfo((prev) => ({ ...prev, [key]: value }));
+  const handleInput = (
+    key: keyof typeof loginInfo,
+    value?: string,
+    isValid?: boolean
+  ) => {
+    if (value) {
+      setLoginInfo((prev) => ({ ...prev, [key]: value }));
+    }
+    if (isValid !== undefined) {
+      setValidInfo((prev) => ({ ...prev, [key]: isValid }));
+    }
   };
 
-  const handlePhoneInput = (value: string, isValid: boolean) => {
-    console.log("phone is in here");
-    setLoginInfo((prev) => ({ ...prev, phoneNumber: value }));
-    setValidPhone(isValid);
-  };
+  // const handlePhoneInput = (value: string, isValid: boolean) => {
+  //   console.log("phone is in here");
+  //   setLoginInfo((prev) => ({ ...prev, phoneNumber: value }));
+  //   setValidPhone(isValid);
+  // };
 
   const handleLogin = async () => {
     try {
       console.log(loginInfo);
-      let validUsername = verifyUsername();
-      // let response = await axios.post(
-      //   "http://localhost:3000/signup",
-      //   loginInfo
-      // );
-      console.log(validUsername);
+      let validUsername = true;
 
       if (validUsername) {
-        let uniqueUser = await axios.post(
-          "http://localhost:3000/users/verifyUser",
-          { loginInfo }
-        );
+        let uniqueUser = await axiosAuth.post("/users/verifyUser", {
+          loginInfo,
+        });
         if (uniqueUser) {
-          slideOut("verifyCode", uniqueUser.data.loginInfo);
+          slideOut("verifyCode", loginInfo);
         }
       }
     } catch (err) {
@@ -99,27 +107,6 @@ export default function Signup() {
       router.replace({ pathname: url, params: params });
       fade.setValue(1);
     });
-  };
-
-  const verifyUsername = () => {
-    let valid = false;
-    if (typeof loginInfo.username == "string") {
-      valid = Boolean(loginInfo.username.match("^[a-zA-Z0-9_]{3,}$"));
-      if (!valid) {
-        setErrors((prev) => ({
-          ...prev,
-          username:
-            "Username may only contain numbers, letters, and underscores",
-        }));
-      }
-    }
-    return valid;
-  };
-
-  const handleFocus = (key: keyof typeof errors) => {
-    if (errors[key]) {
-      setErrors((prev) => ({ ...prev, [key]: "" }));
-    }
   };
 
   return (
@@ -153,36 +140,39 @@ export default function Signup() {
         <ThemedPhoneInput
           style={styles.textInput}
           initialValue={loginInfo.phoneNumber}
-          handleChangeValue={handlePhoneInput}
+          handleChangeValue={(value: string, isValid: boolean) =>
+            handleInput("phoneNumber", value, isValid)
+          }
           initialPlaceholder={phoneNumber == undefined}
         />
-        <ThemedTextInput
-          style={[
-            styles.textInput,
-            {
-              backgroundColor: errors.username
-                ? "rgba(255,0,0,0.1)"
-                : backgroundColor,
-              borderColor: errors.username ? "#d10000" : "#d0d0d0",
-            },
-          ]}
+        <CreateUsernameInput
+          showInstructionsOnFocus
+          style={styles.textInput}
           placeholder="Username"
           value={loginInfo.username}
-          helpText="Username must use only letters, numbers, and underscores"
           placeholderTextColor={useThemeColor({}, "subduedText")}
-          onChangeText={(value) => handleInput("username", value)}
+          setUsername={(value: string) => handleInput("username", value)}
+          setValid={(valid: boolean) =>
+            handleInput("username", undefined, valid)
+          }
         />
-        <PasswordInput
+        <CreatePasswordInput
+          showInstructionsOnFocus
           style={styles.textInput}
           placeholder="Password"
           value={loginInfo.password}
           placeholderTextColor={useThemeColor({}, "subduedText")}
-          onChangeText={(value) => handleInput("password", value)}
+          setPassword={(value: string, isValid: boolean) =>
+            handleInput("password", value, isValid)
+          }
         />
 
         <GradientButton
           handlePress={handleLogin}
           buttonText="Signup"
+          disabled={
+            !(validInfo.phoneNumber && validInfo.username && validInfo.password)
+          }
           style={{ width: "75%", marginTop: 10 }}
         />
         <DividerText

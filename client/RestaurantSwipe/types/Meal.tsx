@@ -6,11 +6,15 @@ export type DietaryRestriction =
   | "Gluten Free";
 
 export type Meal = {
+  id: string;
   name: string;
-  date: Date;
+  date?: Date;
   budget: Array<number>;
   distance: number;
   rating: number;
-  location: Array<number>;
+  address: string;
+  place_id: string;
+  location_coords: Array<number>;
   diets: Array<DietaryRestriction>;
+  badPreferences: Array<string>;
 };

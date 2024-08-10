@@ -21,7 +21,7 @@ import DividerText from "@/components/DividerText";
 import GradientButton from "@/components/GradientButton";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { ThemedTextInput } from "@/components/ThemedTextInput";
-import { PasswordInput } from "@/components/PasswordInput";
+import { PasswordInput } from "@/components/userInfoComponents/PasswordInput";
 
 export default function Login() {
   const router = useRouter();
@@ -60,12 +60,8 @@ export default function Login() {
 
   const handleLogin = async () => {
     try {
-      let response = await axiosAuth.post(
-        "http://localhost:3000/login",
-        loginInfo
-      );
+      let response = await axiosAuth.post("/login", loginInfo);
       if (response.status == 200) {
-        console.log(response.data);
         router.push("(tabs)");
       } else {
         console.log(response);
@@ -118,7 +114,6 @@ export default function Login() {
             style={styles.textInput}
             value={loginInfo.password}
             placeholder="Password"
-            secureTextEntry
             placeholderTextColor={useThemeColor({}, "subduedText")}
             onChangeText={(value) => handleInput("password", value)}
           />

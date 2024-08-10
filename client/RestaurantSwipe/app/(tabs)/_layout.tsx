@@ -32,9 +32,9 @@ export default function TabLayout() {
         tabPress: (e) => {
           const tabName = e.target?.split("-")[0];
 
-          if (tabName == "newSession") {
+          if (tabName == "newMeal") {
             e.preventDefault();
-            router.push("../createSession");
+            router.push("../createMeal");
           }
         },
       }}
@@ -64,7 +64,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="newSession"
+        name="newMeal"
         options={{
           title: "",
           tabBarIcon: ({ color, focused }) => (
@@ -79,7 +79,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="pastSessions"
+        name="pastMeals"
         options={{
           title: "Past Meals",
           tabBarIcon: ({ color, focused }) => (

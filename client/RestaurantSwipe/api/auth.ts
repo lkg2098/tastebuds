@@ -1,37 +1,16 @@
 import axios from "axios";
-import * as Keychain from "react-native-keychain";
 import * as SecureStorage from "expo-secure-store";
+import * as SMS from "expo-sms";
 
 const axiosAuth = axios.create({
-  baseURL: "http://localhost:3000/",
+  baseURL: "https://tastebuds-4mr3.onrender.com/",
   headers: {},
 });
 
-export const axiosLogin = axios.create({
-  baseURL: "http://localhost:3000/",
-  headers: {},
-});
-
-axiosLogin.interceptors.response.use(
-  async (response) => {
-    const username = JSON.parse(response.config.data).username;
-    await SecureStorage.setItemAsync("accessToken", response.data.accessToken);
-    // await Keychain.setGenericPassword(username, response.data.accessToken, {
-    //   service: "accessToken",
-    // });
-    await SecureStorage.setItemAsync(
-      "refreshToken",
-      response.data.refreshToken
-    );
-    // await Keychain.setGenericPassword(username, response.data.refreshToken, {
-    //   service: "refreshToken",
-    // });
-    return response;
-  },
-  async (error) => {
-    return Promise.reject(error);
-  }
-);
+// const axiosAuth = axios.create({
+//   baseURL: "http://localhost:3000/",
+//   headers: {},
+// });
 
 axiosAuth.interceptors.request.use(
   async (config) => {
@@ -57,6 +36,7 @@ axiosAuth.interceptors.request.use(
 axiosAuth.interceptors.response.use(
   async (response) => {
     if (response.data?.accessToken) {
+      console.log("setting access token...");
       await SecureStorage.setItemAsync(
         "accessToken",
         response.data.accessToken
@@ -66,9 +46,15 @@ axiosAuth.interceptors.response.use(
         response.data.refreshToken
       );
     }
+    if (response.data?.smsCode) {
+      const smsAvailable = await SMS.isAvailableAsync();
+      const { result } = await SMS.sendSMSAsync(["19146723692"], "Test text");
+      console.log(smsAvailable);
+    }
     return response;
   },
   async (error) => {
+    console.log(error.response?.data.error);
     const originalRequest = error.config;
     if (
       error.response?.status == 401 &&
@@ -80,7 +66,8 @@ axiosAuth.interceptors.response.use(
       if (refreshToken) {
         try {
           const response = await axios.post(
-            "http://localhost:3000/refresh",
+            "https://tastebuds-4mr3.onrender.com/refresh",
+            // "http://localhost:3000/refresh",
             {},
             {
               headers: {
@@ -91,9 +78,6 @@ axiosAuth.interceptors.response.use(
           const newAccessToken = response.data.accessToken;
 
           await SecureStorage.setItemAsync("accessToken", newAccessToken);
-          //   await Keychain.setGenericPassword(tokens.username, newAccessToken, {
-          //     service: "accessToken",
-          //   });
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return axios(originalRequest);
         } catch (err) {

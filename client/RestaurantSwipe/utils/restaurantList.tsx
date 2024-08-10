@@ -1,5 +1,3 @@
-import Restaurant from "./restaurant";
-
 type NodeValue = { id: string; score: number };
 
 export class RestaurantNode {

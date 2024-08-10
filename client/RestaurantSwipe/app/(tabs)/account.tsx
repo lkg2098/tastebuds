@@ -1,32 +1,42 @@
 import { Text, View, Button, Image, StyleSheet, Pressable } from "react-native";
-import { Link } from "expo-router";
+import { Link, useFocusEffect, useRouter } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import LinkSettingsItem from "@/components/settingsComponents/LinkSettingsItem";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import axiosAuth from "@/api/auth";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import * as SecureStorage from "expo-secure-store";
 
 export default function Account() {
-  const [userData, setUserData] = useState({ username: "" });
+  const router = useRouter();
+  const [userData, setUserData] = useState({ username: "", name: "" });
 
   const getUserData = async () => {
     try {
-      let response = await axiosAuth.get("http://localhost:3000/users/account");
+      let response = await axiosAuth.get("/users/account");
       return response.data.user;
     } catch (err) {
       return false;
     }
   };
 
-  useEffect(() => {
-    getUserData()
-      .then((value) => {
-        console.log(value);
-        setUserData({ username: value.username });
-      })
-      .catch((err) => console.log(err));
-  }, []);
+  const handleSignout = () => {
+    SecureStorage.deleteItemAsync("accessToken");
+    SecureStorage.deleteItemAsync("refreshToken");
+    router.navigate("../login");
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      getUserData()
+        .then((value) => {
+          console.log(value);
+          setUserData({ username: value.username, name: value.name });
+        })
+        .catch((err) => console.log(err));
+    }, [])
+  );
   return (
     <ThemedView
       style={{
@@ -37,7 +47,7 @@ export default function Account() {
         paddingBottom: 100,
       }}
     >
-      <Image
+      {/* <Image
         source={require("@/assets/images/dining out.jpeg")}
         style={styles.groupImage}
       />
@@ -45,18 +55,35 @@ export default function Account() {
         <ThemedText interactive type="defaultSemiBold" style={styles.editPhoto}>
           Change profile photo
         </ThemedText>
-      </Pressable>
+      </Pressable> */}
       <ThemedText
-        type="defaultSemiBold"
+        type="subtitle"
         style={{ textAlign: "left", alignSelf: "stretch" }}
       >
         Account Info
       </ThemedText>
-      <LinkSettingsItem title="Username" href="" content={userData.username} />
-      <LinkSettingsItem title="Password" href="" content="Update password" />
+      <LinkSettingsItem
+        title="Username"
+        href={{
+          pathname: "../accountChange",
+          params: { username: userData.username },
+        }}
+        content={<ThemedText interactive>{userData.username}</ThemedText>}
+      />
+      <LinkSettingsItem
+        title="Password"
+        href={{ pathname: "../accountChange", params: { password: "true" } }}
+        content={<ThemedText interactive>Update password</ThemedText>}
+      />
+      <LinkSettingsItem
+        title="Display Name"
+        style={{ alignItems: "center" }}
+        href=""
+        content={<ThemedText interactive>{userData.name}</ThemedText>}
+      />
       <View
         style={{
-          borderColor: useThemeColor({}, "tint"),
+          borderColor: useThemeColor({}, "subduedText"),
           opacity: 0.3,
           alignSelf: "stretch",
           borderBottomWidth: 1,
@@ -64,19 +91,21 @@ export default function Account() {
         }}
       ></View>
       <ThemedText
-        type="defaultSemiBold"
-        style={{ textAlign: "left", alignSelf: "stretch", marginTop: 10 }}
+        type="subtitle"
+        style={{ textAlign: "left", alignSelf: "stretch", marginTop: 20 }}
       >
         Personal Settings
       </ThemedText>
       <LinkSettingsItem
         title="Diet"
         href=""
-        content="No dietary restrictions..."
+        content={
+          <ThemedText interactive>No dietary restrictions...</ThemedText>
+        }
       />
       <View
         style={{
-          borderColor: useThemeColor({}, "tint"),
+          borderColor: useThemeColor({}, "subduedText"),
           opacity: 0.3,
           alignSelf: "stretch",
           borderBottomWidth: 1,
@@ -84,24 +113,27 @@ export default function Account() {
         }}
       ></View>
       <ThemedText
-        type="defaultSemiBold"
-        style={{ textAlign: "left", alignSelf: "stretch", marginTop: 10 }}
+        type="subtitle"
+        style={{ textAlign: "left", alignSelf: "stretch", marginTop: 20 }}
       >
         Support
       </ThemedText>
-      <LinkSettingsItem title="Bug Report" href="" content="Got an issue?" />
+      <LinkSettingsItem
+        title="Bug Report"
+        href=""
+        content={<ThemedText interactive>Got an issue?</ThemedText>}
+      />
       <LinkSettingsItem
         title="Suggestions"
         href=""
-        content="Send us a message..."
+        content={<ThemedText interactive>Send us a message...</ThemedText>}
       />
-      <Link href="../login" asChild>
-        <Pressable style={styles.signout}>
-          <ThemedText interactive type="defaultSemiBold">
-            Sign Out
-          </ThemedText>
-        </Pressable>
-      </Link>
+
+      <Pressable style={styles.signout} onPress={() => handleSignout()}>
+        <ThemedText interactive type="defaultSemiBold">
+          Sign Out
+        </ThemedText>
+      </Pressable>
     </ThemedView>
   );
 }

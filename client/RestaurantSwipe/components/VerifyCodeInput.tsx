@@ -50,9 +50,9 @@ export default function VerifyCodeInput({
       ]}
       key={char}
     >
-      <Text style={styles.cellText}>
+      <ThemedText style={styles.cellText}>
         {inputValue.length > index && inputValue[index]}
-      </Text>
+      </ThemedText>
     </View>
   ));
 

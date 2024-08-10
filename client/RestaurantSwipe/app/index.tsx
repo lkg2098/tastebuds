@@ -12,7 +12,7 @@ export default function Index() {
   const isLoggedIn = async () => {
     try {
       console.log("AAAA");
-      const response = await axiosAuth.get("http://localhost:3000/");
+      const response = await axiosAuth.get("/");
       console.log(response.data);
       return response.status == 200;
     } catch (err) {
@@ -42,5 +42,9 @@ export default function Index() {
   );
 
   // return <Redirect href={"(tabs)"} />;
-  return <></>;
+  return (
+    <View>
+      <ThemedText>Hello</ThemedText>
+    </View>
+  );
 }

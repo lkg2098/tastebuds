@@ -42,17 +42,17 @@ export default function UserSearch({ handleUsers }: { handleUsers: Function }) {
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+
+  const color = useThemeColor({}, "text");
+  const subduedColor = useThemeColor({}, "subduedText");
   const handleQueryChange = async (query: string) => {
     console.log(`query: ${query}`);
     setQuery(query);
     if (query.length > 0) {
       try {
-        const response = await axiosAuth.post(
-          "http://localhost:3000/users/search",
-          {
-            queryTerm: query,
-          }
-        );
+        const response = await axiosAuth.post("/users/search", {
+          queryTerm: query,
+        });
         console.log(response.data);
         setResults(response.data.users);
       } catch (error) {
@@ -70,15 +70,15 @@ export default function UserSearch({ handleUsers }: { handleUsers: Function }) {
   };
   return (
     <View style={styles.search}>
-      <View style={styles.searchBar}>
+      <View style={[styles.searchBar, { borderColor: color }]}>
         <TextInput
           value={query}
           onChangeText={handleQueryChange}
           placeholder="Search"
-          placeholderTextColor={useThemeColor({}, "subduedText")}
-          style={styles.searchInput}
+          placeholderTextColor={subduedColor}
+          style={[styles.searchInput, { color }]}
         />
-        <Ionicons name="search" size={16} />
+        <Ionicons name="search" size={16} color={color} />
       </View>
       <FlatList
         data={results}

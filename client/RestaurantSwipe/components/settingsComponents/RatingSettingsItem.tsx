@@ -40,7 +40,7 @@ export default function RatingSettingsItem({
 
 const styles = StyleSheet.create({
   item: {
-    paddingVertical: 17,
+    paddingVertical: 25,
     display: "flex",
     justifyContent: "space-between",
     flexDirection: "row",

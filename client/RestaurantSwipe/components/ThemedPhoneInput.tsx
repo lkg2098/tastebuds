@@ -15,7 +15,7 @@ import { opacity } from "react-native-reanimated/lib/typescript/reanimated2/Colo
 import { ThemedText } from "./ThemedText";
 import { ThemedView } from "./ThemedView";
 
-export type ThemedTextProps = ReactNativePhoneInputProps & {
+export type ThemedPhoneInputProps = ReactNativePhoneInputProps & {
   lightColor?: string;
   darkColor?: string;
   handleChangeValue: Function;
@@ -29,11 +29,12 @@ export function ThemedPhoneInput({
   handleChangeValue,
   initialPlaceholder,
   ...rest
-}: ThemedTextProps) {
+}: ThemedPhoneInputProps) {
   const subduedColor = useThemeColor(
     { light: lightColor, dark: darkColor },
     "subduedText"
   );
+  const tintColor = useThemeColor({}, "tint");
   const color = useThemeColor({ light: lightColor, dark: darkColor }, "text");
   const backgroundColor = useThemeColor(
     { light: lightColor, dark: darkColor },
@@ -97,10 +98,7 @@ export function ThemedPhoneInput({
         style={[
           {
             zIndex: 1,
-            backgroundColor: error
-              ? "rgba(255,0,0,0.1)"
-              : "rgba(255,255,255,0)",
-            borderColor: error ? "#d10000" : "#d0d0d0",
+            borderColor: error ? tintColor : subduedColor,
           },
           styles.textInput,
           style,
@@ -108,17 +106,7 @@ export function ThemedPhoneInput({
         {...rest}
       />
       {showPlaceholder && (
-        <ThemedText
-          subdued
-          style={{
-            position: "absolute",
-            padding: 12,
-            paddingLeft: 12,
-            marginLeft: 38,
-            lineHeight: 20,
-            zIndex: 0,
-          }}
-        >
+        <ThemedText subdued style={styles.placeholder}>
           <ThemedText style={{ opacity: 0 }}>+1 </ThemedText>Phone Number
         </ThemedText>
       )}
@@ -130,12 +118,20 @@ const styles = StyleSheet.create({
   textInput: {
     borderWidth: 1,
     borderRadius: 8,
-    padding: 12,
+    padding: 15,
     width: "100%",
     alignItems: "center",
   },
   text: {
     fontSize: 16,
     lineHeight: 20,
+  },
+  placeholder: {
+    position: "absolute",
+    padding: 15,
+    paddingLeft: 15,
+    marginLeft: 38,
+    lineHeight: 20,
+    zIndex: 0,
   },
 });

@@ -42,6 +42,13 @@ export default function SliderSettingsItem({
         max={max}
         step={step}
         snapped={snapped}
+        customMarker={() => (
+          <View style={styles.markerBox}>
+            <View
+              style={[styles.sliderMarker, { backgroundColor: color }]}
+            ></View>
+          </View>
+        )}
         onValuesChange={(values) => handleValues(values)}
         onValuesChangeStart={() => handleScroll(false)}
         onValuesChangeFinish={() => handleScroll(true)}
@@ -56,7 +63,7 @@ export default function SliderSettingsItem({
 
 const styles = StyleSheet.create({
   item: {
-    paddingTop: 15,
+    paddingTop: 25,
     alignSelf: "stretch",
   },
   header: {
@@ -72,11 +79,20 @@ const styles = StyleSheet.create({
   },
   sliderTrack: { opacity: 0.4 },
   sliderMarker: {
-    width: 12,
-    height: 12,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 0,
     shadowOpacity: 0,
+    margin: 30,
+  },
+  markerBox: {
+    backgroundColor: "transparent",
+    width: 50,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
   },
   sliderSelected: { opacity: 1 },
-  sliderContainer: { alignSelf: "center", paddingTop: 5 },
+  sliderContainer: { alignSelf: "center", paddingTop: 25 },
 });

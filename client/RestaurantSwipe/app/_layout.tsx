@@ -41,7 +41,7 @@ export default function RootLayout() {
     Playwrite: require("../assets/fonts/PlaywriteIN-Regular.ttf"),
   });
 
-  const { session } = useLocalSearchParams();
+  const { meal } = useLocalSearchParams();
 
   let url = Linking.useURL();
   const handleUrl = (url: string) => {
@@ -95,14 +95,26 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="accountChange"
+          options={{
+            presentation: "modal",
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="index"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="createSession"
-          options={{ headerShown: false, animation: "slide_from_bottom" }}
+          name="createMeal"
+          options={{
+            presentation: "fullScreenModal",
+            gestureEnabled: false,
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
         />
         <Stack.Screen
           name="login"
@@ -138,7 +150,7 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
-          name="[session]"
+          name="[meal]"
           options={{
             headerShown: false,
           }}
@@ -146,10 +158,10 @@ export default function RootLayout() {
         <Stack.Screen
           name="match"
           options={{
-            animation: "flip",
+            animation: "fade",
             contentStyle: { backgroundColor: "transparent" },
             headerTransparent: true,
-            presentation: "modal",
+            presentation: "containedModal",
             headerShown: false,
           }}
         />
@@ -163,26 +175,15 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
-          name="sessionSettings"
+          name="preferences"
+          options={{ presentation: "transparentModal", headerShown: false }}
+        />
+        <Stack.Screen
+          name="modal"
           options={{
-            presentation: "modal",
-            headerTitle: () => <ThemedText>Meal Settings</ThemedText>,
-            headerRight: () => (
-              <Pressable
-                style={{ paddingHorizontal: 10 }}
-                onPress={() => router.dismiss(1)}
-              >
-                <Ionicons
-                  name="close"
-                  size={24}
-                  color={Colors[colorScheme ?? "light"].text}
-                />
-              </Pressable>
-            ),
-            headerStyle: {
-              backgroundColor: Colors[colorScheme ?? "light"].background,
-            },
-            headerShadowVisible: false,
+            animation: "fade",
+            presentation: "transparentModal",
+            headerShown: false,
           }}
         />
       </Stack>
