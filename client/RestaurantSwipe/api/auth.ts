@@ -2,23 +2,20 @@ import axios from "axios";
 import * as SecureStorage from "expo-secure-store";
 import * as SMS from "expo-sms";
 
-const axiosAuth = axios.create({
-  baseURL: "https://tastebuds-4mr3.onrender.com/",
-  headers: {},
-});
-
 // const axiosAuth = axios.create({
-//   baseURL: "http://localhost:3000/",
+//   baseURL: "https://tastebuds-4mr3.onrender.com/",
 //   headers: {},
 // });
+
+const axiosAuth = axios.create({
+  baseURL: "http://localhost:3000/",
+  headers: {},
+});
 
 axiosAuth.interceptors.request.use(
   async (config) => {
     try {
       const accessToken = await SecureStorage.getItemAsync("accessToken");
-      //   const token = await Keychain.getGenericPassword({
-      //     service: "accessToken",
-      //   });
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
@@ -66,8 +63,8 @@ axiosAuth.interceptors.response.use(
       if (refreshToken) {
         try {
           const response = await axios.post(
-            "https://tastebuds-4mr3.onrender.com/refresh",
-            // "http://localhost:3000/refresh",
+            // "https://tastebuds-4mr3.onrender.com/refresh",
+            "http://localhost:3000/refresh",
             {},
             {
               headers: {

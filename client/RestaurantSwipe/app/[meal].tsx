@@ -200,7 +200,6 @@ export default function Meal() {
     getMealRestaurants()
       .then((value) => {
         console.log(value);
-        // setGoogleData(value.google_data);
         setTagMap(value.tag_map);
         setLocationData({
           id: value.locationInfo.location_id,
@@ -442,7 +441,7 @@ export default function Meal() {
                 current_address: locationData.address,
                 coords: JSON.stringify(locationData.coords),
                 google_sql_string: googleSqlData,
-                tagMap: tagMap,
+                tagMap: JSON.stringify(tagMap),
               },
             })
           }

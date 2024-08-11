@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -60,12 +60,14 @@ function CuisineButton({
 export default function CuisineSelector({
   mealId,
   userId,
+  initialPreferences,
   positive,
   tagMap,
   handleSubmit,
 }: {
   mealId: number;
   userId: number;
+  initialPreferences?: Array<string>;
   positive: boolean;
   tagMap: any;
   handleSubmit: Function;
@@ -251,20 +253,33 @@ export default function CuisineSelector({
     },
   ]);
   const [count, setCount] = useState(0);
-  const [selected, setSelected] = useState<Array<string>>([]);
+  const [selected, setSelected] = useState<Array<string>>(
+    initialPreferences || []
+  );
 
   useEffect(() => {
+    console.log(initialPreferences);
     if (tagMap) {
-      const tags = JSON.parse(tagMap);
+      let preferences = {} as { [key: string]: boolean };
+      if (initialPreferences?.length) {
+        for (let pref of initialPreferences) {
+          preferences[pref] = true;
+        }
+      }
+      console.log(preferences);
+      const tags = tagMap;
       let cuisineDataCopy = [...cuisineData];
       for (let item of cuisineDataCopy) {
         if (tags[item.tag_id]) {
           item.shown = tags[item.tag_id];
         }
+        if (preferences[item.tag_id]) {
+          item.selected = true;
+        }
       }
       setCuisineData(cuisineDataCopy);
     }
-  }, [tagMap]);
+  }, [tagMap, initialPreferences]);
 
   const handleSelection = (index: number) => {
     console.log(count);
@@ -298,7 +313,6 @@ export default function CuisineSelector({
         }
       }
       await handleSubmit(preferences);
-      router.navigate(`${mealId}`);
     }
   };
   return (
@@ -339,11 +353,13 @@ export default function CuisineSelector({
         }}
       />
       <GradientButton handlePress={() => onSubmit()} buttonText="Confirm" />
-      <ThemedButton
-        type="secondary"
-        onPress={() => onSubmit([])}
-        text="No Preference"
-      />
+      {selected.length && (
+        <ThemedButton
+          type="secondary"
+          onPress={() => onSubmit([])}
+          text="No Preference"
+        />
+      )}
     </View>
   );
 }

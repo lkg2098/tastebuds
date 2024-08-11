@@ -50,7 +50,7 @@ export function ThemedButton({
         style={[
           styles.text,
           {
-            color: type == "primary" ? "white" : text,
+            color: type == "primary" ? "white" : color,
           },
         ]}
         type="defaultSemiBold"

@@ -14,7 +14,8 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import { Button, Pressable, Text, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { MealSettingsProvider } from "@/components/MealSettingsContext";
+import { GoogleDataProvider } from "@/components/GoogleDataContext";
+
 // // Prevent the splash screen from auto-hiding before asset loading is complete.
 // SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
@@ -36,7 +37,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <SafeAreaProvider>
-        <MealSettingsProvider>
+        <GoogleDataProvider>
           <Stack
             screenOptions={{
               headerLeft: () => (
@@ -77,7 +78,7 @@ export default function RootLayout() {
               options={{ title: "Invite Guests" }}
             />
           </Stack>
-        </MealSettingsProvider>
+        </GoogleDataProvider>
       </SafeAreaProvider>
     </ThemeProvider>
   );

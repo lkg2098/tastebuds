@@ -26,7 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Loading from "@/components/Loading";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MemberSettings } from "@/types/MemberSettings";
-import { MealSettingsContext } from "@/components/MealSettingsContext";
+import { GoogleDataContext } from "@/components/GoogleDataContext";
 
 export default function CreateMeal() {
   const router = useRouter();
@@ -41,7 +41,7 @@ export default function CreateMeal() {
     mealId: string;
     current_address: string;
     place_id: string;
-    tagMap: string[];
+    tagMap: string;
     google_sql_string: string;
     badPreferences: string[];
   }>();
@@ -49,8 +49,12 @@ export default function CreateMeal() {
   const color = useThemeColor({}, "text");
   const backgroundColor = useThemeColor({}, "background");
   const [loading, setLoading] = useState(true);
-  const context = useContext(MealSettingsContext);
+  const googleContext = useContext(GoogleDataContext);
   const [location, setLocation] = useState("");
+  const [googleData, setGoogleData] = useState({
+    tagMap: tagMap,
+    sqlString: google_sql_string,
+  });
   const [role, setRole] = useState<"admin" | "guest">("admin");
   const [geocodingRan, setGeocodingRan] = useState(false);
   const [oldMealData, setOldMealData] = useState<Meal>({
@@ -68,27 +72,20 @@ export default function CreateMeal() {
   });
 
   useEffect(() => {
-    console.log("CONTEXT");
-    console.log(context);
-    context?.setTest({
-      id: "",
-      name: "New Meal",
-      date: undefined,
-      budget: [],
-      distance: 5,
-      rating: 3,
-      address: "AAAAAAA",
-      place_id: place_id?.toString() || "",
-      location_coords: [],
-      diets: [] as DietaryRestriction[],
-      badPreferences: badPreferences || [],
-    });
-  }, []);
+    console.log("GOOGLE DATA");
+    console.log(googleContext?.googleData);
+  }, [googleContext]);
 
   useEffect(() => {
-    console.log("CONTEXT TEST");
-    console.log(context?.test);
-  }, [context?.test]);
+    if (googleContext) {
+      if (tagMap && google_sql_string)
+        googleContext.setGoogleData({
+          tag_map: tagMap ? JSON.parse(tagMap) : {},
+          google_sql_string: google_sql_string || "",
+        });
+    }
+  }, [tagMap, google_sql_string]);
+
   const [mealData, setMealData] = useState<Meal>({
     id: "",
     name: "New Meal",
@@ -361,6 +358,7 @@ export default function CreateMeal() {
             tagMap={tagMap}
             handleMealData={handleMealData}
           />
+
           {(!mealId || (mealId && isDirty)) && (
             <GradientButton
               handlePress={handleSubmit}

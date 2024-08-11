@@ -34,7 +34,6 @@ export default function MealSettings({
   userRole,
   tagMap,
   handleMealData,
-  memberSettings,
 }: {
   data?: Meal;
   userRole?: "admin" | "guest";
@@ -84,7 +83,6 @@ export default function MealSettings({
         for (let i in preference) {
           let word = preference[i];
           if (word.length) {
-            console.log(word.charAt(0).toUpperCase());
             word = word.charAt(0).toUpperCase() + word.slice(1);
             preference[i] = word;
           }
@@ -214,7 +212,7 @@ export default function MealSettings({
             title="Cuisine Preferences"
             href={{
               pathname: "../createMeal/preferences",
-              params: { tagMap: tagMap, preferences: data.badPreferences },
+              params: { preferences: data.badPreferences },
             }}
             content={
               <ThemedText

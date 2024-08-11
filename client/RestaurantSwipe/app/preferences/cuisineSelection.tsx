@@ -26,6 +26,9 @@ export default function Preferences() {
         google_data_string: google_sql_string,
       });
       console.log(response);
+      if (response.status == 200) {
+        router.navigate(`${mealId}`);
+      }
     } catch (err) {
       console.log(err);
     }
