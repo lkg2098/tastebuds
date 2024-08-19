@@ -22,6 +22,7 @@ const io = new Server(server, {
   cors: {
     origin: "https://tastebuds-4mr3.onrender.com",
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 // parse application/x-www-form-urlencoded
