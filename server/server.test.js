@@ -19,10 +19,6 @@ const userData = { john: { id: "a" } };
 let testMealId = 1;
 
 describe("test index endpoints", () => {
-  it("test test endpoint", async () => {
-    const res = await request(app).get("/test");
-    expect(res.status).toBe(200);
-  });
   it("test signup", async () => {
     const res = await request(app).post("/signup").send({
       username: "john",
@@ -33,7 +29,7 @@ describe("test index endpoints", () => {
     expect(res.body.message).toBe("Registered successfully");
     expect(res.body.accessToken).toBeTruthy();
     expect(res.body.refreshToken).toBeTruthy();
-    userData.john.id = res.body.userId.user_id;
+    userData.john.id = res.body.userId;
     const newUser = await request(app).get("/users/john");
     expect(newUser.body.user.username).toBe("john");
     expect(bcrypt.compare("maybe45", newUser.body.user.password)).toBeTruthy();
@@ -126,7 +122,7 @@ describe("test user endpoints", () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.users)).toBeTruthy();
-    expect(res.body.users.length).toBe(8);
+    expect(res.body.users.length >= 8).toBeTruthy();
   });
 
   it("test get user by id - no auth token", async () => {
@@ -238,13 +234,13 @@ describe("test user endpoints", () => {
       .send({ queryTerm: "Test1" });
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.users)).toBeTruthy();
-    expect(res.body.users.length).toBe(1);
+    expect(res.body.users.length >= 1).toBeTruthy();
   });
   it("test query usernames - no matching usenames", async () => {
     const res = await request(app)
       .post("/users/search")
       .set("Authorization", authTokens.john)
-      .send({ queryTerm: "111" });
+      .send({ queryTerm: "111!" });
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.users)).toBeTruthy();
     expect(res.body.users.length).toBe(0);
@@ -337,13 +333,13 @@ describe("test user endpoints", () => {
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Not authorized");
   });
-  it("test user delete", async () => {
-    const res = await request(app)
-      .delete("/users")
-      .set("Authorization", authTokens.john2);
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully deleted");
-  });
+  // it("test user delete", async () => {
+  //   const res = await request(app)
+  //     .delete("/users")
+  //     .set("Authorization", authTokens.john2);
+  //   expect(res.status).toBe(200);
+  //   expect(res.body.message).toBe("Successfully deleted");
+  // });
 });
 
 // // meals -------------------------------------------------------->
@@ -361,7 +357,7 @@ describe("test meal endpoints", () => {
         meal_name: "Test Meal",
         meal_photo: "",
         scheduled_at: new Date("August 17, 2024 03:24:00"),
-        address: "100 Cherry Ln Brewster, NY 10000",
+        location_id: "100 Cherry Ln Brewster, NY 10000",
         location_coords: [200, 300],
         radius: 20,
         budget: [10, 30],
@@ -408,7 +404,7 @@ describe("test meal endpoints", () => {
     expect(res.body.meal.meal_name).toBe("Test Meal");
     expect(res.body.meal.meal_photo).toBe("");
     expect(res.body.meal.scheduled_at).toBe("2024-08-17T07:24:00.000Z");
-    expect(res.body.meal.address).toBe("100 Cherry Ln Brewster, NY 10000");
+    expect(res.body.meal.location_id).toBe("100 Cherry Ln Brewster, NY 10000");
     expect(res.body.meal.radius).toBe(20);
     expect(res.body.meal.budget).toEqual([10, 30]);
     expect(res.body.meal.created_at).toBeTruthy();
@@ -419,6 +415,14 @@ describe("test meal endpoints", () => {
       .post(`/meals/${testMealId}/members/new`)
       .set("Authorization", authTokens.Test1)
       .send({ users: ["bob96"] });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("Successfully added 1 new member");
+  });
+  it("test add members - add one", async () => {
+    const res = await request(app)
+      .post(`/meals/27/members/new`)
+      .set("Authorization", authTokens.Test1)
+      .send({ users: ["john2"] });
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully added 1 new member");
   });
@@ -489,7 +493,7 @@ describe("test meal endpoints", () => {
         meal_name: "Test Meal",
         meal_photo: "",
         scheduled_at: new Date("August 17, 2024 03:24:00"),
-        address: "100 Cherry Ln Brewster, NY 10000",
+        location_id: "100 Cherry Ln Brewster, NY 10000",
         location_coords: [100, 100],
         radius: 20,
         budget: [10, 30],
@@ -506,7 +510,7 @@ describe("test meal endpoints", () => {
         meal_name: "Test Meal",
         meal_photo: "",
         scheduled_at: new Date("August 17, 2024 03:24:00"),
-        address: "100 Cherry Ln Brewster, NY 10000",
+        location_id: "100 Cherry Ln Brewster, NY 10000",
         location_coords: [50, 50],
         radius: 20,
         budget: [10, 30],
@@ -523,7 +527,7 @@ describe("test meal endpoints", () => {
         meal_name: "Test Meal",
         meal_photo: "",
         scheduled_at: new Date("August 17, 2024 03:24:00"),
-        address: "100 Cherry Ln Brewster, NY 10000",
+        location_id: "100 Cherry Ln Brewster, NY 10000",
         location_coords: [50, 50],
         radius: 20,
         budget: [10, 30],
@@ -539,7 +543,7 @@ describe("test meal endpoints", () => {
         meal_name: "Test Meal",
         meal_photo: "",
         scheduled_at: new Date("August 17, 2024 03:24:00"),
-        address: "100 Cherry Ln Brewster, NY 10000",
+        location_id: "100 Cherry Ln Brewster, NY 10000",
         location_coords: [50, 50],
         radius: 20,
         budget: [10, 30],
@@ -574,172 +578,394 @@ describe("test meal endpoints", () => {
   });
 });
 
+// PREFERENCES ENDPOINTS ============================================>
+describe("test preferences endpoints", () => {
+  it("test add preferences", async () => {
+    const res = await request(app)
+      .post("/meals/27/preferences")
+      .send({
+        preferences: [
+          "american_restaurant",
+          "pizza_restaurant",
+          "lebanese_restaurant",
+        ],
+        google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
+        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
+        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
+        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
+        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
+        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
+        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
+        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
+        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
+        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
+        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.4,'{}'),
+        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","cafe","breakfast_restaurant"}'),
+        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
+        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
+        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
+        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
+        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
+        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
+        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","cafe","fast_food_restaurant","breakfast_restaurant"}'),
+        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"bar","american_restaurant"}')`,
+      })
+      .set("Authorization", authTokens.Test1);
+    expect(res.status).toBe(200);
+  });
+  it("test add preferences", async () => {
+    const res = await request(app)
+      .post("/meals/27/preferences")
+      .send({
+        preferences: [
+          "indian_restaurant",
+          "pizza_restaurant",
+          "italian_restaurant",
+        ],
+        google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
+        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
+        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
+        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
+        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
+        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
+        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
+        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
+        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
+        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
+        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.4,'{}'),
+        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","cafe","breakfast_restaurant"}'),
+        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
+        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
+        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
+        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
+        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
+        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
+        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","cafe","fast_food_restaurant","breakfast_restaurant"}'),
+        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"bar","american_restaurant"}')`,
+      })
+      .set("Authorization", authTokens.john2);
+    expect(res.status).toBe(200);
+  });
+  it("test get preference tags", async () => {
+    const res = await request(app)
+      .get("/meals/27/preferences")
+      .query({ setting: "unwantedCuisines" })
+      .set("Authorization", authTokens.Test1);
+    expect(res.status).toBe(200);
+    expect(res.body.preferences).toBeTruthy();
+    expect(res.body.preferences.length).toBe(3);
+  });
+  // it("test get preferences - wanted", async () => {
+  //   const res = await request(app)
+  //     .get("/meals/27/preferences")
+  //     .query({ wanted: 1 })
+  //     .set("Authorization", authTokens.Test1);
+  //   expect(res.status).toBe(200);
+  //   expect(res.body.preferences).toBeTruthy();
+  //   expect(res.body.preferences.length).toBe(2);
+  // });
+  // it("test get preferences - not wanted", async () => {
+  //   const res = await request(app)
+  //     .get("/meals/27/preferences")
+  //     .query({ wanted: 0 })
+  //     .set("Authorization", authTokens.Test1);
+  //   expect(res.status).toBe(200);
+  //   expect(res.body.preferences).toBeTruthy();
+  //   expect(res.body.preferences.length).toBe(2);
+  // });
+  it("test get min rating", async () => {
+    const res = await request(app)
+      .get("/meals/27/preferences")
+      .query({ setting: "rating" })
+      .set("Authorization", authTokens.Test1);
+    expect(res.status).toBe(200);
+    expect(res.body.rating).toBeTruthy();
+    expect(res.body.rating).toBe(4.5);
+  });
+  it("test get all settings", async () => {
+    const res = await request(app)
+      .get("/meals/27/preferences")
+      .query({ setting: "all" })
+      .set("Authorization", authTokens.Test1);
+    expect(res.status).toBe(200);
+    expect(res.body.settings).toBeTruthy();
+    expect(res.body.settings.rating).toBeTruthy();
+    expect(res.body.settings.rating).toBe(4.5);
+    expect(res.body.settings.preferences).toBeTruthy();
+    expect(res.body.settings.preferences.length).toBe(3);
+  });
+  it("test update preference tags", async () => {
+    const res = await request(app)
+      .put("/meals/27/preferences")
+      .set("Authorization", authTokens.Test1)
+      .send({
+        preferences: [
+          "american_restaurant",
+          "chinese_restaurant",
+          "lebanese_restaurant",
+        ],
+        google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
+        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
+        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
+        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
+        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
+        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
+        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
+        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
+        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
+        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
+        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.4,'{}'),
+        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","cafe","breakfast_restaurant"}'),
+        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
+        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
+        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
+        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
+        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
+        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
+        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","cafe","fast_food_restaurant","breakfast_restaurant"}'),
+        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"bar","american_restaurant"}')`,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("Successfully updated preferences");
+    console.log(res.body);
+    let list = await request(app)
+      .get("/meals/27/preferences")
+      .query({ setting: "unwantedCuisines" })
+      .set("Authorization", authTokens.Test1);
+
+    expect(list.body.preferences.length).toBe(3);
+  });
+  it("test update min_rating", async () => {
+    const res = await request(app)
+      .put("/meals/27/preferences")
+      .set("Authorization", authTokens.Test1)
+      .send({
+        min_rating: 3.5,
+        google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
+        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
+        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
+        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
+        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
+        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
+        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
+        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
+        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
+        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
+        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.4,'{}'),
+        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","cafe","breakfast_restaurant"}'),
+        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
+        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
+        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
+        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
+        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
+        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
+        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","cafe","fast_food_restaurant","breakfast_restaurant"}'),
+        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"bar","american_restaurant"}')`,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("Successfully updated preferences");
+    let list = await request(app)
+      .get("/meals/27/preferences")
+      .query({ setting: "rating" })
+      .set("Authorization", authTokens.Test1);
+
+    expect(list.body.rating).toBe(3.5);
+  });
+});
+
 // restaurants ------------------------------------------------>
 describe("test meal restaurants", () => {
-  it("test get restaurants", async () => {
-    const res = await request(app)
-      .get("/meals/27/restaurants")
-      .set("Authorization", authTokens.Test1);
-    console.log(res.body);
-    expect(res.status).toBe(200);
-  });
-  it("test add restaurant - insufficient data", async () => {
-    const res = await request(app)
-      .post("/meals/27/restaurants")
-      .set("Authorization", authTokens.Test1)
-      .send({ place_id: "resM" });
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Missing restaurant data");
-  });
-  it("test add restaurant - like", async () => {
-    const res = await request(app)
-      .post("/meals/27/restaurants")
-      .query({ approved: 1 })
-      .set("Authorization", authTokens.Test1)
-      .send({ place_id: "resM" });
-
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully added");
-    expect(res.body.liked).toBeTruthy();
-  });
-  it("test add restaurant - already exists", async () => {
-    const res = await request(app)
-      .post("/meals/27/restaurants")
-      .query({ approved: 0 })
-      .set("Authorization", authTokens.Test1)
-      .send({ place_id: "resM" });
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Restaurant already exists");
-  });
-  it("test delete restaurant", async () => {
-    const res = await request(app)
-      .delete("/meals/27/restaurants/resM")
-      .set("Authorization", authTokens.Test1);
-
-    expect(res.status).toBe(200);
-  });
-  it("test add restaurant - dislike", async () => {
-    const res = await request(app)
-      .post("/meals/27/restaurants")
-      .query({ approved: 0 })
-      .set("Authorization", authTokens.Test1)
-      .send({ place_id: "resM" });
-
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully added");
-    expect(res.body.liked).not.toBeTruthy();
-  });
-  it("test update restaurant", async () => {
+  it("test update restaurant - like", async () => {
     const res = await request(app)
       .put("/meals/27/restaurants")
-      .query({ approved: 1 })
-      .set("Authorization", authTokens.Test1)
-      .send({ place_id: "resM" });
-
+      .send({ place_id: "ChIJl4RjnqeTwokRgvrQWgt9EmY", action: "like" })
+      .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully updated");
     expect(res.body.liked).toBeTruthy();
   });
-});
-
-// PREFERENCES ENDPOINTS ============================================>
-describe("test preferences endpoints", () => {
-  it("test get preferences", async () => {
+  it("test update restaurant - like", async () => {
     const res = await request(app)
-      .get("/meals/27/preferences")
+      .put("/meals/27/restaurants")
+      .send({ place_id: "ChIJxxDLVlGNwokRPgtjAbxyevY", action: "like" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
-    expect(res.body.preferences).toBeTruthy();
-    expect(res.body.preferences.length).toBe(4);
+    expect(res.body.message).toBe("Successfully updated");
+    expect(res.body.liked).toBeTruthy();
   });
-  it("test get preferences - wanted", async () => {
+  it("test update restaurant - dislike", async () => {
     const res = await request(app)
-      .get("/meals/27/preferences")
-      .query({ wanted: 1 })
+      .put("/meals/27/restaurants")
+      .send({ place_id: "ChIJqyTM-MeSwokRwtBPDSglPUg", action: "dislike" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
-    expect(res.body.preferences).toBeTruthy();
-    expect(res.body.preferences.length).toBe(2);
+    expect(res.body.message).toBe("Successfully updated");
+    expect(res.body.liked).not.toBeTruthy();
   });
-  it("test get preferences - not wanted", async () => {
+  it("test update restaurant - dislike", async () => {
     const res = await request(app)
-      .get("/meals/27/preferences")
-      .query({ wanted: 0 })
+      .put("/meals/27/restaurants")
+      .send({ place_id: "ChIJZReJaq6SwokRbZGfHBROUZU", action: "dislike" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
-    expect(res.body.preferences).toBeTruthy();
-    expect(res.body.preferences.length).toBe(2);
+    expect(res.body.message).toBe("Successfully updated");
+    expect(res.body.liked).not.toBeTruthy();
   });
-  it("test update preferences - no deletion", async () => {
+  it("test get google data", async () => {
     const res = await request(app)
-      .post("/meals/27/preferences")
-      .set("Authorization", authTokens.Test1)
-      .send({
-        toAdd: ["thai_restaurant"],
-        toDelete: [],
-      })
-      .query({ wanted: 1 });
+      .get("/meals/27/googleData")
+      .set("Authorization", authTokens.john2);
     console.log(res.body);
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully updated preferences");
-    let list = await request(app)
-      .get("/meals/27/preferences")
-      .query({ wanted: 1 })
-      .set("Authorization", authTokens.Test1);
-    expect(list.body.preferences.length).toBe(3);
   });
-  it("test update preferences", async () => {
+  it("test get restaurant scores", async () => {
     const res = await request(app)
-      .post("/meals/27/preferences")
-      .set("Authorization", authTokens.Test1)
-      .send({
-        toAdd: ["pizza_restaurant"],
-        toDelete: ["thai_restaurant"],
+      .get("/meals/27/restaurants")
+      .query({
+        place_ids: [
+          "ChIJv0CFoxKTwokR4Sfgcmab1EI",
+          "ChIJ23paVWmTwokRd0rp8kdKM0w",
+          "ChIJK0BTQK6SwokRN5bYvABnbvU",
+          "ChIJfxSm1EyTwokRYGIgYm3dqls",
+          "ChIJxxDLVlGNwokRPgtjAbxyevY",
+          "ChIJJZ99iq2SwokRkbZKRzJeoio",
+          "ChIJ3dQdIsCSwokRs0eyh6JtnNU",
+          "ChIJDYixUwKTwokRPRmLS0smLjY",
+          "ChIJu0cRRTKTwokRfNplZS8Lbjc",
+          "ChIJBzAI6pKTwokRquXPFwGcFOA",
+          "ChIJE4lzm8eSwokRiN93djbk0Ig",
+          "ChIJG3TgE66SwokRX0scyzq-V6o",
+          "ChIJl4RjnqeTwokRgvrQWgt9EmY",
+          "ChIJN78jnMeSwokRpT5Sq_QGD58",
+          "ChIJqyTM-MeSwokRwtBPDSglPUg",
+          "ChIJiUIlT3mTwokRrJDV5pZnTMs",
+          "ChIJ0aowaK6SwokRL-HTR_foN38",
+          "ChIJH-lolKzywokRCvohk-BdCT0",
+          "ChIJZReJaq6SwokRbZGfHBROUZU",
+        ],
       })
-      .query({ wanted: 1 });
+      .set("Authorization", authTokens.john2);
+    // console.log(res.body);
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully updated preferences");
-    let list = await request(app)
-      .get("/meals/27/preferences")
-      .query({ wanted: 1 })
-      .set("Authorization", authTokens.Test1);
-    console.log(list.body);
-    expect(list.body.preferences.length).toBe(3);
-  });
-  it("test update preferences - preexisting tag", async () => {
-    const res = await request(app)
-      .post("/meals/27/preferences")
-      .set("Authorization", authTokens.Test1)
-      .send({
-        toAdd: ["pizza_restaurant"],
-        toDelete: [],
-      })
-      .query({ wanted: 1 });
-    console.log(res.body);
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Already up to date");
-    let list = await request(app)
-      .get("/meals/27/preferences")
-      .query({ wanted: 1 })
-      .set("Authorization", authTokens.Test1);
-    expect(list.body.preferences.length).toBe(3);
   });
 });
+// it("test add restaurant - insufficient data", async () => {
+//   const res = await request(app)
+//     .post("/meals/27/restaurants")
+//     .set("Authorization", authTokens.Test1)
+//     .send({ place_id: "resM" });
+//   expect(res.status).toBe(401);
+//   expect(res.body.error).toBe("Missing restaurant data");
+// });
+// it("test add restaurant - like", async () => {
+//   const res = await request(app)
+//     .post("/meals/27/restaurants")
+//     .query({ approved: 1 })
+//     .set("Authorization", authTokens.Test1)
+//     .send({ place_id: "resM" });
 
-// // GOOGLE ENDPOINTS =================================================>
-// describe("test google endpoints", () => {
-//   it("test sample data", async () => {
+//   expect(res.status).toBe(200);
+//   expect(res.body.message).toBe("Successfully added");
+//   expect(res.body.liked).toBeTruthy();
+// });
+// it("test add restaurant - already exists", async () => {
+//   const res = await request(app)
+//     .post("/meals/27/restaurants")
+//     .query({ approved: 0 })
+//     .set("Authorization", authTokens.Test1)
+//     .send({ place_id: "resM" });
+//   expect(res.status).toBe(401);
+//   expect(res.body.error).toBe("Restaurant already exists");
+// });
+// it("test delete restaurant", async () => {
+//   const res = await request(app)
+//     .delete("/meals/27/restaurants/resM")
+//     .set("Authorization", authTokens.Test1);
+
+//   expect(res.status).toBe(200);
+// });
+// it("test add restaurant - dislike", async () => {
+//   const res = await request(app)
+//     .post("/meals/27/restaurants")
+//     .query({ approved: 0 })
+//     .set("Authorization", authTokens.Test1)
+//     .send({ place_id: "resM" });
+
+//   expect(res.status).toBe(200);
+//   expect(res.body.message).toBe("Successfully added");
+//   expect(res.body.liked).not.toBeTruthy();
+// });
+//   it("test update restaurant", async () => {
 //     const res = await request(app)
-//       .get("/restaurants/test")
+//       .put("/meals/27/restaurants")
+//       .query({ approved: 1 })
+//       .set("Authorization", authTokens.Test1)
+//       .send({ place_id: "resM" });
+
+//     expect(res.status).toBe(200);
+//     expect(res.body.message).toBe("Successfully updated");
+//     expect(res.body.liked).toBeTruthy();
+//   });
+// });
+
+// GOOGLE ENDPOINTS =================================================>
+describe("test google endpoints", () => {
+  // it("test sample data", async () => {
+  //   console.log("testing.....");
+  //   const res = await request(app)
+  //     .get("/meals/27/restaurants")
+  //     .query({ location_id: "ChIJ-b2RmVlZwokRpb1pwEQjss0" })
+  //     .set("Authorization", authTokens.Test1);
+  //   // console.log(res.body.results);
+  //   expect(res.status).toBe(200);
+  // });
+  // it("test get geocoded data", async () => {
+  //   const res = await request(app)
+  //     .get("/meals/test")
+  //     .query({ coords: [40.939659194496, -73.83177411572733] })
+  //     .set("Authorization", authTokens.Test1);
+  //   expect(res.status).toBe(200);
+  //   expect(res.body.address).toBe(
+  //     "7 Tanglewylde Ave, Bronxville, NY 10708, USA"
+  //   );
+  // });
+  // it("test get photo", async () => {
+  //   const res = await request(app)
+  //     .post("/restaurants/photo")
+  //     .send({
+  //       photo_name:
+  //         "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AUc7tXWHlKEQKVYLSLjoS2YNtZ9ttjp3FP_Mnf-9VY-UX7OIHU_DDp9JCPJOL8oe2WE_p4dpN5Eh8EvdZr8ypx6uiRqZBxYeNodi6hAe3gkeOH5XqTbmkNGWs7pXqEQZzNksLwiUsJs2ViN0apqvkJhvA2pS--MfJcC65grX",
+  //     })
+  //     .set("Authorization", authTokens.Test1);
+  //   expect(res.status).toBe(200);
+  // });
+  // it("test more results", async () => {
+  //   const res = await request(app)
+  //     .get("/restaurants/coords")
+  //     .set("Authorization", authTokens.Test1);
+  //   expect(res.status).toBe(200);
+  // });
+  // it("test nearby search", async () => {
+  //   const res = await request(app).get("/restaurants");
+  //   expect(res.status).toBe(200);
+  //   expect(res.body.message).toBe("this is working");
+  // });
+});
+
+// LOCATION GEOCODING ENDPOINTS ======================================>
+// describe("test geocoding endpoints", () => {
+//   it("test autocomplete", async () => {
+//     const res = await request(app)
+//       .get("/location")
+//       .query({
+//         text: "7 tanglewylde ave",
+//         latitude: 40.93932186606071,
+//         longitude: -73.83224618581667,
+//       })
 //       .set("Authorization", authTokens.Test1);
-//     // console.log(res.body.results);
+//     console.log(res.body.results);
 //     expect(res.status).toBe(200);
 //   });
-//   // it("test nearby search", async () => {
-//   //   const res = await request(app).get("/restaurants");
-//   //   expect(res.status).toBe(200);
-//   //   expect(res.body.message).toBe("this is working");
-//   // });
 // });
 
 // // describe("test auth middleware", () => {

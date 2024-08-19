@@ -61,7 +61,7 @@ exports.member_create_many = async (mealId, userIds) => {
 exports.get_valid_meal_member = async (mealId, userId) => {
   try {
     const result = await pool.query(
-      "select role from meal_members where meal_id = $1 and user_id = $2",
+      "select member_id, role from meal_members where meal_id = $1 and user_id = $2",
       [mealId, userId]
     );
     return result.rows[0];
@@ -86,15 +86,15 @@ exports.get_valid_meal_member = async (mealId, userId) => {
   // });
 };
 
-exports.get_meal_members = async (mealId) => {
+exports.get_meal_members = async (mealId, memberId) => {
   try {
     const result = await pool.query(
-      `select users.user_id, users.username, meal_members.role
+      `select users.user_id, users.name, users.username, meal_members.role
   from users
   join meal_members
   on users.user_id = meal_members.user_id
-  where meal_members.meal_id = $1`,
-      [mealId]
+  where meal_members.meal_id = $1 and meal_members.member_id != $2`,
+      [mealId, memberId]
     );
     return result.rows;
   } catch (err) {
@@ -189,6 +189,73 @@ exports.get_existing_member_ids = async (mealId) => {
   //     }
   //   );
   // });
+};
+
+exports.get_bad_tags = async (mealId, userId) => {
+  try {
+    const result = await pool.query(
+      `select bad_tags from meal_members where meal_id = $1 and user_id = $2`,
+      [mealId, userId]
+    );
+    return result.rows[0].bad_tags;
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
+exports.get_min_rating = async (mealId, userId) => {
+  try {
+    const result = await pool.query(
+      `select min_rating from meal_members where meal_id = $1 and user_id = $2`,
+      [mealId, userId]
+    );
+    return result.rows[0].min_rating;
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
+exports.member_get_settings = async (mealId, userId) => {
+  try {
+    const result = await pool.query(
+      `select min_rating, bad_tags from meal_members where meal_id = $1 and user_id = $2`,
+      [mealId, userId]
+    );
+    return result.rows[0];
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
+exports.member_update_bad_tags = async (memberId, tagList) => {
+  try {
+    const result = await pool.query(
+      `update meal_members set bad_tags = $1 where member_id=$2 returning bad_tags`,
+      [tagList, memberId]
+    );
+    return result.rows[0].bad_tags;
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
+exports.member_update_min_rating = async (memberId, rating) => {
+  console.log(memberId);
+  console.log(rating);
+  try {
+    const result = await pool.query(
+      `update meal_members set min_rating = $1 where member_id=$2 returning min_rating`,
+      [rating, memberId]
+    );
+    return result.rows[0].min_rating;
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
 };
 
 exports.member_delete = async (mealId, userId) => {

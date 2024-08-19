@@ -7,6 +7,7 @@ const { verify_meal_member } = require("../middleware/mealsMiddleware");
 
 router.get("/", google_controller.nearby_search);
 
-router.get("/test", verifyToken, google_controller.sample_google_data);
+router.get("/coords", verifyToken, google_controller.more_results);
 
+router.post("/photo", verifyToken, google_controller.get_google_photo);
 module.exports = router;

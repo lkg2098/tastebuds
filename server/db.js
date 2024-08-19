@@ -269,10 +269,10 @@ db.addTestData = async () => {
     );
     db.all(
       `insert into member_preference(session_id, user_id, preference_tag, want_to_eat) 
-    values (1,1, 'chinese_restaurant', 'true'),
-    (1,1,'mexican_restaurant','true'),
-    (1,1, 'lebanese_restaurant','false'),
-    (1,1,'american_restaurant', 'false')`,
+    values (27,1, 'chinese_restaurant', 'true'),
+    (27,1,'mexican_restaurant','true'),
+    (27,1, 'lebanese_restaurant','false'),
+    (27,1,'american_restaurant', 'false')`,
       [],
       (err) => {
         console.log(err);

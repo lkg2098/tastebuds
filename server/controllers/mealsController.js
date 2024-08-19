@@ -66,7 +66,7 @@ exports.meal_create = asyncHandler(async (req, res, next) => {
         meal_photo,
         created_at,
         scheduled_at,
-        address,
+        location_id,
         location_coords,
         radius,
         budget,
@@ -78,17 +78,17 @@ exports.meal_create = asyncHandler(async (req, res, next) => {
         meal_photo,
         created_at,
         scheduled_at,
-        address,
+        location_id,
         location_coords,
         radius,
         budget
       );
 
       // add admin user
-      await member_model.member_create(meal.meal_id, adminId, "admin");
+      await member_model.member_create(meal, adminId, "admin");
 
       if (meal) {
-        res.status(200).json({ meal_id: meal.meal_id });
+        res.status(200).json({ meal_id: meal });
       } else {
         res
           .status(401)
@@ -105,11 +105,11 @@ exports.meal_create = asyncHandler(async (req, res, next) => {
 exports.meal_get_by_id = asyncHandler(async (req, res, next) => {
   //verifies membership
   const meal = await meal_model
-    .meal_get_by_id(req.params.mealId)
+    .meal_get_by_id(req.params.mealId, req.decoded.member_id)
     .catch((err) => {
       console.log(err);
     });
-  console.log(meal);
+  // console.log(meal);
   res.status(200).json({ meal: meal, userRole: req.decoded.role });
 });
 
@@ -129,14 +129,12 @@ exports.meal_delete = asyncHandler(async (req, res, next) => {
 exports.meal_update = asyncHandler(async (req, res, next) => {
   // verifies membership
   const meal = parse_meal_body(req);
-
-  if (meal.restaurant) {
-    const updatedMeal = await meal_model
-      .meal_update_chosen_restaurant(req.params.mealId, meal.restaurant)
-      .catch((err) => {
-        console.log(err);
-        res.status(500).json({ error: err });
-      });
+  console.log(meal);
+  if (meal.chosen_restaurant) {
+    const updatedMeal = await meal_model.meal_update_chosen_restaurant(
+      req.params.mealId,
+      meal.chosen_restaurant
+    );
     if (updatedMeal) {
       res.status(200).json(updatedMeal);
     } else {
@@ -148,18 +146,16 @@ exports.meal_update = asyncHandler(async (req, res, next) => {
       meal.liked
     );
     if (updatedMeal) {
-      res.status(200).json({ liked: updatedMeal.liked == 1 });
+      res.status(200).json({ liked: updatedMeal.liked });
     } else {
       res.status(401).json({ error: "Could not update meal" });
     }
   } else {
     if (req.decoded.role && req.decoded.role == "admin") {
-      const updatedMeal = await meal_model
-        .meal_update_meal(req.params.mealId, meal)
-        .catch((err) => {
-          console.log(err);
-          res.status(500).json({ error: err });
-        });
+      const updatedMeal = await meal_model.meal_update_meal(
+        req.params.mealId,
+        meal
+      );
       if (updatedMeal) {
         res.status(200).json(updatedMeal);
       } else {

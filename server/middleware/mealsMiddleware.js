@@ -9,7 +9,11 @@ exports.verify_meal_member = asyncHandler(async (req, res, next) => {
       .catch((err) => res.status(500).json({ error: err }));
 
     if (member) {
-      req.decoded = { ...req.decoded, role: member.role };
+      req.decoded = {
+        ...req.decoded,
+        role: member.role,
+        member_id: member.member_id,
+      };
       next();
     } else {
       console.log("Not authorized, user not in meal");
@@ -29,11 +33,11 @@ exports.parse_meal_body = (req) => {
     meal_photo: req.body.meal_photo,
     created_at: new Date().toISOString(),
     scheduled_at: req.body.scheduled_at,
-    address: req.body.address,
+    location_id: req.body.location_id,
     location_coords: req.body.location_coords,
     radius: req.body.radius,
     budget: req.body.budget,
-    restaurant: req.body.restaurant,
+    chosen_restaurant: req.body.chosen_restaurant,
     liked: req.body.liked,
   };
 };

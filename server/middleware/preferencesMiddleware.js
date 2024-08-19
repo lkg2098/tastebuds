@@ -43,3 +43,61 @@ exports.prevent_duplicate_preferences = asyncHandler(async (req, res, next) => {
     res.status(401).json({ error: "Invalid query value" });
   }
 });
+
+exports.validate_preference_data = asyncHandler(async (req, res, next) => {
+  if (req.body.preferences) {
+    let preferenceList = req.body.preferences;
+    // console.log(preferenceList);
+    if (preferenceList.length <= 3) {
+      const permitted_tags = new Set([
+        "american_restaurant",
+        "barbecue_restaurant",
+        "brazilian_restaurant",
+        "breakfast_restaurant",
+        "brunch_restaurant",
+        "chinese_restaurant",
+        "fast_food_restaurant",
+        "french_restaurant",
+        "greek_restaurant",
+        "hamburger_restaurant",
+        "indian_restaurant",
+        "indonesian_restaurant",
+        "italian_restaurant",
+        "japanese_restaurant",
+        "korean_restaurant",
+        "lebanese_restaurant",
+        "mediterranean_restaurant",
+        "mexican_restaurant",
+        "middle_eastern_restaurant",
+        "pizza_restaurant",
+        "ramen_restaurant",
+        "sandwich_shop",
+        "seafood_restaurant",
+        "spanish_restaurant",
+        "steak_house",
+        "sushi_restaurant",
+        "thai_restaurant",
+        "turkish_restaurant",
+        "vietnamese_restaurant",
+      ]);
+      for (let tag of preferenceList) {
+        if (!permitted_tags.has(tag)) {
+          res.status(401).json({ error: `Invalid preference ${tag}` });
+        }
+      }
+      next();
+    } else {
+      res.status(401).json({ error: "Too many tags selected" });
+    }
+  } else {
+    next();
+  }
+});
+
+exports.parse_settings_body = (req) => {
+  return {
+    preferences: req.body.preferences || null,
+    min_rating: req.body.min_rating || null,
+    google_data_string: req.body.google_data_string,
+  };
+};

@@ -6,6 +6,7 @@ const user_model = require("../models/users");
 const user_controller = require("./usersController");
 
 exports.user_is_logged_in = (req, res, next) => {
+  console.log("checking...");
   res.status(200).json({ message: "Successfully logged in!" });
 };
 exports.generate_auth_tokens = (user_id, username) => {

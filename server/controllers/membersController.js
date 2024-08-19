@@ -3,9 +3,10 @@ const member_model = require("../models/members");
 const user_model = require("../models/users");
 
 exports.meal_members_get = asyncHandler(async (req, res, next) => {
-  let members = await member_model
-    .get_meal_members(req.params.mealId)
-    .catch((err) => res.status(500).json({ error: err }));
+  let members = await member_model.get_meal_members(
+    req.params.mealId,
+    req.decoded.member_id
+  );
   res.status(200).json({ members: members });
 });
 
@@ -31,12 +32,7 @@ exports.meal_members_add = asyncHandler(async (req, res, next) => {
 
       // add new ids if they exist
       if (newIds.size) {
-        await member_model
-          .member_create_many(req.params.mealId, [...newIds])
-          .catch((err) => {
-            console.log(err);
-            res.status(500).json({ error: err });
-          });
+        await member_model.member_create_many(req.params.mealId, [...newIds]);
 
         const responseBody = {
           message: `Successfully added ${userIds.length} new member${
@@ -67,18 +63,16 @@ exports.meal_members_add = asyncHandler(async (req, res, next) => {
 
 exports.meal_members_delete = asyncHandler(async (req, res, next) => {
   //checks if admin or removing self
-  if (
-    req.decoded &&
-    (req.decoded.role == "admin" || req.decoded.user_id == req.params.userId)
-  ) {
-    await member_model
-      .member_delete(req.params.mealId, req.params.userId)
-      .catch((err) => {
-        console.log(err);
-        res.status(500).json({ error: err });
-      });
+  if (req.decoded && req.decoded.role == "admin") {
+    await member_model.member_delete(req.params.mealId, req.params.userId);
     res.status(200).json();
   } else {
     res.status(401).json({ error: "Not authorized" });
   }
+});
+
+exports.leave_meal = asyncHandler(async (req, res, next) => {
+  //checks if admin or removing self
+  await member_model.member_delete(req.params.mealId, req.decoded.user_id);
+  res.status(200).json();
 });

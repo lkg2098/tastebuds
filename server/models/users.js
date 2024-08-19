@@ -230,7 +230,7 @@ exports.list_users = async () => {
 exports.search_users = async (queryTerm, searcher) => {
   try {
     let result = await pool.query(
-      "select username, name from users where (username like $1 or name like $1) and username != $2",
+      "select user_id, username, name from users where (username like $1 or name like $1) and username != $2",
       [`%${queryTerm}%`, searcher]
     );
     return result.rows;
