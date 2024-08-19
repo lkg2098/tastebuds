@@ -37,15 +37,15 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
           // wrong refresh token
           res.status(401).json({ error: "Not authorized" });
         } else {
-          const user = await user_model
-            .get_user_by_username(decodedToken.username)
-            .catch((err) => res.status(500).json({ error: err }));
-          console.log(user);
+          const user = await user_model.get_user_by_username(
+            decodedToken.username
+          );
+
           if (user) {
             const newAccessToken = jwt.sign(
               { user_id: user.user_id, username: decodedToken.username },
               process.env.JWT_SECRET,
-              { expiresIn: "10m" }
+              { expiresIn: "1000m" }
             );
             res.status(200).json({ accessToken: newAccessToken });
           } else {

@@ -43,7 +43,6 @@ exports.meal_search = asyncHandler(async (req, res, next) => {
     //   req.decoded.user_id
     // );
 
-    // const memberCount = await meal_model.meal_member_count(1);
     res.status(200).json({});
   }
 });

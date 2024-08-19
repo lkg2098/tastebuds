@@ -10,6 +10,18 @@ exports.meal_members_get = asyncHandler(async (req, res, next) => {
   res.status(200).json({ members: members });
 });
 
+exports.meal_member_add = asyncHandler(async (req, res, next) => {
+  const { user_id, role } = req.body;
+  console.log(req.params.mealId, user_id);
+  let rows = await member_model.member_create(req.params.mealId, user_id, role);
+  console.log(rows);
+  if (rows.length) {
+    res.status(200).json({ message: "Successfully added member" });
+  } else {
+    res.status(401).json({ error: "Member already in meal" });
+  }
+});
+
 exports.meal_members_add = asyncHandler(async (req, res, next) => {
   //checks if admin
 

@@ -1,4 +1,3 @@
-const db = require("../db");
 const pool = require("../pool");
 
 exports.add_restaurants = async (ids) => {
@@ -29,26 +28,6 @@ exports.meal_restaurant_create = async (data) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.get(
-  //     `insert into meal_restaurant
-  //     (place_id, meal_id, user_id, approved)
-  //     values (?,?,?,?) returning place_id;`,
-  //     [place_id, meal_id, user_id, approved],
-  //     (err, row) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       } else {
-  //         if (row) {
-  //           resolve(row);
-  //         } else {
-  //           reject("Could not add restaurant data");
-  //         }
-  //       }
-  //     }
-  //   );
-  // });
 };
 
 exports.create_member_restaurants = async (member_id, google_data_string) => {
@@ -81,103 +60,9 @@ cross join (${google_data_string})
   }
 };
 
-// `insert into meal_restaurants(member_id, place_id, score, hidden) select data.member_id,
-// data.place_id,
-// (2*power(8, data.bad_count + (case when bad_rating then 1 else 0 end))) as score,
-// (data.all_bad_tags or data.bad_rating) as hidden from(select
-//     pref.member_id,
-//     r.place_id,
-//     count(case when pref.tag = any(r.tags::text[]) then 1 end) as bad_count,
-//     (array_length(r.tags::text[],1) is not null and (pref.bad_tags ::text[]) @> (r.tags::text[])) as all_bad_tags,
-//     r.rating < avg(pref.min_rating) as bad_rating
-//     from (select member_id,
-//         min_rating,
-//         unnest(bad_tags) as tag,
-//         bad_tags from meal_members where member_id = 138) as pref
-// cross join (values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
-//     ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
-//     ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
-//     ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-//     ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
-//     ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.5,'{"american_restaurant"}'),
-//     ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
-//     ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.5,'{"bar"}'),
-//     ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.1,'{"bar","american_restaurant"}'),
-//     ('ChIJmV5ONq6SwokR9NUCEVE0DKI', 4.5,'{"italian_restaurant","pizza_restaurant"}'))
-//     as r(place_id, rating, tags)
-//     group by pref.member_id, r.place_id, r.rating, r.tags,pref.bad_tags) as data;`
-
-// INSERT NEW PLACES INTO MEAL RESTAURANTS
-// insert into meal_restaurants (place_id, member_id) select * from (select place_id, member_id from (values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
-//         ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
-//         ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
-//         ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.2,'{"brunch_restaurant"}'),
-//         ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","breakfast_restaurant","cafe"}'),
-//         ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
-//         ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
-//         ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
-//         ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
-//         ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
-//         ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.3,'{}'),
-//         ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
-//         ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","breakfast_restaurant","cafe"}'),
-//         ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
-//         ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
-//         ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
-//         ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
-//         ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
-//         ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","breakfast_restaurant","fast_food_restaurant","cafe"}'),
-//         ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"american_restaurant","bar"}')) as r(place_id, rating, tags) cross join(
-//          select distinct meal_restaurants.member_id from meal_restaurants
-//          join meal_members on meal_restaurants.member_id = meal_members.member_id where meal_members.meal_id = 27) as ids) as data
-//          where not exists ( select 1 from meal_restaurants where meal_restaurants.member_id = data.member_id and meal_restaurants.place_id = data.place_id);
-
-// DELETE OLD PLACES FROM MEAL RESTAURANTS ?
-// delete from meal_restaurants where mr_id > 34 and place_id in (select place_id from (values('ChIJlZuJwOiSwokRrJNNhf-PrWE', 4.5,'{"pizza_restaurant","italian_restaurant","bar"}'),
-//       ('ChIJZ7aROYmTwokRc95v_J8fw6o', 3,'{"vegan_restaurant","vegetarian_restaurant"}'),
-//       ('ChIJsdgOWwKTwokRFMerkmAr0cY', 4.5,'{"italian_restaurant","bar"}'),
-//       ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
-//       ('ChIJ--5iQuiSwokR7jxhtfFChCw', 4.3,'{"italian_restaurant","pizza_restaurant"}'),
-//       ('ChIJvd_wzOiSwokRKwzdpR4KUM4', 4.2,'{"japanese_restaurant","sushi_restaurant"}'),
-//       ('ChIJdXWPRu-SwokRa_l7nmeaCKk', 4.5,'{"sandwich_shop"}'),
-//       ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
-//       ('ChIJVQGVOAOTwokRTb7nlptnV4o', 4.1,'{"italian_restaurant","pizza_restaurant","bar"}'),
-//       ('ChIJc4PrvuiSwokRB9FSa4E-M2c', 4.5,'{"hamburger_restaurant","american_restaurant"}'),
-//       ('ChIJjzQuZOmSwokRJY6Tl0nn3TM', 4.4,'{"american_restaurant"}'),
-//       ('ChIJ9-DcCKKTwokRYUxQqy5dQlU', 4.5,'{"mexican_restaurant"}'),
-//       ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
-//       ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.3,'{}'),
-//       ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","breakfast_restaurant","cafe"}'),
-//       ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
-//       ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
-//       ('ChIJW-Hq2ByTwokRL4y1jAbdAw4', 3.9,'{"coffee_shop","breakfast_restaurant","cafe"}'),
-//       ('ChIJ466AQ6aTwokRsYGb5D8a3s4', 4.6,'{"spanish_restaurant"}'),
-//       ('ChIJVV2WwceSwokR4t52AJ6MZ2M', 4.5,'{"bar"}')) as r(place_id, rating, tags)) and member_id in (select member_id from meal_members where meal_id = 27);
-
 exports.update_member_restaurants = async (member_id, google_data_string) => {
   console.log(member_id);
   try {
-    // console.log(`update meal_restaurants set score = newScores.score, hidden = newScores.hidden from(
-    //     select member_id,
-    //   data.place_id,
-    //   (2*power(8, data.bad_count + (case when bad_rating then 1 else 0 end))) as score,
-    //   (data.all_bad_tags or data.bad_rating) as hidden
-    //   from(select
-    //       pref.member_id,
-    //       r.place_id,
-    //       count(case when pref.tag = any(r.tags::text[]) then 1 end) as bad_count,
-    //       (array_length(r.tags::text[],1) is not null and (pref.bad_tags ::text[]) @> (r.tags::text[])) as all_bad_tags,
-    //       r.rating < avg(pref.min_rating) as bad_rating
-    //       from (select member_id,
-    //           min_rating,
-    //           unnest(bad_tags) as tag,
-    //           bad_tags from meal_members where member_id = $1) as pref
-    //   cross join (${google_data_string})
-    //       as r(place_id, rating, tags)
-    //       group by pref.member_id, r.place_id, r.rating, r.tags,pref.bad_tags) as data) as newScores
-    //       where meal_restaurants.member_id = newScores.member_id
-    //       and meal_restaurants.place_id = newScores.place_id
-    //       returning meal_restaurants.*`);
     const result = await pool.query(
       `update meal_restaurants set score = newScores.score, hidden = newScores.hidden from(
         select member_id, 
@@ -295,31 +180,6 @@ exports.meal_restaurants_get = async (mealId, memberCount) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.all(
-  //     `select counts.place_id as place_id,
-  //     counts.dislikes,
-  //     power(2, responses_needed) * power(10, counts.dislikes) as score,
-  //     counts.responses_needed
-  //      from
-  //         (select place_id,
-  //         count(case when not approved then 1 end) as dislikes,
-  //         ? - count(distinct user_id) as responses_needed
-  //         from meal_restaurant
-  //         where meal_id = ?
-  //         group by place_id) as counts
-  //         order by responses_needed = 0, score;`,
-  //     [memberCount, mealId],
-  //     (err, rows) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       } else {
-  //         resolve(rows);
-  //       }
-  //     }
-  //   );
-  // });
 };
 
 exports.get_meal_restaurants = async (mealId, memberId, google_ids) => {
@@ -372,21 +232,6 @@ exports.get_restaurant_by_ids = async (memberId, placeId) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.get(
-  //     `select * from meal_restaurant
-  //     where meal_id = ? and user_id = ? and place_id = ?`,
-  //     [mealId, userId, placeId],
-  //     (err, row) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       } else {
-  //         resolve(row);
-  //       }
-  //     }
-  //   );
-  // });
 };
 
 exports.meal_restaurants_get_by_user = async (memberId) => {
@@ -400,27 +245,6 @@ exports.meal_restaurants_get_by_user = async (memberId) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.all(
-  //     `select
-  //         place_id, approved
-  //         from meal_restaurant
-  //         where meal_id = ? and user_id = ?`,
-  //     [mealId, userId],
-  //     (err, rows) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       } else {
-  //         if (rows) {
-  //           resolve(rows);
-  //         } else {
-  //           reject("Could not get restaurants for user");
-  //         }
-  //       }
-  //     }
-  //   );
-  // });
 };
 
 exports.meal_restaurant_delete = async (memberId, place_id) => {
@@ -435,20 +259,6 @@ exports.meal_restaurant_delete = async (memberId, place_id) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.get(
-  //     `delete from meal_restaurant
-  //     where meal_id=? and user_id =? and place_id = ?`,
-  //     [mealId, userId, place_id],
-  //     (err, row) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       }
-  //       resolve();
-  //     }
-  //   );
-  // });
 };
 
 exports.clear_meal_restaurants = async (mealId) => {
@@ -462,20 +272,6 @@ exports.clear_meal_restaurants = async (mealId) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.get(
-  //     `delete from meal_restaurant
-  //     where meal_id=?`,
-  //     [mealId],
-  //     (err, row) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       }
-  //       resolve();
-  //     }
-  //   );
-  // });
 };
 
 exports.meal_restaurant_update_approved = async (data) => {
@@ -492,24 +288,4 @@ exports.meal_restaurant_update_approved = async (data) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.get(
-  //     `update meal_restaurant set
-  //       approved = ?
-  //       where place_id = ? and meal_id=? and user_id = ?  returning approved;`,
-  //     [approved, place_id, meal_id, user_id],
-  //     (err, row) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       } else {
-  //         if (row) {
-  //           resolve(row);
-  //         } else {
-  //           reject("Could not add restaurant data");
-  //         }
-  //       }
-  //     }
-  //   );
-  // });
 };

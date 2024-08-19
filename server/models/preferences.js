@@ -1,4 +1,3 @@
-const db = require("../db");
 const pool = require("../pool");
 
 exports.get_preferences = async (meal_id, user_id) => {
@@ -14,21 +13,6 @@ exports.get_preferences = async (meal_id, user_id) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.all(
-  //     `select preference_tag, want_to_eat
-  //       from member_preference
-  //       where meal_id=? and user_id=?`,
-  //     [meal_id, user_id],
-  //     (err, rows) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       }
-  //       resolve(rows);
-  //     }
-  //   );
-  // });
 };
 
 exports.get_wanted_preferences = async (meal_id, user_id) => {
@@ -43,21 +27,6 @@ exports.get_wanted_preferences = async (meal_id, user_id) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.all(
-  //     `select preference_tag
-  //           from member_preference
-  //           where meal_id=? and user_id=? and want_to_eat = 1`,
-  //     [meal_id, user_id],
-  //     (err, rows) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       }
-  //       resolve(rows);
-  //     }
-  //   );
-  // });
 };
 
 exports.get_unwanted_preferences = async (meal_id, user_id) => {
@@ -72,21 +41,6 @@ exports.get_unwanted_preferences = async (meal_id, user_id) => {
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.all(
-  //     `select preference_tag
-  //             from member_preference
-  //             where meal_id=? and user_id=? and want_to_eat = 0`,
-  //     [meal_id, user_id],
-  //     (err, rows) => {
-  //       if (err) {
-  //         console.log(err);
-  //         reject(err);
-  //       }
-  //       resolve(rows);
-  //     }
-  //   );
-  // });
 };
 
 exports.update_preferences = async (
@@ -134,36 +88,4 @@ exports.update_preferences = async (
     console.log(err);
     throw err;
   }
-  // return new Promise((resolve, reject) => {
-  //   db.serialize(() => {
-  //     db.run(
-  //       `insert into member_preference (meal_id, user_id, preference_tag, want_to_eat)
-  //       values ${input}`,
-  //       [],
-  //       (err) => {
-  //         if (err) {
-  //           console.log(err);
-  //           reject(err);
-  //         }
-  //         if (tagsToDelete.length == 2) {
-  //           resolve();
-  //         }
-  //       }
-  //     );
-  //     if (tagsToDelete.length > 2) {
-  //       db.run(
-  //         `delete from member_preference
-  //         where meal_id = ? and user_id = ? and want_to_eat = ? and preference_tag in ${tagsToDelete}`,
-  //         [meal_id, user_id, wanted],
-  //         (err) => {
-  //           if (err) {
-  //             console.log(err);
-  //             reject(err);
-  //           }
-  //           resolve();
-  //         }
-  //       );
-  //     }
-  //   });
-  // });
 };

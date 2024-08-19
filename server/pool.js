@@ -1,18 +1,18 @@
 const Pool = require("pg").Pool;
-// const pool = new Pool({
-//   user: "lauren",
-//   host: "localhost",
-//   database: "api",
-//   password: process.env.POSTGRESQL_PASSWORD,
-//   port: 5432,
-// });
-
 const pool = new Pool({
-  connectionString: process.env.POSTGRES_CONFIG_LINK,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  user: "lauren",
+  host: "localhost",
+  database: "api",
+  password: process.env.POSTGRESQL_PASSWORD,
+  port: 5432,
 });
+
+// const pool = new Pool({
+//   connectionString: process.env.POSTGRES_CONFIG_LINK,
+//   ssl: {
+//     rejectUnauthorized: false,
+//   },
+// });
 
 pool.clearTestData = async () => {
   await pool.query("DELETE FROM users WHERE username IN ($1,$2,$3)", [

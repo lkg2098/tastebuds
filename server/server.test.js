@@ -1,14 +1,10 @@
 const request = require("supertest");
 const app = require("./server");
 const bcrypt = require("bcrypt");
-// const db = require("./db");
+
 const pool = require("./pool");
 
-// beforeAll(async () => {
-//   await db.addTestData();
-// });
 afterAll(async () => {
-  // db.clearTestData();
   await pool.clearTestData();
   pool.end();
   app.closeServer();
@@ -410,64 +406,76 @@ describe("test meal endpoints", () => {
     expect(res.body.meal.created_at).toBeTruthy();
   });
 
-  it("test add members - add one", async () => {
-    const res = await request(app)
-      .post(`/meals/${testMealId}/members/new`)
-      .set("Authorization", authTokens.Test1)
-      .send({ users: ["bob96"] });
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully added 1 new member");
-  });
-  it("test add members - add one", async () => {
+  it("test add member - already in meal", async () => {
+    console.log(userData.john.id);
     const res = await request(app)
       .post(`/meals/27/members/new`)
       .set("Authorization", authTokens.Test1)
-      .send({ users: ["john2"] });
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully added 1 new member");
-  });
-  it("test add members - add multiple", async () => {
-    const res = await request(app)
-      .post(`/meals/${testMealId}/members/new`)
-      .set("Authorization", authTokens.Test1)
-      .send({ users: ["ghostBoy97", "linda45"] });
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully added 2 new members");
-  });
-  it("test add members - add some non-existent", async () => {
-    const res = await request(app)
-      .post(`/meals/${testMealId}/members/new`)
-      .set("Authorization", authTokens.Test1)
-      .send({ users: ["24601", "linda47"] });
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully added 1 new member");
-    expect(res.body.errors[0]).toBe(
-      "Some users could not be added: users not found"
-    );
-  });
-  it("test add members - no users exist", async () => {
-    const res = await request(app)
-      .post(`/meals/${testMealId}/members/new`)
-      .set("Authorization", authTokens.Test1)
-      .send({ users: ["24602", "linda47"] });
+      .send({ user_id: 2, role: "guest" });
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Could not find users to add");
+    expect(res.body.error).toBe("Member already in meal");
   });
-  it("test add members - members already in meal", async () => {
+  it("test add member - test meal", async () => {
+    console.log(userData.john.id);
     const res = await request(app)
       .post(`/meals/${testMealId}/members/new`)
       .set("Authorization", authTokens.Test1)
-      .send({ users: ["24601", "linda45"] });
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("All users already in meal");
+      .send({ user_id: 2, role: "guest" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("Successfully added member");
   });
+  it("test add member", async () => {
+    const res = await request(app)
+      .post(`/meals/27/members/new`)
+      .set("Authorization", authTokens.Test1)
+      .send({ user_id: userData.john.id, role: "guest" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("Successfully added member");
+  });
+
+  // it("test add members - add multiple", async () => {
+  //   const res = await request(app)
+  //     .post(`/meals/${testMealId}/members/new`)
+  //     .set("Authorization", authTokens.Test1)
+  //     .send({ users: ["ghostBoy97", "linda45"] });
+  //   expect(res.status).toBe(200);
+  //   expect(res.body.message).toBe("Successfully added 2 new members");
+  // });
+  // it("test add members - add some non-existent", async () => {
+  //   const res = await request(app)
+  //     .post(`/meals/${testMealId}/members/new`)
+  //     .set("Authorization", authTokens.Test1)
+  //     .send({ users: ["24601", "linda47"] });
+  //   expect(res.status).toBe(200);
+  //   expect(res.body.message).toBe("Successfully added 1 new member");
+  //   expect(res.body.errors[0]).toBe(
+  //     "Some users could not be added: users not found"
+  //   );
+  // });
+  // it("test add members - no users exist", async () => {
+  //   const res = await request(app)
+  //     .post(`/meals/${testMealId}/members/new`)
+  //     .set("Authorization", authTokens.Test1)
+  //     .send({ users: ["24602", "linda47"] });
+  //   expect(res.status).toBe(401);
+  //   expect(res.body.error).toBe("Could not find users to add");
+  // });
+  // it("test add members - members already in meal", async () => {
+  //   const res = await request(app)
+  //     .post(`/meals/${testMealId}/members/new`)
+  //     .set("Authorization", authTokens.Test1)
+  //     .send({ users: ["24601", "linda45"] });
+  //   expect(res.status).toBe(401);
+  //   expect(res.body.error).toBe("All users already in meal");
+  // });
   it("test list meal members", async () => {
     const res = await request(app)
       .get(`/meals/${testMealId}/members`)
       .set("Authorization", authTokens.Test1);
+    console.log(res.body);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.members)).toBeTruthy();
-    expect(res.body.members.length).toBe(5);
+    expect(res.body.members.length).toBe(1);
   });
 
   it("test meal search", async () => {
@@ -566,7 +574,7 @@ describe("test meal endpoints", () => {
     const res = await request(app)
       .put(`/meals/${testMealId}`)
       .set("Authorization", authTokens.Test1)
-      .send({ restaurant: "aRestaurantId" });
+      .send({ chosen_restaurant: "aRestaurantId" });
     expect(res.status).toBe(200);
     expect(res.body.chosen_restaurant).toBe("aRestaurantId");
   });

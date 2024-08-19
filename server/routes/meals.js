@@ -62,7 +62,7 @@ router.post(
   "/:mealId/members/new",
   verifyToken,
   verify_meal_member,
-  member_controller.meal_members_add
+  member_controller.meal_member_add
 );
 
 // get member preferences
