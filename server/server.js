@@ -45,10 +45,16 @@ app.closeServer = () => {
 io.on("connection", (socket) => {
   console.log("user connected");
   socket.on("joinMeal", (mealId, memberId) => {
+    console.log("joining meal");
     socket.join(mealId);
   });
 
+  socket.on("testEndpoint", () => {
+    socket.emit("test succeeded");
+  });
+
   socket.on("leaveMeal", (mealId, memberId) => {
+    console.log("leaving meal");
     socket.leave(mealId);
   });
 
