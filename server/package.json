@@ -22,7 +22,8 @@
     "pg": "^8.12.0",
     "socket.io": "^4.7.5",
     "sqlite3": "^5.1.7",
-    "supertest": "^7.0.0"
+    "supertest": "^7.0.0",
+    "twilio": "^5.2.2"
   },
   "devDependencies": {
     "jest": "^29.7.0"

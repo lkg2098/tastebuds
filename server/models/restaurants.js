@@ -167,7 +167,7 @@ exports.meal_restaurants_get = async (mealId, memberCount) => {
   power(2, responses_needed) * power(10,counts.dislikes) as score,
   counts.responses_needed from 
   (select place_id,
-    count(case when not approved then 1 end) as dislikes,
+    count(case when approved < 0 then 1 end) as dislikes,
     $1 - count(distinct user_id) as responses_needed
     from meal_restaurants
     where meal_id = $2
@@ -188,14 +188,14 @@ exports.get_meal_restaurants = async (mealId, memberId, google_ids) => {
 
     let result = await pool.query(
       `select * from (select google_ids.place_id,
-      count(case when meal_restaurants.member_id is not null and meal_restaurants.approved is not null then 1 end) = 0 as unseen,
+      count(case when meal_restaurants.member_id is not null and meal_restaurants.approved != 0 then 1 end) = 0 as unseen,
       mul(case when score is not null
-            then(case when approved is null then score
-                      when approved = 'f' then score * 10 else 1 end)
+            then(case when approved = 0 then score
+                      when approved < 0 then score * (power(10,approved*-1)::numeric) else 1 end)
                       else 2 end) as total_score,
-      count(case when approved = 'f' then 1 end) > 0 as disliked,
+      count(case when approved < 0 then 1 end) > 0 as disliked,
       count(case when vetoed = 't' then 1 end) > 0 as vetoed,
-      sum(case when meal_restaurants.member_id = $1 then(case when approved is null then 0 when approved = 'f' then -1 else 1 end) else 0 end) as approved_by_user,
+      sum(case when meal_restaurants.member_id = $1 then approved else 0 end) as approved_by_user,
       sum(case when meal_members.member_id = $1 then (case when score is not null then score::real else 2 end) else 0 end) as user_raw_score,
       count(case when meal_restaurants.member_id = $1 and meal_restaurants.hidden = 't' then 1 end) > 0 as hidden
       from unnest($2::text[]) as google_ids(place_id)
@@ -203,7 +203,8 @@ exports.get_meal_restaurants = async (mealId, memberId, google_ids) => {
       left join meal_restaurants
       on meal_restaurants.place_id = google_ids.place_id and
       meal_restaurants.member_id = meal_members.member_id
-      where meal_members.meal_id = $3
+      join meals on meals.meal_id = meal_members.meal_id
+      where meals.meal_id = $3
       group by google_ids.place_id) as data
       order by disliked, unseen, case when data.unseen then data.user_raw_score when not data.unseen then data.total_score end, case when data.unseen then data.total_score when not data.unseen then data.user_raw_score end
       `,
@@ -274,15 +275,34 @@ exports.clear_meal_restaurants = async (mealId) => {
   }
 };
 
-exports.meal_restaurant_update_approved = async (data) => {
-  let { member_id, place_id, approved } = data;
+exports.meal_restaurant_like = async (member_id, place_id) => {
   try {
     const result = await pool.query(
       `update meal_restaurants set
-    approved= $1 where place_id = $2 and member_id = $3 returning place_id, approved`,
-      [approved, place_id, member_id]
+    approved= 1 where place_id = $1 and member_id = $2 returning place_id, approved`,
+      [place_id, member_id]
     );
     // console.log(result.rows[0]);
+    return result.rows[0];
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
+exports.meal_restaurant_dislike = async (member_id, place_id) => {
+  try {
+    const result = await pool.query(
+      `update meal_restaurants 
+      set approved = (oldData.appr - 1) from(
+      select approved as appr, mr_id from meal_restaurants) as oldData
+      where meal_restaurants.mr_id = oldData.mr_id
+       and meal_restaurants.member_id = $1 
+       and meal_restaurants.place_id = $2 returning place_id, approved;
+      `,
+      [member_id, place_id]
+    );
+    console.log(result.rows);
     return result.rows[0];
   } catch (err) {
     console.log(err);

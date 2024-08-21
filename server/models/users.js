@@ -25,11 +25,11 @@ exports.update_username = async (id, username) => {
   }
 };
 
-exports.update_password = async (id, passwordHash) => {
+exports.update_password = async (phone_number, passwordHash) => {
   try {
-    await pool.query("update users set password = $1 where user_id = $2", [
+    await pool.query("update users set password = $1 where phone_number = $2", [
       passwordHash,
-      id,
+      phone_number,
     ]);
   } catch (err) {
     throw err;
@@ -151,6 +151,32 @@ exports.get_user_by_username = async (username) => {
     ]);
     return result.rows[0];
   } catch (err) {
+    throw err;
+  }
+};
+
+exports.get_user_phone_number = async (user_id) => {
+  try {
+    let result = await pool.query(
+      `select phone_number from users where user_id = $1`,
+      [user_id]
+    );
+    return result.rows[0];
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
+exports.get_recovery_phone_number = async (username) => {
+  try {
+    let result = await pool.query(
+      `select phone_number from users where username = $1`,
+      [username]
+    );
+    return result.rows[0];
+  } catch (err) {
+    console.log(err);
     throw err;
   }
 };

@@ -5,6 +5,8 @@ const router = express.Router();
 const user_controller = require("../controllers/usersController");
 const meal_controller = require("../controllers/mealsController");
 const member_controller = require("../controllers/membersController");
+const sms_controller = require("../controllers/smsController");
+const { generate_password_auth_token } = require("../controllers/auth");
 const { verifyToken } = require("../middleware/auth");
 
 //user info
@@ -26,6 +28,34 @@ router.put(
   user_controller.user_update_username
 );
 
+// send sms code when user is logged in
+// gets username and phone from jwt token verification
+router.get(
+  "/account/passwordCode",
+  verifyToken,
+  user_controller.user_get_recovery_phone,
+  sms_controller.sendCode
+);
+
+// verify sms code when user is logged in
+// gets username and phone from jwt token verification
+router.put(
+  "/account/passwordCode",
+  verifyToken,
+  user_controller.user_get_recovery_phone,
+  sms_controller.verifyCode,
+  (req, res, next) => {
+    let phone_number = req.phone;
+    let passwordToken = generate_password_auth_token(phone_number);
+    res.status(200).json({ passwordToken });
+  }
+);
+
+router.get("/account/password", verifyToken, (req, res, next) => {
+  res.status(200).json({ message: "User authenticated" });
+});
+
+// verify token here takes a different jwt token than other auth routes
 router.put(
   "/account/password",
   verifyToken,

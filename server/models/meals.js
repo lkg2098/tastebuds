@@ -25,7 +25,8 @@ exports.get_meals_by_user_id = async (id) => {
       my_meals.radius, 
       my_meals.budget, 
       my_meals.chosen_restaurant, 
-      my_meals.liked 
+      my_meals.liked,
+      my_meals.round
       order by my_meals.scheduled_at`,
       [id]
     );
@@ -62,11 +63,36 @@ exports.get_past_meals_by_user_id = async (id) => {
       my_meals.radius, 
       my_meals.budget, 
       my_meals.chosen_restaurant, 
-      my_meals.liked 
+      my_meals.liked,
+      my_meals.round
       order by my_meals.scheduled_at`,
       [id]
     );
     return result.rows;
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
+exports.update_meal_round = async (meal_id) => {
+  try {
+    const result = await pool.query(
+      `update meals set round = (oldData.round + 1)
+      from (select meal_id, round from meals 
+              where meals.meal_id = $1) as oldData 
+              where meals.meal_id = oldData.meal_id 
+              and not exists (select 1 from meal_members 
+                                left join meal_restaurants 
+                                on meal_members.member_id = meal_restaurants.member_id 
+                                join meals on meal_members.meal_id = meals.meal_id
+                                where meal_members.meal_id = $1 and 
+                                (meal_restaurants.approved is null 
+                                or meal_restaurants.approved = meals.round) 
+                                order by meal_members.member_id) returning meals.round;`,
+      [meal_id]
+    );
+    return result?.rows?.length > 0;
   } catch (err) {
     console.log(err);
     throw err;
@@ -99,7 +125,8 @@ exports.get_future_meals_by_user_id = async (id) => {
       my_meals.radius, 
       my_meals.budget, 
       my_meals.chosen_restaurant, 
-      my_meals.liked 
+      my_meals.liked,
+      my_meals.round 
       order by my_meals.scheduled_at`,
       [id]
     );

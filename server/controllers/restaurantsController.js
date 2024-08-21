@@ -73,12 +73,23 @@ exports.restaurant_update = asyncHandler(async (req, res, next) => {
 
     if (restaurant) {
       if (action == "veto") {
+      } else if (action == "like") {
+        let updated = await restaurant_model.meal_restaurant_like(
+          req.decoded.member_id,
+          place_id
+        );
+        if (updated) {
+          res
+            .status(200)
+            .json({ message: "Successfully updated", liked: updated.approved });
+        } else {
+          res.status(500).json({ error: "Could not update restaurant data" });
+        }
       } else {
-        let updated = await restaurant_model.meal_restaurant_update_approved({
-          place_id: place_id,
-          approved: action == "like",
-          member_id: req.decoded.member_id,
-        });
+        let updated = await restaurant_model.meal_restaurant_dislike(
+          req.decoded.member_id,
+          place_id
+        );
         if (updated) {
           res
             .status(200)

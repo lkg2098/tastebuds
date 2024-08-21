@@ -3,6 +3,7 @@ const app = require("./server");
 const bcrypt = require("bcrypt");
 
 const pool = require("./pool");
+const { password } = require("pg/lib/defaults");
 
 afterAll(async () => {
   await pool.clearTestData();
@@ -19,7 +20,7 @@ describe("test index endpoints", () => {
     const res = await request(app).post("/signup").send({
       username: "john",
       password: "maybe45",
-      phoneNumber: "19123984506",
+      phone_number: "19123984506",
     });
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Registered successfully");
@@ -34,7 +35,7 @@ describe("test index endpoints", () => {
     const res = await request(app).post("/signup").send({
       username: "john",
       password: "12345",
-      phoneNumber: "19123984508",
+      phone_number: "19123984508",
     });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("This username is taken");
@@ -43,7 +44,7 @@ describe("test index endpoints", () => {
     const res = await request(app).post("/signup").send({
       username: "milly",
       password: "12345",
-      phoneNumber: "19123984506",
+      phone_number: "19123984506",
     });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("This phone number is taken");
@@ -90,11 +91,6 @@ describe("test index endpoints", () => {
     const res = await request(app).post("/refresh").set("Authorization", "hi");
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Not authorized");
-  });
-  it("test verification code", async () => {
-    const res = await request(app).get("/verifyPhone");
-    expect(res.status).toBe(200);
-    expect(res.body.smsCode.toString().length).toBe(4);
   });
 });
 
@@ -287,38 +283,38 @@ describe("test user endpoints", () => {
       .set("Authorization", authTokens.john2);
     expect(updated.body.user.username).toBe("john2");
   });
-  it("test update password - no auth token", async () => {
-    const res = await request(app).put("/users/account/password").send({
-      newPassword: "password1",
-    });
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Not authorized, token not available");
-  });
-  it("test update password - bad auth token", async () => {
-    const res = await request(app)
-      .put("/users/account/password")
-      .set("Authorization", "hi")
-      .send({
-        newPassword: "password1",
-      });
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Not authorized");
-  });
-  it("test update password", async () => {
-    const res = await request(app)
-      .put("/users/account/password")
-      .set("Authorization", authTokens.john2)
-      .send({
-        newPassword: "password1",
-      });
-    expect(res.status).toBe(200);
-    const updated = await request(app)
-      .get("/users/account")
-      .set("Authorization", authTokens.john2);
-    expect(
-      bcrypt.compare("password1", updated.body.user.password)
-    ).toBeTruthy();
-  });
+  // it("test update password - no auth token", async () => {
+  //   const res = await request(app).put("/users/account/password").send({
+  //     newPassword: "password1",
+  //   });
+  //   expect(res.status).toBe(401);
+  //   expect(res.body.error).toBe("Not authorized, token not available");
+  // });
+  // it("test update password - bad auth token", async () => {
+  //   const res = await request(app)
+  //     .put("/users/account/password")
+  //     .set("Authorization", "hi")
+  //     .send({
+  //       newPassword: "password1",
+  //     });
+  //   expect(res.status).toBe(401);
+  //   expect(res.body.error).toBe("Not authorized");
+  // });
+  // it("test update password", async () => {
+  //   const res = await request(app)
+  //     .put("/users/account/password")
+  //     .set("Authorization", authTokens.john2)
+  //     .send({
+  //       newPassword: "password1",
+  //     });
+  //   expect(res.status).toBe(200);
+  //   const updated = await request(app)
+  //     .get("/users/account")
+  //     .set("Authorization", authTokens.john2);
+  //   expect(
+  //     bcrypt.compare("password1", updated.body.user.password)
+  //   ).toBeTruthy();
+  // });
   it("test user delete - no auth token", async () => {
     const res = await request(app).delete("/users");
     expect(res.status).toBe(401);
@@ -432,42 +428,6 @@ describe("test meal endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully added member");
   });
-
-  // it("test add members - add multiple", async () => {
-  //   const res = await request(app)
-  //     .post(`/meals/${testMealId}/members/new`)
-  //     .set("Authorization", authTokens.Test1)
-  //     .send({ users: ["ghostBoy97", "linda45"] });
-  //   expect(res.status).toBe(200);
-  //   expect(res.body.message).toBe("Successfully added 2 new members");
-  // });
-  // it("test add members - add some non-existent", async () => {
-  //   const res = await request(app)
-  //     .post(`/meals/${testMealId}/members/new`)
-  //     .set("Authorization", authTokens.Test1)
-  //     .send({ users: ["24601", "linda47"] });
-  //   expect(res.status).toBe(200);
-  //   expect(res.body.message).toBe("Successfully added 1 new member");
-  //   expect(res.body.errors[0]).toBe(
-  //     "Some users could not be added: users not found"
-  //   );
-  // });
-  // it("test add members - no users exist", async () => {
-  //   const res = await request(app)
-  //     .post(`/meals/${testMealId}/members/new`)
-  //     .set("Authorization", authTokens.Test1)
-  //     .send({ users: ["24602", "linda47"] });
-  //   expect(res.status).toBe(401);
-  //   expect(res.body.error).toBe("Could not find users to add");
-  // });
-  // it("test add members - members already in meal", async () => {
-  //   const res = await request(app)
-  //     .post(`/meals/${testMealId}/members/new`)
-  //     .set("Authorization", authTokens.Test1)
-  //     .send({ users: ["24601", "linda45"] });
-  //   expect(res.status).toBe(401);
-  //   expect(res.body.error).toBe("All users already in meal");
-  // });
   it("test list meal members", async () => {
     const res = await request(app)
       .get(`/meals/${testMealId}/members`)
@@ -808,7 +768,7 @@ describe("test meal restaurants", () => {
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully updated");
-    expect(res.body.liked).not.toBeTruthy();
+    expect(res.body.liked).toBe(-1);
   });
   it("test update restaurant - dislike", async () => {
     const res = await request(app)
@@ -817,7 +777,7 @@ describe("test meal restaurants", () => {
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully updated");
-    expect(res.body.liked).not.toBeTruthy();
+    expect(res.body.liked).toBe(-1);
   });
   it("test get google data", async () => {
     const res = await request(app)

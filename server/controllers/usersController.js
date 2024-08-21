@@ -34,16 +34,16 @@ exports.verifyCredentials = async (username, phone) => {
 };
 
 exports.user_verify_unique = asyncHandler(async (req, res, next) => {
-  let { username, phoneNumber } = req.body;
+  let { username, phone_number } = req.body;
 
   let { usernameExists, phoneNumberExists } = await this.verifyCredentials(
     username,
-    phoneNumber
+    phone_number
   );
   if (!usernameExists && !phoneNumberExists) {
     res.status(200).json({
       message: "Verified username and phone number!",
-      loginInfo: { username, phoneNumber },
+      loginInfo: { username, phone_number },
     });
   } else {
     res.status(401).json({
@@ -85,13 +85,15 @@ exports.user_update_username = asyncHandler(async (req, res, next) => {
 
 exports.user_update_password = asyncHandler(async (req, res, next) => {
   let { newPassword } = req.body;
+  let { phone_number } = req.decoded;
   if (!newPassword) {
     res.status(401).json({ error: "Invalid new password" });
+  } else if (!phone_number) {
+    res.status(401).json({ error: "Invalid auth token" });
   } else {
     let passwordHash = await bcrypt.hash(newPassword, 8);
-    await user_model.update_password(req.params.id, passwordHash);
-
-    res.status(200).json();
+    await user_model.update_password(phone_number, passwordHash);
+    res.status(200).json({ message: "Successfully reset password" });
   }
 });
 
@@ -160,6 +162,32 @@ exports.users_query_username = asyncHandler(async (req, res, next) => {
       res.status(401).json({ message: "Something went wrong" });
     });
   res.status(200).json({ users: users });
+});
+
+exports.user_get_recovery_phone = asyncHandler(async (req, res, next) => {
+  let username;
+  if (req.decoded) {
+    username = req.decoded.username;
+  } else if (req.query.username) {
+    username = req.query.username;
+  } else if (req.body.username) {
+    username = req.body.username;
+  }
+
+  if (username) {
+    let row = await user_model.get_recovery_phone_number(username);
+
+    if (row.phone_number) {
+      req.phone = row.phone_number;
+      next();
+    } else {
+      res
+        .status(404)
+        .json({ error: "No recovery phone number associated with this user" });
+    }
+  } else {
+    res.status(401).json({ error: "No username provided" });
+  }
 });
 
 // delete user

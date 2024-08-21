@@ -13,7 +13,7 @@ exports.generate_auth_tokens = (user_id, username) => {
   let accessToken = jwt.sign(
     { user_id: user_id, username: username },
     process.env.JWT_SECRET,
-    { expiresIn: "10m" }
+    { expiresIn: "2d" }
   );
   let refreshToken = jwt.sign(
     { username: username },
@@ -23,14 +23,23 @@ exports.generate_auth_tokens = (user_id, username) => {
     }
   );
 
-  return { accessToken: accessToken, refreshToken: refreshToken };
+  return { accessToken, refreshToken };
+};
+
+exports.generate_password_auth_token = (phone_number) => {
+  let passwordToken = jwt.sign(
+    { phone_number: phone_number },
+    process.env.JWT_SECRET,
+    { expiresIn: "20m" }
+  );
+  return passwordToken;
 };
 
 exports.register = asyncHandler(async (req, res, next) => {
-  const { username, password, phoneNumber } = req.body;
+  const { username, password, phone_number } = req.body;
   console.log(req.body);
   const { usernameExists, phoneNumberExists } =
-    await user_controller.verifyCredentials(username, phoneNumber);
+    await user_controller.verifyCredentials(username, phone_number);
   if (usernameExists) {
     res.status(401).json({ error: "This username is taken" });
   } else if (phoneNumberExists) {
@@ -38,7 +47,7 @@ exports.register = asyncHandler(async (req, res, next) => {
   } else {
     let passwordHash = await bcrypt.hash(password, 8);
     let userId = await user_model
-      .create_user(username, passwordHash, phoneNumber)
+      .create_user(username, passwordHash, phone_number)
       .catch((err) => res.status(500).json({ error: err }));
     let accessTokens = this.generate_auth_tokens(userId, username);
     res
