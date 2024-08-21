@@ -7,7 +7,7 @@ exports.sendCode = asyncHandler(async (req, res, next) => {
 
   sms.verify.v2
     .services(process.env.TWILIO_VERIFY_SID)
-    .verifications.create({ to: phone_number, channel: "sms" })
+    .verifications.create({ to: process.env.TEST_PHONE, channel: "sms" })
     .then((verification) => {
       console.log(verification.sid);
       if (verification.sid && verification.status == "pending") {
@@ -45,7 +45,7 @@ exports.verifyCode = asyncHandler(async (req, res, next) => {
       let cleanedPhone = phone_number.replace(/\-| /g, "");
       sms.verify.v2
         .services(process.env.TWILIO_VERIFY_SID)
-        .verificationChecks.create({ to: cleanedPhone, code: code })
+        .verificationChecks.create({ to: process.env.TEST_PHONE, code: code })
         .then((verification_check) => {
           console.log(verification_check.status);
           if (verification_check.status == "approved") {
