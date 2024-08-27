@@ -17,38 +17,64 @@ export default function MealListItem({
   imageSrc,
   date,
   location,
-  matched,
+  radius,
+  budget,
+  chosen_restaurant,
+  members,
 }: {
   id: number;
   title: string;
-  imageSrc: ImageSourcePropType;
+  imageSrc?: ImageSourcePropType;
   date: Date;
   location: string;
-  matched: boolean;
+  radius: number;
+  budget: Array<number>;
+  chosen_restaurant?: string;
+  members: Array<string>;
 }) {
   const isToday = useMemo(() => {
     return date.toLocaleDateString() == new Date().toLocaleDateString();
   }, [date]);
 
   const subduedColor = useThemeColor({}, "subduedText");
+  const goodColor = useThemeColor({}, "positive");
   return (
     <Link
-      href={{ pathname: `../${id}`, params: { location_id: location } }}
+      href={
+        chosen_restaurant
+          ? {
+              pathname: "/match",
+              params: { mealId: id, restaurantId: chosen_restaurant },
+            }
+          : {
+              pathname: `../${id}`,
+              params: {
+                location_id: location,
+                radius,
+                date: date.toISOString(),
+                budget: JSON.stringify(budget),
+                name: title,
+              },
+            }
+      }
       asChild
     >
       <Pressable style={styles.item}>
         {/* <Image source={imageSrc} style={styles.mealImage} /> */}
         <View style={styles.itemContent}>
-          <View>
+          <View style={{ width: "70%" }}>
             <ThemedText type="subtitle">
               {title + " "}
-              {matched && (
+              {chosen_restaurant && (
                 <Ionicons
                   name="checkmark-circle-sharp"
-                  size={12}
-                  color={useThemeColor({}, "tint")}
+                  size={15}
+                  color={goodColor}
                 />
               )}
+            </ThemedText>
+            <ThemedText type="secondary" subdued numberOfLines={1}>
+              {members.join(", ")}
             </ThemedText>
             {/* <View style={styles.location}>
               <Ionicons
@@ -90,7 +116,7 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 15,
+    paddingVertical: 12,
     paddingHorizontal: 10,
     gap: 15,
   },

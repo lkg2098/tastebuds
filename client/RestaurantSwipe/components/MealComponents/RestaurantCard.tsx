@@ -40,7 +40,7 @@ export default function RestaurantCard({ data }: { data: any }) {
     }
   }, [data?.priceLevel]);
   return (
-    <View>
+    <View style={{ height: "100%" }}>
       <PhotoCarousel
         photos={
           data?.photos?.map(
@@ -63,25 +63,29 @@ export default function RestaurantCard({ data }: { data: any }) {
           <Ionicons name="location" size={16} /> {data?.address}
         </ThemedText>
 
-        <View style={{ flexDirection: "row" }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
           {data?.types?.map((type: string) => (
             <Badge key={type} text={type} textColor={backgroundColor} />
           ))}
         </View>
-        <View style={{ flexDirection: "row", gap: 10, paddingVertical: 10 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 10,
+            paddingVertical: 5,
+            alignItems: "flex-end",
+          }}
+        >
           <StarRating
             rating={data?.rating || 5}
             onChange={() => {}}
             enableSwiping={false}
             color={subduedColor}
             starSize={25}
+            style={{ paddingVertical: 0 }}
             starStyle={{ width: 15 }}
           />
-          <ThemedText
-            subdued
-            type="defaultSemiBold"
-            style={{ lineHeight: 16, paddingVertical: 8 }}
-          >
+          <ThemedText subdued type="defaultSemiBold" style={{ lineHeight: 23 }}>
             {data?.rating || 5}
           </ThemedText>
         </View>
@@ -98,7 +102,7 @@ export default function RestaurantCard({ data }: { data: any }) {
             style={styles.iconPressable}
             onPress={() => {
               router.push({
-                pathname: "webView",
+                pathname: "./webView",
                 params: {
                   title: data?.name || "Website",
                   url: data?.website,
@@ -126,19 +130,5 @@ const styles = StyleSheet.create({
   },
   restaurantDescription: {
     paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  carouselPips: {
-    flexDirection: "row",
-    padding: 7,
-    flex: 1,
-    justifyContent: "center",
-  },
-  carouselPip: {
-    backgroundColor: "#a6a6a6",
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    margin: 3,
   },
 });

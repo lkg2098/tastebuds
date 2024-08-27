@@ -18,44 +18,45 @@ import { useCallback, useEffect, useState } from "react";
 import axiosAuth from "@/api/auth";
 import MealListItem from "@/components/MealListItem";
 import PastMealItem from "@/components/PastMealItem";
-
-type Meal = {
-  id: number;
-  title: string;
-  image: ImageSourcePropType;
-  date: Date;
-  location: string;
-  matched: boolean;
-};
+import { Meal } from "@/types/Meal";
 
 export default function PastMeals() {
   const router = useRouter();
-  const [meals, setMeals] = useState([
-    {
-      id: 2,
-      title: "Date Night",
-      image: require("../../assets/images/icon.png"),
-      date: new Date(),
-      location: "Brooklyn, NY",
-      matched: true,
-    },
-    {
-      id: 1,
-      title: "Girls' Night Out",
-      image: require("../../assets/images/react-logo.png"),
-      date: new Date("2024-06-15T09:00:00"),
-      location: "Brooklyn, NY",
-      matched: false,
-    },
-  ]);
+  const [meals, setMeals] = useState<Array<Meal>>([]);
+
   const getMeals = async () => {
     try {
       const response = await axiosAuth.get("/meals/", {
         params: { time: "past" },
       });
-      // setmeals(response.data);
-      console.log(response.data);
-      return true;
+      if (response.status == 200) {
+        setMeals(
+          response.data.meals.map(
+            (item: {
+              chosen_restaurant: string | null;
+              liked: boolean | null;
+              location_coords: Array<number> | null;
+              location_id: number | null;
+              meal_id: number;
+              meal_name: string;
+              meal_photo: string;
+              radius: number;
+              scheduled_at: Date;
+              members: string;
+            }) => ({
+              id: item.meal_id,
+              meal_name: item.meal_name,
+              image: require("../../assets/images/react-logo.png"),
+              date: new Date(item.scheduled_at),
+              place_id: item.location_id,
+              liked: item.liked,
+              membersString: item.members,
+            })
+          )
+        );
+        console.log(response.data);
+        return true;
+      }
     } catch (err) {
       console.log(err);
       return false;
@@ -64,13 +65,7 @@ export default function PastMeals() {
 
   useFocusEffect(
     useCallback(() => {
-      getMeals()
-        .then((value) => {
-          if (!value) {
-            console.log(value);
-          }
-        })
-        .catch((err) => console.log(err));
+      getMeals().catch((err) => console.log(err));
     }, [])
   );
 
@@ -92,12 +87,13 @@ export default function PastMeals() {
         }}
         renderItem={({ item }: { item: Meal }) => (
           <PastMealItem
-            id={item.id}
-            title={item.title}
-            imageSrc={item.image}
-            date={item.date}
-            location={item.location}
-            liked={item.matched}
+            key={item.id}
+            id={Number(item.id)}
+            title={item.meal_name}
+            // imageSrc={item.image || }
+            date={item.date || new Date()}
+            liked={item.liked}
+            members={item.members}
           />
         )}
         ListEmptyComponent={

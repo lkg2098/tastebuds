@@ -22,43 +22,33 @@ import { MealDataProvider } from "@/components/MealDataContext";
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  // const [loaded] = useFonts({
-  //   SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
-  // });
 
-  // useEffect(() => {
-  //   if (loaded) {
-  //     SplashScreen.hideAsync();
-  //   }
-  // }, [loaded]);
-
-  // if (!loaded) {
-  //   return null;
-  // }
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <SafeAreaProvider>
-        <GoogleDataProvider>
-          <MealDataProvider>
-            <Stack>
-              <Stack.Screen
-                name="index"
-                options={{
-                  headerShown: false,
-                }}
-              />
-              <Stack.Screen
-                name="selectLocation"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="preferences"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen name="addUsers" options={{ headerShown: false }} />
-            </Stack>
-          </MealDataProvider>
-        </GoogleDataProvider>
+        <Stack
+          screenOptions={{
+            headerRight: () => (
+              <Pressable onPress={() => router.navigate("/(tabs)")}>
+                <Ionicons
+                  name="close"
+                  size={30}
+                  color={Colors[colorScheme ?? "light"].text}
+                />
+              </Pressable>
+            ),
+            headerStyle: {
+              backgroundColor: Colors[colorScheme ?? "light"].background,
+            },
+          }}
+        >
+          <Stack.Screen
+            name="index"
+            options={{ title: "Account", headerShadowVisible: false }}
+          />
+          <Stack.Screen name="verifyCode" options={{ headerShown: false }} />
+          <Stack.Screen name="accountChange" options={{ headerShown: false }} />
+        </Stack>
       </SafeAreaProvider>
     </ThemeProvider>
   );

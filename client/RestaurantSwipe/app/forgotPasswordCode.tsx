@@ -29,30 +29,27 @@ import PhoneInput from "react-native-phone-input";
 import { ThemedPhoneInput } from "@/components/ThemedPhoneInput";
 import VerifyCodeInput from "@/components/VerifyCodeInput";
 
-export default function VerifyCode() {
+export default function VerifyForgotCode() {
   const router = useRouter();
-  const { phone_number, username, password } = useLocalSearchParams<{
-    phone_number: string;
+  const { username } = useLocalSearchParams<{
     username: string;
-    password: string;
   }>();
   const [message, setMessage] = useState("");
 
-  const handleLogin = async (code: string) => {
-    console.log(username, password, phone_number);
+  const verifyCode = async (code: string) => {
+    console.log(username);
     try {
-      let response = await axiosAuth.post("/signup", {
+      let response = await axiosAuth.put("/forgotPassword", {
         username,
-        password,
-        phone_number,
         code,
       });
       if (response.status == 200) {
-        return response.data.userId;
+        return true;
       } else {
         console.log("something went wrong!");
         return false;
       }
+      return false;
     } catch (err) {
       console.log(err);
       return false;
@@ -61,11 +58,11 @@ export default function VerifyCode() {
 
   const handleSendCode = async () => {
     try {
-      let response = await axiosAuth.get("/verifyPhone", {
-        params: { phone_number },
+      let response = await axiosAuth.get("/forgotPassword", {
+        params: { username },
       });
-      if (response.data) {
-        console.log(response.data.message);
+      if (response.status == 200) {
+        setMessage(response.data.message);
       }
     } catch (err) {
       console.log("Could not send code");
@@ -75,12 +72,12 @@ export default function VerifyCode() {
 
   useEffect(() => {
     console.log("hello");
-    console.log(username, password, phone_number);
-  }, [username, password, phone_number]);
+    console.log(username);
+  }, [username]);
 
   const fade = useRef(new Animated.Value(1)).current;
 
-  const slideOut = (url: "./signup" | "./profileInfo", params?: any) => {
+  const slideOut = (url: "./login" | "./forgotPassword", params?: any) => {
     Animated.timing(fade, {
       toValue: 0,
       duration: 175,
@@ -106,26 +103,23 @@ export default function VerifyCode() {
           alignItems: "center",
         }}
       >
-        <Pressable onPress={() => router.back()}>
-          <ThemedText>Back</ThemedText>
-        </Pressable>
-        <ThemedText type="title">Validate Your Phone Number</ThemedText>
+        <ThemedText type="title" style={{ textAlign: "center" }}>
+          {message.replace("to ", "to\n")}
+        </ThemedText>
         <VerifyCodeInput
-          handleNav={(user_id: string) =>
-            slideOut("./profileInfo", { userId: user_id })
-          }
+          handleNav={() => slideOut("./forgotPassword", { password: true })}
           sendCode={handleSendCode}
-          submitCode={handleLogin}
+          submitCode={verifyCode}
         />
 
         <DividerText subdued text="or" dividerLength={"10%"} />
         <Pressable
           onPress={() => {
-            slideOut("./signup", { username, password, phone_number });
+            slideOut("./forgotPassword", { username: true });
           }}
         >
           <ThemedText type="defaultBold" interactive>
-            Change Phone Number
+            Change Username
           </ThemedText>
         </Pressable>
       </ScrollView>

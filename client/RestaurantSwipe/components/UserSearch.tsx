@@ -13,31 +13,43 @@ import {
 } from "react-native";
 import { Link, useRouter } from "expo-router";
 import axiosAuth from "@/api/auth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { ThemedText } from "./ThemedText";
 import { Guest } from "@/types/Guest";
+import { ThemedView } from "./ThemedView";
+import { ThemedButton } from "./ThemedButton";
 
-function SearchResult({ username, profileImage }: Guest) {
+function SearchResult({ user_id, name, username, profileImage }: Guest) {
+  const goodColor = useThemeColor({}, "positive");
   return (
     <View style={styles.result}>
-      <View style={styles.resultInfo}>
+      {/* <View style={styles.resultInfo}>
         {profileImage && (
           <Image source={profileImage} style={styles.profileImage} />
-        )}
-        <ThemedText>{username}</ThemedText>
+        )} 
+      </View>*/}
+      <View>
+        <ThemedText>{name}</ThemedText>
+        <ThemedText type="secondary" subdued>
+          @{username}
+        </ThemedText>
       </View>
-      <Ionicons
-        name="add-circle-outline"
-        size={20}
-        color={useThemeColor({}, "tint")}
-      />
+      <Ionicons name="add-circle-outline" size={20} color={goodColor} />
     </View>
   );
 }
 
-export default function UserSearch({ handleUsers }: { handleUsers: Function }) {
+export default function UserSearch({
+  focused,
+  handleFocused,
+  handleUsers,
+}: {
+  focused: boolean;
+  handleFocused: Function;
+  handleUsers: Function;
+}) {
   const router = useRouter();
 
   const [query, setQuery] = useState("");
@@ -67,47 +79,78 @@ export default function UserSearch({ handleUsers }: { handleUsers: Function }) {
     setQuery("");
     setResults([]);
     handleUsers(guest);
+    handleFocused(false);
   };
+
+  useEffect(() => {
+    if (!focused) {
+      setQuery("");
+      setResults([]);
+    }
+  }, [focused]);
+
   return (
-    <View style={styles.search}>
-      <View style={[styles.searchBar, { borderColor: color }]}>
-        <TextInput
-          value={query}
-          onChangeText={handleQueryChange}
-          placeholder="Search"
-          placeholderTextColor={subduedColor}
-          style={[styles.searchInput, { color }]}
-        />
-        <Ionicons name="search" size={16} color={color} />
-      </View>
-      <FlatList
-        data={results}
-        style={styles.searchResults}
-        renderItem={({ item }: { item: Guest }) => (
-          <Pressable onPress={() => handleSelect(item)}>
-            <SearchResult
-              username={item.username}
-              profileImage={require("../assets/images/dining out.jpeg")}
-            />
-          </Pressable>
-        )}
-      />
-    </View>
+    <FlatList
+      keyboardShouldPersistTaps="handled"
+      ListHeaderComponent={() => (
+        <View style={[styles.searchBar, { borderColor: color }]}>
+          <TextInput
+            value={query}
+            autoFocus={focused}
+            onChangeText={handleQueryChange}
+            placeholder="Search"
+            placeholderTextColor={subduedColor}
+            style={[styles.searchInput, { color }]}
+            onFocus={() => handleFocused(true)}
+            onBlur={() => {
+              handleFocused(false);
+            }}
+          />
+          <Ionicons name="search" size={16} color={color} />
+        </View>
+      )}
+      ListEmptyComponent={
+        focused ? (
+          <ThemedView
+            style={[
+              styles.result,
+              {
+                paddingTop: 15,
+                justifyContent: query ? "flex-start" : "center",
+              },
+            ]}
+          >
+            <ThemedText style={{ textAlign: query ? "auto" : "center" }}>
+              {query
+                ? "No results..."
+                : "Search for your friends\n to add them to the guest list!"}
+            </ThemedText>
+          </ThemedView>
+        ) : null
+      }
+      data={results}
+      style={styles.searchResults}
+      renderItem={({ item }: { item: Guest }) => (
+        <Pressable onPress={() => handleSelect(item)}>
+          <SearchResult
+            user_id={item.user_id}
+            name={item.name}
+            username={item.username}
+            profileImage={require("../assets/images/dining out.jpeg")}
+          />
+        </Pressable>
+      )}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  search: {
-    alignSelf: "stretch",
-    position: "relative",
-    paddingHorizontal: 10,
-    paddingTop: 10,
-  },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
     paddingVertical: 10,
+    marginTop: 10,
     paddingHorizontal: 15,
     borderRadius: 25,
     justifyContent: "space-between",
@@ -117,14 +160,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     flex: 1,
   },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
+  // profileImage: {
+  //   width: 40,
+  //   height: 40,
+  //   borderRadius: 20,
+  // },
   searchResults: {
-    paddingVertical: 10,
+    // paddingVertical: 10,
     paddingHorizontal: 15,
+    flexGrow: 0,
   },
   resultInfo: {
     flexDirection: "row",
@@ -136,5 +180,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 10,
+    paddingHorizontal: 15,
   },
 });

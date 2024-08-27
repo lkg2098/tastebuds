@@ -43,13 +43,13 @@ export default function Login() {
   );
   const fade = useRef(new Animated.Value(1)).current;
 
-  const slideOut = () => {
+  const slideOut = (url: "./signup" | "./forgotPassword", params?: any) => {
     Animated.timing(fade, {
       toValue: 0,
       duration: 175,
       useNativeDriver: true,
     }).start(() => {
-      router.replace("./signup");
+      router.replace({ pathname: url, params });
       fade.setValue(1);
     });
   };
@@ -62,7 +62,7 @@ export default function Login() {
     try {
       let response = await axiosAuth.post("/login", loginInfo);
       if (response.status == 200) {
-        router.push("(tabs)");
+        router.push("./(tabs)");
       } else {
         console.log(response);
       }
@@ -123,21 +123,25 @@ export default function Login() {
             buttonText="Login"
             style={{ width: "75%", margin: 10 }}
           />
-          <ThemedText interactive type="defaultSemiBold">
-            Forgot Password?
-          </ThemedText>
+          <Pressable
+            onPress={() => slideOut("./forgotPassword", { username: true })}
+          >
+            <ThemedText interactive type="defaultSemiBold">
+              Forgot Password?
+            </ThemedText>
+          </Pressable>
           <DividerText text="or" subdued dividerLength={"30%"} />
 
           <Pressable
             onPress={() => {
-              slideOut();
+              slideOut("./signup", {});
             }}
           >
             <ThemedText type="defaultBold" interactive>
               Create an account
             </ThemedText>
           </Pressable>
-          <Link href="(tabs)" asChild>
+          <Link href="./(tabs)" asChild>
             <Pressable style={{ margin: 20 }}>
               <ThemedText style={styles.bypassButton}>Bypass</ThemedText>
             </Pressable>

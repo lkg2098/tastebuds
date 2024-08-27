@@ -11,10 +11,12 @@ import {
 import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useThemeColor } from "@/hooks/useThemeColor";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedTextInput } from "@/components/ThemedTextInput";
 import GradientButton from "@/components/GradientButton";
+import { MealDataContext } from "@/components/MealDataContext";
+import HeaderBar from "@/components/HeaderBar";
 
 type Choice = {
   address: string;
@@ -28,6 +30,7 @@ export default function SelectLocation() {
   const color = useThemeColor({}, "text");
   const tintColor = useThemeColor({}, "tint");
   const { mealId, current_address } = useLocalSearchParams();
+  const mealContext = useContext(MealDataContext);
   let googleInput = useRef<GooglePlacesAutocompleteRef>(null).current;
   // const [query, setQuery] = useState("Current Location");
 
@@ -36,11 +39,32 @@ export default function SelectLocation() {
     place_id: "",
     location_coords: [],
   });
+
   useEffect(() => {
     if (googleInput && current_address) {
       googleInput.setAddressText(current_address.toString());
     }
   }, [googleInput, current_address]);
+
+  const handleChoice = (value: Choice) => {
+    // {
+    //   address: address,
+    //   place_id: data.place_id,
+    //   location_coords: [
+    //     details?.geometry.location.lat || 100000,
+    //     details?.geometry.location.lng || 100000,
+    //   ],
+    // };
+    if (mealContext) {
+      mealContext.setMealData({
+        ...mealContext.mealData,
+        address: value.address,
+        place_id: value.place_id,
+      });
+    }
+    setChoice(value);
+  };
+
   const renderResult = (data: any, index: number) => {
     console.log(data);
     if (data.structured_formatting) {
@@ -95,7 +119,16 @@ export default function SelectLocation() {
         paddingTop: 10,
       }}
     >
-      <ThemedText>{JSON.stringify(choice)}</ThemedText>
+      <HeaderBar
+        headerLeft={
+          <Pressable onPress={() => router.dismiss(1)}>
+            <Ionicons name="chevron-back" color={color} size={18} />
+          </Pressable>
+        }
+        headerCenter={
+          <ThemedText type="defaultSemiBold">Choose a Location</ThemedText>
+        }
+      />
       <GooglePlacesAutocomplete
         ref={(ref) => {
           googleInput = ref;
@@ -113,7 +146,7 @@ export default function SelectLocation() {
           } else if (details?.name && details?.formatted_address) {
             address = `${details.name}, ${details.formatted_address}`;
           }
-          setChoice({
+          handleChoice({
             address: address,
             place_id: data.place_id,
             location_coords: [
@@ -125,7 +158,7 @@ export default function SelectLocation() {
         minLength={4}
         fetchDetails={true}
         query={{
-          key: "",
+          key: Constants.expoConfig?.ios?.config?.googleMapsApiKey,
           language: "en",
         }}
         GooglePlacesDetailsQuery={{
@@ -177,12 +210,6 @@ export default function SelectLocation() {
         handlePress={() => {
           router.navigate({
             pathname: "../createMeal",
-            params: {
-              mealId: mealId || null,
-              current_address: choice.address || current_address?.toString(),
-              place_id: choice.place_id,
-              coords: [choice.location_coords[0], choice.location_coords[1]],
-            },
           });
         }}
       />

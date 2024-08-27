@@ -1,43 +1,55 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, TextInput, TextInputProps } from "react-native";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+} from "react-native";
 import { ThemedText } from "./ThemedText";
-import { View, type ViewProps } from "react-native";
+import { ScrollView, View, type ViewProps } from "react-native";
 
 import { useThemeColor } from "@/hooks/useThemeColor";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Href, useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Loading from "./Loading";
+import { ThemedButton } from "./ThemedButton";
 
 export type VerifyCodeInputProps = TextInputProps & {
-  lightColor?: string;
-  darkColor?: string;
-  code: string;
-  onVerified: Function;
+  sendCode: () => Promise<void>;
+  submitCode: (code: string) => Promise<boolean | string>;
+  handleNav: (params: any) => void;
 };
 
 export default function VerifyCodeInput({
   style,
-  lightColor,
-  darkColor,
-  code,
-  onVerified,
+  sendCode,
+  submitCode,
+  handleNav,
   ...rest
 }: VerifyCodeInputProps) {
   const router = useRouter();
-  const backgroundColor = useThemeColor(
-    { light: lightColor, dark: darkColor },
-    "background"
-  );
+  const backgroundColor = useThemeColor({}, "background");
 
-  const tintColor = useThemeColor(
-    { light: lightColor, dark: darkColor },
-    "tint"
-  );
+  const tintColor = useThemeColor({}, "tint");
+  const subduedColor = useThemeColor({}, "subduedText");
 
   const [inputValue, setInputValue] = useState("");
   const [focused, setFocused] = useState(false);
-  const [verified, setVerified] = useState<boolean>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
 
-  let cellsMarkup = code.split("").map((char, index) => (
+  const [verified, setVerified] = useState<boolean>();
+  const [cooldown, setCooldown] = useState(0);
+  let textInputRef = useRef<TextInput>(null).current;
+
+  let cellsMarkup = [0, 0, 0, 0, 0, 0].map((char, index) => (
     <View
       style={[
         styles.cell,
@@ -48,30 +60,79 @@ export default function VerifyCodeInput({
               : useThemeColor({}, "subduedText"),
         },
       ]}
-      key={char}
+      key={index + Math.random() * 10}
     >
-      <ThemedText style={styles.cellText}>
-        {inputValue.length > index && inputValue[index]}
-      </ThemedText>
+      {loading ? (
+        <Loading />
+      ) : (
+        <ThemedText style={styles.cellText}>
+          {inputValue.length > index && inputValue[index]}
+        </ThemedText>
+      )}
     </View>
   ));
 
   const handleInput = (value: string) => {
     let numericValue = value.replace(/[^0-9]/g, "");
-    if (numericValue.length == code.length) {
-      setVerified(numericValue == code);
+    if (numericValue.length <= 6) {
+      setInputValue(numericValue);
     }
-    setInputValue(numericValue);
+  };
+
+  const handleSubmit = async () => {
+    try {
+      textInputRef?.blur();
+      let success = await submitCode(inputValue);
+      return success;
+    } catch (err) {
+      console.log(err);
+      return false;
+    }
+  };
+
+  const handleSendCode = async () => {
+    try {
+      if (!loading) setLoading(true);
+      setCooldown(5);
+      await sendCode();
+      setLoading(false);
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   useEffect(() => {
-    if (verified) {
-      const timeout = setTimeout(() => {
-        onVerified();
-      }, 500);
-      return () => clearTimeout(timeout);
+    handleSendCode();
+    let interval = setInterval(
+      () => setCooldown((prev) => Math.max(prev - 1, 0)),
+      1000
+    );
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (inputValue.length == 6) {
+      handleSubmit()
+        .then((id) => {
+          if (id) {
+            timeout = setTimeout(() => {
+              setVerified(true);
+              handleNav(id);
+            }, 500);
+          } else {
+            setError("Incorrect code");
+            setVerified(false);
+          }
+        })
+        .catch((err) => {
+          console.log(err);
+        });
     }
-  }, [verified]);
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [inputValue]);
 
   useFocusEffect(
     useCallback(() => {
@@ -81,6 +142,7 @@ export default function VerifyCodeInput({
     }, [])
   );
   const handleFocus = () => {
+    setInputValue("");
     setFocused(true);
   };
   const handleBlur = () => {
@@ -89,27 +151,58 @@ export default function VerifyCodeInput({
 
   const confirmationText = verified;
   return (
-    <View style={styles.paddingContainer}>
-      <View style={styles.container}>
-        {cellsMarkup}
-        <TextInput
-          value={inputValue}
-          maxLength={code.length}
-          keyboardType="number-pad"
-          editable={!verified}
-          onChangeText={handleInput}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          style={[styles.textInput, { width: code.length * 45 }]}
-          {...rest}
-        />
+    <View style={{ alignItems: "center" }}>
+      <View style={styles.paddingContainer}>
+        <View style={styles.container}>
+          {cellsMarkup}
+          <TextInput
+            ref={(ref) => {
+              textInputRef = ref;
+            }}
+            value={inputValue}
+            maxLength={6}
+            keyboardType="number-pad"
+            editable={!loading && !verified}
+            clearTextOnFocus
+            onChangeText={handleInput}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            style={[styles.textInput, { width: 270 }]}
+            {...rest}
+          />
+        </View>
+        {error && (
+          <ThemedText style={{ paddingTop: 10 }} interactive>
+            {error}
+          </ThemedText>
+        )}
+        {verified && (
+          <ThemedText style={{ paddingTop: 10 }} interactive>
+            <Ionicons name="checkmark" color={tintColor} />
+            Delicious!
+          </ThemedText>
+        )}
       </View>
-      {verified && (
-        <ThemedText style={{ paddingTop: 10 }} interactive>
-          <Ionicons name="checkmark" color={tintColor} />
-          Delicious!
+      <ThemedText type="subtitle" style={styles.flavorText}>
+        Don't see a code?
+      </ThemedText>
+
+      <Pressable
+        onPress={() => handleSendCode()}
+        disabled={cooldown > 0}
+        style={{
+          marginTop: 10,
+          opacity: cooldown == 0 ? 1 : 0.5,
+        }}
+      >
+        <ThemedText
+          type="defaultBold"
+          interactive={cooldown == 0}
+          subdued={cooldown > 0}
+        >
+          Resend Code
         </ThemedText>
-      )}
+      </Pressable>
     </View>
   );
 }
@@ -141,5 +234,8 @@ const styles = StyleSheet.create({
   paddingContainer: {
     padding: 20,
     alignItems: "center",
+  },
+  flavorText: {
+    paddingBottom: 10,
   },
 });

@@ -9,20 +9,20 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, View, ScrollView } from "react-native";
 
-export default function ChangeUsername({
-  previousUsername,
+export default function ChangeDisplayName({
+  previousName,
 }: {
-  previousUsername: string;
+  previousName?: string;
 }) {
   const router = useRouter();
-  const [inputValue, setInputValue] = useState<string>(previousUsername);
+  const [inputValue, setInputValue] = useState<string>(previousName || "");
   const [isValid, setIsValid] = useState(true);
 
   const handleSubmit = async () => {
-    if (inputValue != previousUsername) {
+    if (inputValue != previousName) {
       try {
-        let response = await axiosAuth.put("/users/account/username", {
-          newUsername: inputValue,
+        let response = await axiosAuth.put("/users/account", {
+          name: inputValue,
         });
         if (response.status == 200) {
           setTimeout(() => {
@@ -40,8 +40,7 @@ export default function ChangeUsername({
     }
   };
 
-  const handleUsername = (value: string) => {
-    console.log(previousUsername?.toString());
+  const handleName = (value: string) => {
     setInputValue(value);
   };
 
@@ -50,10 +49,10 @@ export default function ChangeUsername({
   };
 
   useEffect(() => {
-    if (previousUsername) {
-      setInputValue(previousUsername.toString());
+    if (previousName) {
+      setInputValue(previousName.toString());
     }
-  }, [previousUsername]);
+  }, [previousName]);
   return (
     <ScrollView
       keyboardDismissMode="interactive"
@@ -66,20 +65,15 @@ export default function ChangeUsername({
     >
       <View>
         <ThemedText type="defaultSemiBold" style={styles.label}>
-          Username
+          Name
         </ThemedText>
-        <CreateUsernameInput
-          previousUsername={previousUsername?.toString() || ""}
-          value={inputValue}
-          setUsername={handleUsername}
-          setValid={handleValid}
-        />
+        <ThemedTextInput value={inputValue} onChangeText={handleName} />
       </View>
       <ThemedButton
         style={styles.button}
         text="Update Username"
         type="primary"
-        disabled={!isValid || previousUsername == inputValue}
+        disabled={inputValue == "" || inputValue == previousName}
         onPress={() => handleSubmit()}
       />
     </ScrollView>

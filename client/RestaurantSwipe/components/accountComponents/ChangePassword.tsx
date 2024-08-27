@@ -21,16 +21,12 @@ export default function ChangePassword() {
   });
 
   const handleSubmit = async () => {
-    // need new endpoint to verify old password and
-    //change to new password if the passwords don't match
-    // possible error codes => incorrect password, new password cannot be old password
-  };
-
-  const handleForgotPassword = async () => {
     try {
-      await axiosAuth.get("/verifyPhone");
-    } catch (err) {
-      console.log(err);
+      let respose = await axiosAuth.put("/users/account/password", {
+        newPassword,
+      });
+    } catch (err: any) {
+      console.log(err.response.data.error);
     }
   };
 
@@ -53,14 +49,14 @@ export default function ChangePassword() {
       }}
     >
       <View>
-        <ThemedText type="defaultSemiBold" style={styles.label}>
+        {/* <ThemedText type="defaultSemiBold" style={styles.label}>
           Current Password
         </ThemedText>
         <PasswordInput
           value={currentPassword}
           onChangeText={handleCurrentPassword}
           error={errors.currentPassword}
-        />
+        /> */}
         <ThemedText
           type="defaultSemiBold"
           style={[styles.label, { paddingTop: 10 }]}
@@ -70,11 +66,7 @@ export default function ChangePassword() {
         <CreatePasswordInput
           value={newPassword}
           setPassword={handleNewPassword}
-          error={errors.newPassword}
         />
-        <Pressable onPress={() => handleForgotPassword()}>
-          <ThemedText interactive>Forgot your password?</ThemedText>
-        </Pressable>
       </View>
       <ThemedButton
         style={styles.button}

@@ -27,11 +27,15 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import socket from "@/utils/socket";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { ThemedText } from "@/components/ThemedText";
 import * as Linking from "expo-linking";
+
 // // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+socket.connect();
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
@@ -62,6 +66,19 @@ export default function RootLayout() {
   }, [url]);
 
   useEffect(() => {
+    socket.on("connect_error", (err) => {
+      // the reason of the error, for example "xhr poll error"
+      console.log(err.message);
+
+      // some additional description, for example the status code of the initial HTTP response
+      console.log(err.description);
+    });
+    return () => {
+      socket.off("connect_error");
+    };
+  }, [socket]);
+
+  useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
     }
@@ -72,121 +89,148 @@ export default function RootLayout() {
   }
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      {/* <SafeAreaProvider> */}
-      <Image
-        source={require("../assets/images/Crave background.png")}
-        style={{
-          width: "100%",
-          height: "100%",
-          position: "absolute",
-          backgroundColor: Colors[colorScheme ?? "light"].background,
-        }}
-      />
-      <Stack>
-        <Stack.Screen
-          name="(tabs)"
-          options={{
-            animation: "slide_from_bottom",
-            animationTypeForReplace: "push",
-            contentStyle: {
-              backgroundColor: Colors[colorScheme ?? "light"].background,
-            },
-            headerShown: false,
+      <SafeAreaProvider>
+        <Image
+          source={require("../assets/images/Crave background.png")}
+          style={{
+            width: "100%",
+            height: "100%",
+            position: "absolute",
+            backgroundColor: Colors[colorScheme ?? "light"].background,
           }}
         />
-        <Stack.Screen
-          name="accountChange"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="createMeal"
-          options={{
-            presentation: "fullScreenModal",
-            gestureEnabled: false,
-            headerShown: false,
-            animation: "slide_from_bottom",
-          }}
-        />
-        <Stack.Screen
-          name="login"
-          options={{
-            animation: "fade",
-            animationTypeForReplace: "push",
-            contentStyle: { backgroundColor: "transparent" },
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="signup"
-          options={{
-            animation: "fade_from_bottom",
-            contentStyle: { backgroundColor: "transparent" },
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="verifyCode"
-          options={{
-            animation: "fade_from_bottom",
-            contentStyle: { backgroundColor: "transparent" },
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="profileInfo"
-          options={{
-            animation: "fade_from_bottom",
-            contentStyle: { backgroundColor: "transparent" },
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="[meal]"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="match"
-          options={{
-            animation: "fade",
-            contentStyle: { backgroundColor: "transparent" },
-            headerTransparent: true,
-            presentation: "containedModal",
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="webView"
-          options={{
-            contentStyle: { backgroundColor: "transparent" },
-            headerTransparent: true,
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="preferences"
-          options={{ presentation: "transparentModal", headerShown: false }}
-        />
-        <Stack.Screen
-          name="modal"
-          options={{
-            animation: "fade",
-            presentation: "transparentModal",
-            headerShown: false,
-          }}
-        />
-      </Stack>
+        <Stack>
+          <Stack.Screen
+            name="(tabs)"
+            options={{
+              animation: "slide_from_bottom",
+              animationTypeForReplace: "push",
+              contentStyle: {
+                backgroundColor: Colors[colorScheme ?? "light"].background,
+              },
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="index"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="createMeal"
+            options={{
+              presentation: "fullScreenModal",
+              gestureEnabled: false,
+              headerShown: false,
+              animation: "slide_from_bottom",
+            }}
+          />
+          <Stack.Screen
+            name="account"
+            options={{
+              presentation: "fullScreenModal",
+              gestureEnabled: false,
+              headerShown: false,
+              animation: "slide_from_bottom",
+            }}
+          />
+          <Stack.Screen
+            name="login"
+            options={{
+              animation: "fade",
+              animationTypeForReplace: "push",
+              contentStyle: { backgroundColor: "transparent" },
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="signup"
+            options={{
+              animation: "fade_from_bottom",
+              contentStyle: { backgroundColor: "transparent" },
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="verifyCode"
+            options={{
+              animation: "fade_from_bottom",
+              contentStyle: { backgroundColor: "transparent" },
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="forgotPassword"
+            options={{
+              animation: "fade_from_bottom",
+              animationTypeForReplace: "push",
+              contentStyle: { backgroundColor: "transparent" },
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="forgotPasswordCode"
+            options={{
+              animation: "fade_from_bottom",
+              animationTypeForReplace: "push",
+              contentStyle: { backgroundColor: "transparent" },
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="profileInfo"
+            options={{
+              animation: "fade_from_bottom",
+              contentStyle: { backgroundColor: "transparent" },
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="[meal]"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="match"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="matchAnim"
+            options={{
+              animation: "fade",
+              contentStyle: { backgroundColor: "transparent" },
+              headerTransparent: true,
+              presentation: "containedModal",
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="webView"
+            options={{
+              contentStyle: { backgroundColor: "transparent" },
+              headerTransparent: true,
+              presentation: "modal",
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="preferences"
+            options={{ presentation: "transparentModal", headerShown: false }}
+          />
+          <Stack.Screen
+            name="modal"
+            options={{
+              animation: "fade",
+              presentation: "transparentModal",
+              headerShown: false,
+            }}
+          />
+        </Stack>
+      </SafeAreaProvider>
     </ThemeProvider>
   );
 }

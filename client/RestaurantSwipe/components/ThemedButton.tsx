@@ -44,6 +44,7 @@ export function ThemedButton({
         styles.button,
         style,
       ]}
+      disabled={disabled}
       {...otherProps}
     >
       <ThemedText

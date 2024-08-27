@@ -7,10 +7,13 @@ import { useThemeColor } from "@/hooks/useThemeColor";
 import axiosAuth from "@/api/auth";
 import React, { useCallback, useEffect, useState } from "react";
 import * as SecureStorage from "expo-secure-store";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Account() {
   const router = useRouter();
   const [userData, setUserData] = useState({ username: "", name: "" });
+  const tintColor = useThemeColor({}, "tint");
 
   const getUserData = async () => {
     try {
@@ -24,7 +27,8 @@ export default function Account() {
   const handleSignout = () => {
     SecureStorage.deleteItemAsync("accessToken");
     SecureStorage.deleteItemAsync("refreshToken");
-    router.navigate("../login");
+    router.dismiss(1);
+    router.navigate("/login");
   };
 
   useFocusEffect(
@@ -42,8 +46,8 @@ export default function Account() {
       style={{
         flex: 1,
         alignItems: "center",
-        paddingTop: 15,
         paddingHorizontal: 20,
+        paddingTop: 10,
         paddingBottom: 100,
       }}
     >
@@ -65,23 +69,29 @@ export default function Account() {
       <LinkSettingsItem
         title="Username"
         href={{
-          pathname: "../accountChange",
+          pathname: "/account/accountChange",
           params: { username: userData.username },
         }}
         content={<ThemedText interactive>{userData.username}</ThemedText>}
       />
       <LinkSettingsItem
         title="Password"
-        href={{ pathname: "../accountChange", params: { password: "true" } }}
+        href={{
+          pathname: "/account/verifyCode",
+          params: { password: "true" },
+        }}
         content={<ThemedText interactive>Update password</ThemedText>}
       />
       <LinkSettingsItem
         title="Display Name"
         style={{ alignItems: "center" }}
-        href=""
+        href={{
+          pathname: "/account/accountChange",
+          params: { name: "true", previousName: userData.name },
+        }}
         content={<ThemedText interactive>{userData.name}</ThemedText>}
       />
-      <View
+      {/*<View
         style={{
           borderColor: useThemeColor({}, "subduedText"),
           opacity: 0.3,
@@ -96,7 +106,7 @@ export default function Account() {
       >
         Personal Settings
       </ThemedText>
-      <LinkSettingsItem
+       <LinkSettingsItem
         title="Diet"
         href=""
         content={
@@ -127,9 +137,13 @@ export default function Account() {
         title="Suggestions"
         href=""
         content={<ThemedText interactive>Send us a message...</ThemedText>}
-      />
+      /> */}
 
-      <Pressable style={styles.signout} onPress={() => handleSignout()}>
+      <Pressable
+        style={[styles.signout, { borderColor: tintColor }]}
+        onPress={() => handleSignout()}
+      >
+        <Ionicons name="exit" color={tintColor} size={16} />
         <ThemedText interactive type="defaultSemiBold">
           Sign Out
         </ThemedText>
@@ -149,6 +163,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   signout: {
-    paddingVertical: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 5,
+    gap: 5,
+    paddingHorizontal: 25,
+    paddingVertical: 10,
   },
 });

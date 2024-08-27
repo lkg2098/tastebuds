@@ -33,22 +33,21 @@ import { CreatePasswordInput } from "@/components/userInfoComponents/CreatePassw
 
 export default function Signup() {
   const router = useRouter();
-  const { phoneNumber, username, password } = useLocalSearchParams();
+  const { phone_number, username, password } = useLocalSearchParams<{
+    phone_number: string;
+    username: string;
+    password: string;
+  }>();
   const [loginInfo, setLoginInfo] = useState({
-    phoneNumber:
-      (typeof phoneNumber != "string"
-        ? phoneNumber?.toString()
-        : phoneNumber) || "",
-    username:
-      (typeof username != "string" ? username?.toString() : username) || "",
-    password:
-      (typeof password != "string" ? password?.toString() : password) || "",
+    phone_number: phone_number || "",
+    username: username || "",
+    password: password || "",
   });
 
   const backgroundColor = useThemeColor({}, "background");
   const [errors, setErrors] = useState({ username: "", password: "" });
   const [validInfo, setValidInfo] = useState({
-    phoneNumber: false,
+    phone_number: false,
     username: false,
     password: false,
   });
@@ -58,7 +57,7 @@ export default function Signup() {
     value?: string,
     isValid?: boolean
   ) => {
-    if (value) {
+    if (value !== undefined) {
       setLoginInfo((prev) => ({ ...prev, [key]: value }));
     }
     if (isValid !== undefined) {
@@ -68,13 +67,12 @@ export default function Signup() {
 
   // const handlePhoneInput = (value: string, isValid: boolean) => {
   //   console.log("phone is in here");
-  //   setLoginInfo((prev) => ({ ...prev, phoneNumber: value }));
+  //   setLoginInfo((prev) => ({ ...prev, phone_number: value }));
   //   setValidPhone(isValid);
   // };
 
   const handleLogin = async () => {
     try {
-      console.log(loginInfo);
       let validUsername = true;
 
       if (validUsername) {
@@ -82,7 +80,7 @@ export default function Signup() {
           loginInfo,
         });
         if (uniqueUser) {
-          slideOut("verifyCode", loginInfo);
+          slideOut("./verifyCode", loginInfo);
         }
       }
     } catch (err) {
@@ -92,13 +90,13 @@ export default function Signup() {
 
   useFocusEffect(
     useCallback(() => {
-      console.log(phoneNumber);
+      console.log(phone_number);
     }, [])
   );
 
   const fade = useRef(new Animated.Value(1)).current;
 
-  const slideOut = (url: string, params?: any) => {
+  const slideOut = (url: "./verifyCode" | "./login", params?: any) => {
     Animated.timing(fade, {
       toValue: 0,
       duration: 175,
@@ -137,13 +135,16 @@ export default function Signup() {
             Tastebuds!
           </ThemedText>
         </ThemedText>
+        <Pressable onPress={() => router.navigate("/verifyCode")}>
+          <ThemedText>To verify phone route</ThemedText>
+        </Pressable>
         <ThemedPhoneInput
           style={styles.textInput}
-          initialValue={loginInfo.phoneNumber}
+          initialValue={loginInfo.phone_number}
           handleChangeValue={(value: string, isValid: boolean) =>
-            handleInput("phoneNumber", value, isValid)
+            handleInput("phone_number", value, isValid)
           }
-          initialPlaceholder={phoneNumber == undefined}
+          initialPlaceholder={phone_number == undefined}
         />
         <CreateUsernameInput
           showInstructionsOnFocus
@@ -171,7 +172,11 @@ export default function Signup() {
           handlePress={handleLogin}
           buttonText="Signup"
           disabled={
-            !(validInfo.phoneNumber && validInfo.username && validInfo.password)
+            !(
+              validInfo.phone_number &&
+              validInfo.username &&
+              validInfo.password
+            )
           }
           style={{ width: "75%", marginTop: 10 }}
         />

@@ -38,25 +38,30 @@ export default function ConfirmationModal({
   );
   return (
     <Animated.View
-      style={{ width: "80%", transform: [{ translateY: slide }], opacity }}
+      style={{ width: "90%", transform: [{ translateY: slide }], opacity }}
     >
       <ThemedView style={styles.modalBox}>
-        <ThemedText type="subtitle">{title}</ThemedText>
+        <ThemedText type="subtitle" style={styles.title}>
+          {title}
+        </ThemedText>
         <View style={styles.contentBox}>{content}</View>
-        <View style={styles.buttonGroup}>
-          <ThemedButton
-            style={styles.button}
-            onPress={() => onCancel()}
-            type="secondary"
-            text={cancelText || "Cancel"}
-          />
-          <ThemedButton
-            style={styles.button}
-            onPress={() => onConfirm()}
-            type="primary"
-            text={confirmText || "Confirm"}
-          />
-        </View>
+      </ThemedView>
+      <ThemedView style={styles.buttonGroup}>
+        <ThemedButton
+          style={[
+            styles.button,
+            { borderWidth: 0, borderTopWidth: 1, borderBottomRightRadius: 0 },
+          ]}
+          onPress={() => onCancel()}
+          type="secondary"
+          text={cancelText || "Cancel"}
+        />
+        <ThemedButton
+          style={[styles.button, { borderBottomLeftRadius: 0 }]}
+          onPress={() => onConfirm()}
+          type="primary"
+          text={confirmText || "Confirm"}
+        />
       </ThemedView>
     </Animated.View>
   );
@@ -65,17 +70,25 @@ export default function ConfirmationModal({
 const styles = StyleSheet.create({
   modalBox: {
     padding: 15,
-    borderRadius: 10,
+    borderTopRightRadius: 10,
+    borderTopLeftRadius: 10,
   },
+  title: { padding: 5 },
   contentBox: {
-    padding: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 10,
   },
   buttonGroup: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 5,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
   },
   button: {
     paddingHorizontal: 30,
+    padding: 10,
+    margin: 0,
+    width: "50%",
+    borderTopRightRadius: 0,
+    borderTopLeftRadius: 0,
   },
 });

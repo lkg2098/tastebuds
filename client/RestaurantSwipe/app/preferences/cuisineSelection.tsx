@@ -7,15 +7,22 @@ import { ThemedView } from "@/components/ThemedView";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Preferences() {
-  const { mealId, google_sql_string, tag_map, rating } = useLocalSearchParams();
+  const { mealId, google_sql_string, tag_map, rating } = useLocalSearchParams<{
+    mealId: string;
+    google_sql_string: string;
+    tag_map: string;
+    rating: string;
+  }>();
   const router = useRouter();
   const background = useThemeColor({}, "background");
   useEffect(() => {
     console.log("GOOGLE DATA");
     console.log(google_sql_string);
-  }, [google_sql_string]);
+    console.log(tag_map);
+  }, [google_sql_string, tag_map]);
 
   const handleSubmit = async (preferences: Array<string>) => {
     console.log(preferences);
@@ -25,50 +32,33 @@ export default function Preferences() {
         min_rating: rating,
         google_data_string: google_sql_string,
       });
-      console.log(response);
+
       if (response.status == 200) {
-        router.navigate(`${mealId}`);
+        router.navigate({
+          pathname: `../${mealId}`,
+          params: { preferences: JSON.stringify(preferences) },
+        });
       }
     } catch (err) {
       console.log(err);
     }
-    // .post("/meals/27/preferences")
-    //   .send({
-    //     preferences: [
-    //       "american_restaurant",
-    //       "pizza_restaurant",
-    //       "lebanese_restaurant",
-    //     ],
-    //     google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
-    // ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
-    // ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
-    // ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-    // ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
-    // ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.5,'{"american_restaurant"}'),
-    // ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
-    // ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.5,'{"bar"}'),
-    // ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.1,'{"bar","american_restaurant"}'),
-    // ('ChIJmV5ONq6SwokR9NUCEVE0DKI', 4.5,'{"italian_restaurant","pizza_restaurant"}')`,
-    //   })
   };
 
   return (
-    <ThemedView
+    <SafeAreaView
       style={{
         flex: 1,
         alignItems: "center",
         backgroundColor: background,
-        paddingVertical: "20%",
+        paddingTop: 20,
       }}
     >
       <ThemedText type="title">What don't you want to eat?</ThemedText>
       <CuisineSelector
-        mealId={Number(mealId)}
-        userId={1}
         positive={false}
-        tagMap={tag_map}
+        tagMap={tag_map ? JSON.parse(tag_map) : {}}
         handleSubmit={handleSubmit}
       />
-    </ThemedView>
+    </SafeAreaView>
   );
 }

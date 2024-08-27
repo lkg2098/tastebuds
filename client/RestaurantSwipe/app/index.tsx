@@ -27,24 +27,20 @@ export default function Index() {
       isLoggedIn()
         .then((loggedIn) => {
           if (loggedIn) {
-            router.navigate("(tabs)");
+            router.navigate("./(tabs)");
           } else {
             console.log("or here?");
-            router.navigate("login");
+            router.navigate("./login");
           }
         })
         .catch((err) => {
           console.log(err);
           console.log("here?");
-          router.navigate("login");
+          router.navigate("./login");
         });
     }, [])
   );
 
   // return <Redirect href={"(tabs)"} />;
-  return (
-    <View>
-      <ThemedText>Hello</ThemedText>
-    </View>
-  );
+  return <View>{/* <ThemedText>Hello</ThemedText> */}</View>;
 }

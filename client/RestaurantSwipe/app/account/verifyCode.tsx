@@ -28,31 +28,28 @@ import { PasswordInput } from "@/components/userInfoComponents/PasswordInput";
 import PhoneInput from "react-native-phone-input";
 import { ThemedPhoneInput } from "@/components/ThemedPhoneInput";
 import VerifyCodeInput from "@/components/VerifyCodeInput";
+import HeaderBar from "@/components/HeaderBar";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function VerifyCode() {
+export default function VerifyForgotCode() {
   const router = useRouter();
-  const { phone_number, username, password } = useLocalSearchParams<{
-    phone_number: string;
-    username: string;
-    password: string;
-  }>();
+
+  const color = useThemeColor({}, "text");
   const [message, setMessage] = useState("");
 
-  const handleLogin = async (code: string) => {
-    console.log(username, password, phone_number);
+  const verifyCode = async (code: string) => {
     try {
-      let response = await axiosAuth.post("/signup", {
-        username,
-        password,
-        phone_number,
+      let response = await axiosAuth.put("/users/account/passwordCode", {
         code,
       });
       if (response.status == 200) {
-        return response.data.userId;
+        return true;
       } else {
         console.log("something went wrong!");
         return false;
       }
+      return false;
     } catch (err) {
       console.log(err);
       return false;
@@ -61,11 +58,9 @@ export default function VerifyCode() {
 
   const handleSendCode = async () => {
     try {
-      let response = await axiosAuth.get("/verifyPhone", {
-        params: { phone_number },
-      });
-      if (response.data) {
-        console.log(response.data.message);
+      let response = await axiosAuth.get("/users/account/passwordCode");
+      if (response.status == 200) {
+        setMessage(response.data.message);
       }
     } catch (err) {
       console.log("Could not send code");
@@ -73,14 +68,12 @@ export default function VerifyCode() {
     }
   };
 
-  useEffect(() => {
-    console.log("hello");
-    console.log(username, password, phone_number);
-  }, [username, password, phone_number]);
-
   const fade = useRef(new Animated.Value(1)).current;
 
-  const slideOut = (url: "./signup" | "./profileInfo", params?: any) => {
+  const slideOut = (
+    url: "/account" | "/account/accountChange",
+    params?: any
+  ) => {
     Animated.timing(fade, {
       toValue: 0,
       duration: 175,
@@ -92,44 +85,45 @@ export default function VerifyCode() {
   };
 
   return (
-    <Animated.View
-      style={{
-        flex: 1,
-        opacity: fade,
-      }}
-    >
-      <ScrollView
-        keyboardDismissMode="interactive"
-        contentContainerStyle={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <Pressable onPress={() => router.back()}>
-          <ThemedText>Back</ThemedText>
-        </Pressable>
-        <ThemedText type="title">Validate Your Phone Number</ThemedText>
-        <VerifyCodeInput
-          handleNav={(user_id: string) =>
-            slideOut("./profileInfo", { userId: user_id })
+    <ThemedView style={{ flex: 1, alignSelf: "stretch" }}>
+      <SafeAreaView style={{ flex: 1, alignSelf: "stretch" }}>
+        <HeaderBar
+          headerCenter={
+            <ThemedText type="subtitle" style={{ textAlign: "center" }}>
+              Verification Code
+            </ThemedText>
           }
-          sendCode={handleSendCode}
-          submitCode={handleLogin}
+          headerLeft={
+            <Pressable
+              onPress={() => {
+                router.back();
+              }}
+            >
+              <Ionicons name="chevron-back" color={color} size={25} />
+            </Pressable>
+          }
         />
-
-        <DividerText subdued text="or" dividerLength={"10%"} />
-        <Pressable
-          onPress={() => {
-            slideOut("./signup", { username, password, phone_number });
+        <ScrollView
+          keyboardDismissMode="interactive"
+          contentContainerStyle={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
           }}
         >
-          <ThemedText type="defaultBold" interactive>
-            Change Phone Number
+          <ThemedText type="title" style={{ textAlign: "center" }}>
+            {message.replace("to ", "to\n")}
           </ThemedText>
-        </Pressable>
-      </ScrollView>
-    </Animated.View>
+          <VerifyCodeInput
+            handleNav={() =>
+              slideOut("/account/accountChange", { password: true })
+            }
+            sendCode={handleSendCode}
+            submitCode={verifyCode}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 

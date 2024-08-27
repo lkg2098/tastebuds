@@ -1,5 +1,5 @@
 import ConfirmationModal from "@/components/modalComponents/ConfirmationModal";
-import DeleteMealModal from "@/components/modalComponents/DeleteMealModal";
+import DeleteModal from "@/components/modalComponents/DeleteModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -8,14 +8,17 @@ import { StyleSheet } from "react-native";
 
 export default function Modal() {
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const { mealId, userId, type } = useLocalSearchParams<{
+    mealId: string;
+    userId: string;
+    type: "meal" | "member" | "leave" | "account";
+  }>();
 
-  let modal = params.mealToDelete ? (
-    <DeleteMealModal mealId={params.mealToDelete.toString()} />
-  ) : (
-    <></>
+  return (
+    <ThemedView style={styles.background}>
+      <DeleteModal mealId={mealId} userId={userId} type={type} />
+    </ThemedView>
   );
-  return <ThemedView style={styles.background}>{modal}</ThemedView>;
 }
 
 const styles = StyleSheet.create({

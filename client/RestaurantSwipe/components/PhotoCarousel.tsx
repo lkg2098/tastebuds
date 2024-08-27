@@ -88,32 +88,34 @@ export default function PhotoCarousel({ photos }: { photos: Array<string> }) {
     return <Loading />;
   } else {
     return (
-      <View>
-        <ImageBackground
-          style={{
-            height: 250,
-            flexDirection: "row",
-            backgroundColor: "black",
-          }}
-          resizeMode="cover"
-          source={
-            photoData[index]?.url
-              ? {
-                  uri: photoData[index].url,
-                }
-              : { uri: testData[index] }
-          }
-        >
-          <Pressable
-            style={{ width: "40%" }}
-            onPress={() => handleChangePhoto(-1)}
-          ></Pressable>
-          <Pressable
-            style={{ width: "60%" }}
-            onPress={() => handleChangePhoto(1)}
-          ></Pressable>
-        </ImageBackground>
-        <View style={styles.carouselPips}>{pipsMarkup}</View>
+      <View style={{ backgroundColor: "transparent", height: "40%" }}>
+        <View style={{ height: "90%" }}>
+          <ImageBackground
+            style={{
+              height: "100%",
+              flexDirection: "row",
+              backgroundColor: "black",
+            }}
+            resizeMode="cover"
+            source={
+              photoData[index]?.url
+                ? {
+                    uri: photoData[index].url,
+                  }
+                : { uri: testData[index] }
+            }
+          >
+            <Pressable
+              style={{ width: "40%" }}
+              onPress={() => handleChangePhoto(-1)}
+            ></Pressable>
+            <Pressable
+              style={{ width: "60%" }}
+              onPress={() => handleChangePhoto(1)}
+            ></Pressable>
+          </ImageBackground>
+          <View style={styles.carouselPips}>{pipsMarkup}</View>
+        </View>
       </View>
     );
   }
@@ -128,9 +130,9 @@ const styles = StyleSheet.create({
   },
   carouselPip: {
     backgroundColor: "#a6a6a6",
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    margin: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    margin: 2,
   },
 });

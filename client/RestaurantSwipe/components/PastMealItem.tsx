@@ -10,53 +10,76 @@ import {
   View,
 } from "react-native";
 import { ThemedText } from "./ThemedText";
+import axiosAuth from "@/api/auth";
 
 export default function PastMealItem({
   id,
   title,
-  imageSrc,
+  // imageSrc,
   date,
   location,
   liked,
+  members,
 }: {
   id: number;
   title: string;
-  imageSrc: ImageSourcePropType;
+  // imageSrc: ImageSourcePropType;
   date: Date;
-  location: string;
+  location?: string;
   liked?: boolean;
+  members: Array<string>;
 }) {
   const [isToday, setIsToday] = useState(
     date.toLocaleDateString() == new Date().toLocaleDateString()
   );
+  const tintColor = useThemeColor({}, "tint");
+  const [isLiked, setIsLiked] = useState(liked || false);
+
+  const likeRestaurant = async () => {
+    try {
+      let response = await axiosAuth.put(`/meals/${id}`, { liked: !isLiked });
+      if (response.status == 200) {
+        setIsLiked(!isLiked);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
   return (
-    <Link href={`../${id}`} asChild>
+    <Link href={`../match`} asChild>
       <Pressable style={styles.item}>
-        <Image source={imageSrc} style={styles.mealImage} />
+        {/* <Image source={imageSrc} style={styles.mealImage} /> */}
         <View style={styles.itemContent}>
-          <View>
-            <ThemedText type="defaultMedium">{title}</ThemedText>
-            <ThemedText subdued style={{ fontSize: 14, lineHeight: 16 }}>
-              {location} •{" "}
+          <View style={{ width: "50%" }}>
+            <ThemedText type="subtitle">{title}</ThemedText>
+            <ThemedText
+              numberOfLines={1}
+              subdued
+              style={{ fontSize: 14, lineHeight: 16 }}
+            >
+              {/* {location} •{" "} */}
               {date.toLocaleDateString("en-US", {
                 month: "numeric",
                 day: "numeric",
                 year: "2-digit",
-              })}
+              })}{" "}
+              {members && " • " + members.join(", ")}
             </ThemedText>
           </View>
 
-          <Pressable style={styles.itemRight}>
-            <Ionicons
-              name="heart"
-              color={liked === true ? useThemeColor({}, "tint") : "#b0b0b0"}
-              size={25}
-            />
+          <View style={styles.itemRight}>
+            <Pressable onPress={() => likeRestaurant()}>
+              <Ionicons
+                name="heart"
+                color={isLiked === true ? tintColor : "#b0b0b0"}
+                size={25}
+              />
+            </Pressable>
             <Ionicons
               name="chevron-forward"
               color={useThemeColor({}, "subduedText")}
             />
-          </Pressable>
+          </View>
         </View>
       </Pressable>
     </Link>

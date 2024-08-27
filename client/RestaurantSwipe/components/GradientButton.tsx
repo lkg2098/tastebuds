@@ -32,7 +32,7 @@ export default function GradientButton({
       <LinearGradient
         locations={disabled ? [1] : [0.2, 1]}
         colors={disabled ? [subduedColor] : ["#F43625", "#F5C341"]}
-        style={{ padding: 15 }}
+        style={styles.gradient}
       >
         <ThemedText type="defaultBold" style={styles.submitButtonText}>
           {buttonText}
@@ -47,10 +47,17 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     borderRadius: 8,
     overflow: "hidden",
+    height: 60,
   },
   submitButtonText: {
     textAlign: "center",
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  gradient: {
+    padding: 15,
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
   },
 });

@@ -6,7 +6,7 @@ import React, { FunctionComponent, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ThemedText } from "../ThemedText";
 
-export type LinkSettingsItemProps = LinkProps & {
+export type LinkSettingsItemProps = LinkProps<string> & {
   title: string;
   content: ReactNode;
 };
@@ -34,7 +34,7 @@ export default function LinkSettingsItem({
 
 const styles = StyleSheet.create({
   item: {
-    paddingVertical: 25,
+    paddingVertical: 15,
     display: "flex",
     justifyContent: "space-between",
     flexDirection: "row",
@@ -45,6 +45,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 15,
+    width: "60%",
   },
   title: {
     width: 95,

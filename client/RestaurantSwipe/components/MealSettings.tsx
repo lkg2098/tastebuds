@@ -53,7 +53,7 @@ export default function MealSettings({
   };
 
   const handleName = (value: string) => {
-    handleMealData({ ...data, name: value });
+    handleMealData({ ...data, meal_name: value });
   };
 
   const handleDate = (value: Date) => {
@@ -87,9 +87,9 @@ export default function MealSettings({
             preference[i] = word;
           }
         }
-        let output = preference.join(" ");
-        if (index < data.badPreferences.length - 1) {
-          output += ",";
+        let output = preference.join(" ").trim();
+        if (data.badPreferences && index < data.badPreferences.length - 1) {
+          output += ", ";
         }
         return output;
       })
@@ -117,86 +117,134 @@ export default function MealSettings({
         placeholder="Group Name"
         placeholderTextColor={useThemeColor({}, "subduedText")}
       /> */}
-      <NoBorderTextInput
-        value={data?.name || ""}
-        placeholder="New Meal"
-        onChangeText={handleName}
-      />
-      <ThemedText
-        style={[styles.sectionTitle, { paddingTop: 15 }]}
-        type="subtitle"
-      >
-        Guest Info
-      </ThemedText>
-      {data?.id && (
-        <LinkSettingsItem
-          href="../createMeal/addUsers"
-          title="Guests"
-          content={
-            <ThemedText interactive>Lucas, Mal, Owen, Claudia...</ThemedText>
-          }
+      {!data?.id || userRole == "admin" ? (
+        <NoBorderTextInput
+          value={data?.meal_name || ""}
+          placeholder="New Meal"
+          onChangeText={handleName}
         />
+      ) : (
+        <ThemedText type="title">{data?.meal_name}</ThemedText>
       )}
-      <ThemedText
-        style={[styles.sectionTitle, { paddingTop: 15 }]}
-        type="subtitle"
-      >
-        Host Settings
-      </ThemedText>
-
-      <DateSetting date={data?.date || new Date()} setDate={handleDate} />
-      <LinkSettingsItem
-        href={{
-          pathname: "../createMeal/selectLocation",
-          params: {
-            current_address: data?.address || "",
-            mealId: data?.id || null,
-          },
-        }}
-        title="Location"
-        content={
-          <View>
-            <ThemedText
-              type="defaultSemiBold"
-              interactive
-              numberOfLines={1}
-              style={{ width: 250 }}
-            >
-              {!data?.id && data?.location_coords.length != 0
-                ? "Current Location"
-                : data?.address}
-            </ThemedText>
-            {!data?.id && data?.location_coords.length != 0 && (
-              <ThemedText subdued numberOfLines={1} style={{ width: 250 }}>
-                {data?.address}
-              </ThemedText>
-            )}
-          </View>
-        }
-      />
-      <SliderSettingsItem
-        title="Distance"
-        content={`${data?.distance || 5}mi`}
-        values={[data?.distance || 5]}
-        handleValues={handleDistance}
-        min={5}
-        max={200}
-        step={5}
-        snapped={false}
-        handleScroll={handleScroll}
-      />
-      <SliderSettingsItem
-        title="Budget"
-        values={data?.budget || [10, 50]}
-        content={`$${data?.budget[0] || 10}-$${data?.budget[1] || 50}`}
-        min={10}
-        max={50}
-        step={10}
-        snapped={true}
-        handleValues={handleBudget}
-        handleScroll={handleScroll}
-      />
       {data?.id && (
+        <View style={{ alignSelf: "stretch" }}>
+          <ThemedText
+            style={[styles.sectionTitle, { paddingTop: 15 }]}
+            type="subtitle"
+          >
+            Guest Info
+          </ThemedText>
+
+          <LinkSettingsItem
+            href={{
+              pathname: "../createMeal/addUsers",
+              params: {
+                mealId: data.id,
+                action:
+                  userRole == "admin" && !data.chosen_restaurant
+                    ? "edit"
+                    : "view",
+              },
+            }}
+            title="Guests"
+            content={
+              <ThemedText interactive numberOfLines={1} type="defaultSemiBold">
+                {data.members[0] ? data.members.join(", ") : "None"}
+              </ThemedText>
+            }
+          />
+        </View>
+      )}
+      {!data?.id || (userRole == "admin" && !data.chosen_restaurant) ? (
+        <View style={{ alignSelf: "stretch" }}>
+          <ThemedText
+            style={[styles.sectionTitle, { paddingTop: 15 }]}
+            type="subtitle"
+          >
+            Host Settings
+          </ThemedText>
+
+          <DateSetting date={data?.date || new Date()} setDate={handleDate} />
+          <LinkSettingsItem
+            href={{
+              pathname: "../createMeal/selectLocation",
+              params: {
+                current_address: data?.address || "",
+                mealId: data?.id || null,
+              },
+            }}
+            title="Location"
+            content={
+              <View>
+                <ThemedText
+                  type="defaultSemiBold"
+                  interactive
+                  numberOfLines={1}
+                  style={{ width: "60%" }}
+                >
+                  {!data?.id && data?.location_coords?.length != 0
+                    ? "Current Location"
+                    : data?.address}
+                </ThemedText>
+                {!data?.id && data?.location_coords?.length != 0 && (
+                  <ThemedText
+                    subdued
+                    numberOfLines={1}
+                    style={{ width: "60%" }}
+                  >
+                    {data?.address}
+                  </ThemedText>
+                )}
+              </View>
+            }
+          />
+          <SliderSettingsItem
+            title="Distance"
+            content={`${data?.distance || 1}mi`}
+            values={[data?.distance || 1]}
+            handleValues={handleDistance}
+            optionsArray={[
+              0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+              15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+            ]}
+            min={0.25}
+            max={30}
+            step={0.25}
+            snapped={true}
+            handleScroll={handleScroll}
+          />
+          <SliderSettingsItem
+            title="Budget"
+            values={data?.budget?.length ? data.budget : [0, 4]}
+            content={`${
+              "$".repeat(data?.budget[0] || 0) || "Free"
+            }-${"$".repeat(data?.budget[1] || 4)}`}
+            min={0}
+            max={4}
+            step={1}
+            snapped={true}
+            handleValues={handleBudget}
+            handleScroll={handleScroll}
+          />
+        </View>
+      ) : (
+        <View style={{ alignSelf: "stretch" }}>
+          <ThemedText>Date</ThemedText>
+          <ThemedText>{data.date.toLocaleTimeString()}</ThemedText>
+          <ThemedText>Location</ThemedText>
+          <ThemedText subdued numberOfLines={1} style={{ width: "60%" }}>
+            {data?.address}
+          </ThemedText>
+          <ThemedText>Distance</ThemedText>
+          <ThemedText>{data?.distance || 1}mi</ThemedText>
+          <ThemedText>Budget</ThemedText>
+          <ThemedText>
+            `{"$".repeat(data?.budget[0] || 0) || "Free"}-
+            {"$".repeat(data?.budget[1] || 4)}`
+          </ThemedText>
+        </View>
+      )}
+      {data?.id && !data.chosen_restaurant && (
         <View style={{ alignSelf: "stretch" }}>
           <ThemedText style={styles.sectionTitle} type="subtitle">
             Your Filters
@@ -212,7 +260,11 @@ export default function MealSettings({
             title="Cuisine Preferences"
             href={{
               pathname: "../createMeal/preferences",
-              params: { preferences: data.badPreferences },
+              params: {
+                mealId: data.id,
+                rating: data.rating,
+                preferences: JSON.stringify(data.badPreferences),
+              },
             }}
             content={
               <ThemedText
@@ -241,15 +293,22 @@ export default function MealSettings({
             justifyContent: "center",
             gap: 5,
           }}
-          onPress={() =>
-            router.navigate({
-              pathname: "../modal",
-              params: { mealToDelete: data.id },
-            })
-          }
+          onPress={() => {
+            if (userRole == "admin") {
+              router.navigate({
+                pathname: "/modal",
+                params: { mealId: data.id, type: "meal" },
+              });
+            } else {
+              router.navigate({
+                pathname: "/modal",
+                params: { mealId: data.id, type: "leave" },
+              });
+            }
+          }}
         >
           <Ionicons
-            name={userRole == "admin" ? "trash" : "exit"}
+            name={userRole == "admin" ? "trash" : "exit-outline"}
             color={tintColor}
             size={16}
           />

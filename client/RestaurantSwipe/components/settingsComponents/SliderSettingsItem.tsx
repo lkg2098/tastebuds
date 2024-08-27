@@ -1,8 +1,17 @@
 import { useThemeColor } from "@/hooks/useThemeColor";
-import MultiSlider from "@ptomasroos/react-native-multi-slider";
+import MultiSlider, {
+  MultiSliderProps,
+} from "@ptomasroos/react-native-multi-slider";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { ThemedText } from "../ThemedText";
+
+type SliderSettingsItemProps = MultiSliderProps & {
+  title: string;
+  content: string;
+  handleValues: (values: Array<number>) => void;
+  handleScroll: (val: boolean) => void;
+};
 
 export default function SliderSettingsItem({
   title,
@@ -14,17 +23,8 @@ export default function SliderSettingsItem({
   step,
   snapped,
   handleScroll,
-}: {
-  title: string;
-  content: string;
-  values: Array<number>;
-  handleValues: Function;
-  min: number;
-  max: number;
-  step: number;
-  snapped: boolean;
-  handleScroll: Function;
-}) {
+  ...rest
+}: SliderSettingsItemProps) {
   const color = useThemeColor({}, "interactive");
   return (
     <View style={styles.item}>
@@ -49,7 +49,10 @@ export default function SliderSettingsItem({
             ></View>
           </View>
         )}
-        onValuesChange={(values) => handleValues(values)}
+        onValuesChange={(values) => {
+          console.log(values);
+          handleValues(values);
+        }}
         onValuesChangeStart={() => handleScroll(false)}
         onValuesChangeFinish={() => handleScroll(true)}
         containerStyle={styles.sliderContainer}

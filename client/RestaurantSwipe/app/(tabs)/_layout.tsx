@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 
 import { TabBarIcon } from "@/components/navigation/TabBarIcon";
 import { Colors } from "@/constants/Colors";
@@ -7,14 +7,29 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { MealDataContext } from "@/components/MealDataContext";
+import { Pressable } from "react-native";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const mealContext = useContext(MealDataContext);
 
   return (
     <Tabs
       screenOptions={{
+        headerRight: () => (
+          <Pressable
+            style={{ marginRight: 10 }}
+            onPress={() => router.navigate("../account")}
+          >
+            <Ionicons
+              name="person-circle-outline"
+              size={30}
+              color={Colors[colorScheme ?? "light"].text}
+            />
+          </Pressable>
+        ),
         tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
         tabBarStyle: {
           height: "12%",
@@ -51,7 +66,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="explore"
         options={{
           title: "",
@@ -62,7 +77,7 @@ export default function TabLayout() {
             />
           ),
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="newMeal"
         options={{
@@ -90,7 +105,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="account"
         options={{
           title: "Account",
@@ -101,7 +116,7 @@ export default function TabLayout() {
             />
           ),
         }}
-      />
+      /> */}
     </Tabs>
   );
 }

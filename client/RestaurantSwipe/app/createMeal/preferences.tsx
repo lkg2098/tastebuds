@@ -2,48 +2,37 @@ import axiosAuth from "@/api/auth";
 import CuisineSelector from "@/components/CuisineSelector";
 import { GoogleDataContext } from "@/components/GoogleDataContext";
 import GradientButton from "@/components/GradientButton";
+import HeaderBar from "@/components/HeaderBar";
+import { MealDataContext } from "@/components/MealDataContext";
 import { ThemedButton } from "@/components/ThemedButton";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { DietaryRestriction } from "@/types/Meal";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useContext, useEffect } from "react";
+import { Pressable } from "react-native";
 
 export default function Preferences() {
-  const { mealId, preferences } = useLocalSearchParams<{
+  const { mealId } = useLocalSearchParams<{
     mealId: string;
-    preferences: string[];
   }>();
   const router = useRouter();
   const background = useThemeColor({}, "background");
   const googleContext = useContext(GoogleDataContext);
-  // const context = useContext(MealSettingsContext);
-  // useEffect(() => {
-  //   console.log(context?.test);
-  //   context?.setTest({
-  //     id: "",
-  //     name: "New Meal",
-  //     date: undefined,
-  //     budget: [],
-  //     distance: 5,
-  //     rating: 3,
-  //     address: "BBBBBB",
-  //     place_id: "",
-  //     location_coords: [],
-  //     diets: [] as DietaryRestriction[],
-  //     badPreferences: [],
-  //   });
-  // }, []);
-  // useEffect(() => {
-  //   console.log("GOOGLE DATA");
-  //   console.log(google_sql_string);
-  // }, [google_sql_string]);
+  const mealContext = useContext(MealDataContext);
+  const color = useThemeColor({}, "text");
 
-  const handleSubmit = () => {
+  const handleSubmit = (selected: Array<string>) => {
+    if (mealContext) {
+      mealContext.setMealData({
+        ...mealContext.mealData,
+        badPreferences: selected,
+      });
+    }
     router.navigate({
       pathname: "../createMeal",
-      params: { mealId: mealId, test: "a test param" },
     });
   };
 
@@ -56,12 +45,20 @@ export default function Preferences() {
         paddingBottom: "10%",
       }}
     >
+      <HeaderBar
+        headerLeft={
+          <Pressable onPress={() => router.dismiss(1)}>
+            <Ionicons name="chevron-back" color={color} size={18} />
+          </Pressable>
+        }
+        headerCenter={
+          <ThemedText type="defaultSemiBold">Don't Want to Eat</ThemedText>
+        }
+      />
       <CuisineSelector
-        mealId={Number(mealId)}
-        userId={1}
         positive={false}
         tagMap={googleContext?.googleData?.tag_map || {}}
-        initialPreferences={preferences}
+        initialPreferences={mealContext?.mealData?.badPreferences || []}
         handleSubmit={handleSubmit}
       />
     </ThemedView>

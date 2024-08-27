@@ -40,18 +40,20 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="cuisineSelection"
-          options={{ headerShown: false }}
-        />
-      </Stack>
+      <SafeAreaProvider>
+        <Stack>
+          <Stack.Screen
+            name="index"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="cuisineSelection"
+            options={{ headerShown: false }}
+          />
+        </Stack>
+      </SafeAreaProvider>
     </ThemeProvider>
   );
 }

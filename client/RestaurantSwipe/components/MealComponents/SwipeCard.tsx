@@ -98,7 +98,7 @@ export default function SwipeCard({
 
   const rise = swipe.x.interpolate({
     inputRange: [-100, 0, 100],
-    outputRange: [-35, 0, -35],
+    outputRange: [-30, 0, -30],
     extrapolate: "clamp",
   });
 
@@ -266,9 +266,30 @@ export default function SwipeCard({
           </>
         ) : (
           <View
-            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+            style={{
+              ...styles.card,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: backgroundColor,
+              padding: 20,
+            }}
           >
-            <ThemedText>You're out of options!</ThemedText>
+            <ThemedText type="title">You're out of options!</ThemedText>
+            <ThemedText
+              type="subtitle"
+              style={{ textAlign: "center", paddingVertical: 30 }}
+            >
+              You've voted on all the available restaurants! Now you just need
+              to wait for your guests to cast their votes
+            </ThemedText>
+            <Pressable
+              onPress={() => {}}
+              style={[styles.button, { backgroundColor: tintColor }]}
+            >
+              <ThemedText type="defaultSemiBold">
+                Remind Other Guests
+              </ThemedText>
+            </Pressable>
           </View>
         )}
       </View>
@@ -303,25 +324,25 @@ export default function SwipeCard({
           >
             <Ionicons name="close" size={40} color="white" />
           </Pressable>
-          <Pressable
+          {/* <Pressable
             onPress={() => buttonVeto()}
             style={{
               ...styles.circleButton,
               backgroundColor: "black",
-              width: 80,
-              height: 80,
-              borderRadius: 40,
+              width: 70,
+              height: 70,
+              borderRadius: 35,
             }}
           >
             <Ionicons name="ban" size={40} color="white" />
-          </Pressable>
+          </Pressable> */}
           <Pressable
             onPress={() => buttonYes()}
             style={{ ...styles.circleButton, backgroundColor: "#039F85" }}
           >
             <MaterialCommunityIcons
               name="silverware-fork-knife"
-              size={40}
+              size={35}
               color="white"
             />
           </Pressable>
@@ -333,9 +354,9 @@ export default function SwipeCard({
 
 const styles = StyleSheet.create({
   stack: {
-    height: "85%",
+    height: "82%",
     width: "85%",
-    marginTop: "5%",
+    marginTop: "4%",
     alignItems: "center",
     position: "relative",
   },
@@ -352,7 +373,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 10,
-    top: 35,
+    top: 30,
   },
   button: {
     paddingVertical: 10,
@@ -361,16 +382,19 @@ const styles = StyleSheet.create({
     margin: 10,
   },
   buttonGroup: {
-    paddingVertical: 35,
+    // paddingVertical: 35,
+    position: "absolute",
+    paddingHorizontal: 70,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    width: "65%",
+    justifyContent: "space-around",
+    width: "100%",
+    bottom: "2%",
   },
   circleButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    borderRadius: 25,
+    height: 50,
+    width: 50,
     alignItems: "center",
     justifyContent: "center",
   },

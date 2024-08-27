@@ -1,6 +1,5 @@
 import axios from "axios";
 import * as SecureStorage from "expo-secure-store";
-import * as SMS from "expo-sms";
 
 // const axiosAuth = axios.create({
 //   baseURL: "https://tastebuds-4mr3.onrender.com/",
@@ -15,7 +14,12 @@ const axiosAuth = axios.create({
 axiosAuth.interceptors.request.use(
   async (config) => {
     try {
-      const accessToken = await SecureStorage.getItemAsync("accessToken");
+      let accessToken;
+      if (config.url == "/users/account/password") {
+        accessToken = await SecureStorage.getItemAsync("passwordToken");
+      } else {
+        accessToken = await SecureStorage.getItemAsync("accessToken");
+      }
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
@@ -43,42 +47,48 @@ axiosAuth.interceptors.response.use(
         response.data.refreshToken
       );
     }
-    if (response.data?.smsCode) {
-      const smsAvailable = await SMS.isAvailableAsync();
-      const { result } = await SMS.sendSMSAsync(["19146723692"], "Test text");
-      console.log(smsAvailable);
+    if (response.data?.passwordToken) {
+      console.log("setting password token...");
+      await SecureStorage.setItemAsync(
+        "passwordToken",
+        response.data.passwordToken
+      );
     }
     return response;
   },
   async (error) => {
     console.log(error.response?.data.error);
     const originalRequest = error.config;
+
     if (
       error.response?.status == 401 &&
       error.response?.data.error == "Not authorized" &&
       !originalRequest._retry
     ) {
-      originalRequest._retry = true;
-      const refreshToken = await SecureStorage.getItemAsync("refreshToken");
-      if (refreshToken) {
-        try {
-          const response = await axios.post(
-            // "https://tastebuds-4mr3.onrender.com/refresh",
-            "http://localhost:3000/refresh",
-            {},
-            {
-              headers: {
-                Authorization: `Bearer ${refreshToken}`,
-              },
-            }
-          );
-          const newAccessToken = response.data.accessToken;
+      // refresh access token when url is not password route
+      if (originalRequest.url != "/users/account/password") {
+        originalRequest._retry = true;
+        const refreshToken = await SecureStorage.getItemAsync("refreshToken");
+        if (refreshToken) {
+          try {
+            const response = await axios.post(
+              "https://tastebuds-4mr3.onrender.com/refresh",
+              // "http://localhost:3000/refresh",
+              {},
+              {
+                headers: {
+                  Authorization: `Bearer ${refreshToken}`,
+                },
+              }
+            );
+            const newAccessToken = response.data.accessToken;
 
-          await SecureStorage.setItemAsync("accessToken", newAccessToken);
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          return axios(originalRequest);
-        } catch (err) {
-          return Promise.reject(err);
+            await SecureStorage.setItemAsync("accessToken", newAccessToken);
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            return axios(originalRequest);
+          } catch (err) {
+            return Promise.reject(err);
+          }
         }
       }
     }

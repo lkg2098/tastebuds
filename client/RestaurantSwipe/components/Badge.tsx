@@ -33,9 +33,9 @@ export function Badge({
 
 const styles = StyleSheet.create({
   smallBadge: {
-    padding: 3,
-    margin: 4,
-    paddingHorizontal: 15,
+    padding: 2,
+    margin: 3,
+    paddingHorizontal: 10,
     borderRadius: 15,
   },
 });

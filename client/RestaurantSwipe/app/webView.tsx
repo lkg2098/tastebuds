@@ -34,6 +34,7 @@ export default function RestaurantWebView() {
   };
 
   useEffect(() => {
+    console.log(url);
     handleLoad();
   }, []);
 
@@ -96,6 +97,7 @@ export default function RestaurantWebView() {
           }}
         ></Animated.View>
         <WebView
+          originWhitelist={["http://", "https://", "about:"]}
           onLoad={(e) => {
             const { nativeEvent } = e;
             setBrowserData({
@@ -133,7 +135,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     textAlign: "center",
     justifyContent: "space-between",
-    marginTop: "18%",
+    marginTop: "10%",
     padding: 10,
     flexDirection: "row",
     borderTopLeftRadius: 10,

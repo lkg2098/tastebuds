@@ -17,6 +17,7 @@ export const Colors = {
     interactive: "#F43625",
     tabIconDefault: "#687076",
     tabIconSelected: tintColorLight,
+    positive: "#039F85",
   },
   dark: {
     text: "#FFFFFF",
@@ -28,5 +29,6 @@ export const Colors = {
     interactive: "#F43625", //"#F5C341",
     tabIconDefault: "#F43625",
     tabIconSelected: tintColorDark,
+    positive: "#039F85",
   },
 };

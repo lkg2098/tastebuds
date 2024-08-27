@@ -58,24 +58,20 @@ function CuisineButton({
 }
 
 export default function CuisineSelector({
-  mealId,
-  userId,
   initialPreferences,
   positive,
   tagMap,
   handleSubmit,
 }: {
-  mealId: number;
-  userId: number;
   initialPreferences?: Array<string>;
   positive: boolean;
-  tagMap: any;
+  tagMap: { [key: string]: boolean };
   handleSubmit: Function;
 }) {
   const router = useRouter();
   const { width } = Dimensions.get("screen");
   const assetPath = "../assets/images/cuisines";
-  const [cuisineData, setCuisineData] = useState([
+  const allCuisines = [
     {
       label: "Barbecue",
       source: require(`${assetPath}/barbecue.png`),
@@ -251,14 +247,43 @@ export default function CuisineSelector({
       tag_id: "spanish_restaurant",
       shown: tagMap ? tagMap["spanish_restaurant"] : false,
     },
-  ]);
+  ];
+  const [cuisineData, setCuisineData] = useState(allCuisines);
+  const [isDirty, setIsDirty] = useState(false);
   const [count, setCount] = useState(0);
   const [selected, setSelected] = useState<Array<string>>(
     initialPreferences || []
   );
 
   useEffect(() => {
+    console.log("selected Updated");
+    if (initialPreferences?.length) {
+      if (selected.length < initialPreferences.length) {
+        setIsDirty(true);
+      } else {
+        const oldSelected = new Set(initialPreferences);
+        for (let s of selected) {
+          oldSelected.add(s);
+        }
+        console.log(oldSelected);
+        if (oldSelected.size != initialPreferences.length) {
+          setIsDirty(true);
+        } else {
+          setIsDirty(false);
+        }
+      }
+    } else if (selected.length != 0) {
+      setIsDirty(true);
+    } else {
+      setIsDirty(false);
+    }
+  }, [selected]);
+
+  useEffect(() => {
     console.log(initialPreferences);
+    if (initialPreferences) {
+      setSelected(initialPreferences);
+    }
     if (tagMap) {
       let preferences = {} as { [key: string]: boolean };
       if (initialPreferences?.length) {
@@ -268,15 +293,33 @@ export default function CuisineSelector({
       }
       console.log(preferences);
       const tags = tagMap;
-      let cuisineDataCopy = [...cuisineData];
-      for (let item of cuisineDataCopy) {
-        if (tags[item.tag_id]) {
-          item.shown = tags[item.tag_id];
-        }
-        if (preferences[item.tag_id]) {
-          item.selected = true;
-        }
-      }
+      let cuisineDataCopy = cuisineData.reduce(
+        (prev, item) => {
+          if (preferences[item.tag_id]) {
+            item.selected = true;
+          }
+          if (tags[item.tag_id]) {
+            prev.push(item);
+          }
+          return prev;
+        },
+        [] as Array<{
+          label: string;
+          source: ImageSourcePropType;
+          selected: boolean;
+          tag_id: string;
+          shown: boolean;
+        }>
+      );
+
+      // for (let item of cuisineDataCopy) {
+      //   if (tags[item.tag_id]) {
+      //     item.shown = tags[item.tag_id];
+      //   }
+      //   if (preferences[item.tag_id]) {
+      //     item.selected = true;
+      //   }
+      // }
       setCuisineData(cuisineDataCopy);
     }
   }, [tagMap, initialPreferences]);
@@ -284,40 +327,28 @@ export default function CuisineSelector({
   const handleSelection = (index: number) => {
     console.log(count);
     const wasSelected = cuisineData[index].selected;
-    if (wasSelected || count < 3) {
+    if (wasSelected || selected.length < 3) {
       const cuisineDataCopy = [...cuisineData];
       cuisineDataCopy[index].selected = !wasSelected;
       console.log(cuisineData[index]);
       setCuisineData(cuisineDataCopy);
       if (wasSelected) {
-        setSelected((prev) => {
-          return prev.filter((item) => item != cuisineData[index].tag_id);
-        });
+        const selectedCopy = selected.filter(
+          (item) => item != cuisineData[index].tag_id
+        );
+        setSelected(selectedCopy);
       } else if (selected.length < 3) {
-        setSelected((prev) => {
-          prev.push(cuisineData[index].tag_id);
-          return prev;
-        });
+        console.log("here");
+        const selectedCopy = [...selected];
+        selectedCopy.push(cuisineData[index].tag_id);
+        setSelected(selectedCopy);
       }
     }
   };
 
-  const onSubmit = async (emptyList?: Array<string>) => {
-    let preferences = [];
-    if (emptyList) {
-      handleSubmit(emptyList);
-    } else {
-      for (let key in cuisineData) {
-        if (cuisineData[key].selected) {
-          preferences.push(cuisineData[key].tag_id);
-        }
-      }
-      await handleSubmit(preferences);
-    }
-  };
   return (
     <View style={{ flex: 1, alignItems: "center" }}>
-      <ThemedText type="subtitle" interactive style={{ paddingVertical: 10 }}>
+      <ThemedText type="subtitle" interactive style={{ paddingVertical: 20 }}>
         Choose up to 3
       </ThemedText>
       <FlatList
@@ -348,16 +379,24 @@ export default function CuisineSelector({
               />
             );
           } else {
-            return <></>;
+            return <View style={{ display: "none" }}></View>;
           }
         }}
       />
-      <GradientButton handlePress={() => onSubmit()} buttonText="Confirm" />
-      {selected.length && (
+
+      {selected.length == 0 ? (
         <ThemedButton
           type="secondary"
-          onPress={() => onSubmit([])}
+          onPress={() => handleSubmit(selected)}
           text="No Preference"
+          style={styles.submitButton}
+        />
+      ) : (
+        <GradientButton
+          handlePress={() => handleSubmit(selected)}
+          buttonText="Confirm"
+          disabled={!isDirty}
+          style={styles.submitButton}
         />
       )}
     </View>
@@ -385,5 +424,11 @@ const styles = StyleSheet.create({
     position: "absolute",
     zIndex: 10,
     top: -10,
+  },
+  submitButton: {
+    width: 250,
+    margin: 0,
+    position: "absolute",
+    bottom: "2%",
   },
 });

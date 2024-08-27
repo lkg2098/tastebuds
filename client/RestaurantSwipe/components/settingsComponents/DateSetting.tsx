@@ -42,6 +42,7 @@ export default function DateSetting({
       <DateTimePickerModal
         isVisible={pickerOpen}
         mode="datetime"
+        date={date}
         minuteInterval={15}
         onConfirm={(value) => {
           setPickerOpen(false);

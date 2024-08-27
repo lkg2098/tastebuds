@@ -1,6 +1,7 @@
 import axiosAuth from "@/api/auth";
 import CuisineSelector from "@/components/CuisineSelector";
 import GradientButton from "@/components/GradientButton";
+import Loading from "@/components/Loading";
 import RatingSettingsItem from "@/components/settingsComponents/RatingSettingsItem";
 import { ThemedButton } from "@/components/ThemedButton";
 import { ThemedText } from "@/components/ThemedText";
@@ -17,50 +18,61 @@ export default function Preferences() {
   const tintColor = useThemeColor({}, "tint");
   const background = useThemeColor({}, "background");
   const [rating, setRating] = useState(3.5);
+  const [loading, setLoading] = useState(true);
 
   const handleRating = (value: number) => {
     setRating(value);
   };
 
-  return (
-    <ThemedView
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: background,
-      }}
-    >
-      <ThemedText type="title" style={styles.text}>
-        I'd eat anywhere with a rating higher than...
-      </ThemedText>
-      <StarRating rating={rating} color={tintColor} onChange={handleRating} />
-      <ThemedText interactive type="title" style={styles.text}>
-        {rating} stars
-      </ThemedText>
-      <GradientButton
-        buttonText="Confirm"
-        handlePress={() =>
-          router.navigate({
-            pathname: "../preferences/cuisineSelection",
-            params: { rating, mealId, google_sql_string, tag_map },
-          })
-        }
-        style={styles.button}
-      />
-      <ThemedButton
-        type="secondary"
-        text="No Preference"
-        style={styles.button}
-        onPress={() =>
-          router.navigate({
-            pathname: "../preferences/cuisineSelection",
-            params: { rating: 0, mealId, google_sql_string, tag_map },
-          })
-        }
-      />
-    </ThemedView>
-  );
+  useEffect(() => {
+    if (tag_map && google_sql_string) {
+      setLoading(false);
+    }
+  }, [tag_map, google_sql_string]);
+
+  if (loading) {
+    return <Loading />;
+  } else {
+    return (
+      <ThemedView
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: background,
+        }}
+      >
+        <ThemedText type="title" style={styles.text}>
+          I'd eat anywhere with a rating higher than...
+        </ThemedText>
+        <StarRating rating={rating} color={tintColor} onChange={handleRating} />
+        <ThemedText interactive type="title" style={styles.text}>
+          {rating} stars
+        </ThemedText>
+        <GradientButton
+          buttonText="Confirm"
+          handlePress={() =>
+            router.navigate({
+              pathname: "../preferences/cuisineSelection",
+              params: { rating, mealId, google_sql_string, tag_map },
+            })
+          }
+          style={styles.button}
+        />
+        <ThemedButton
+          type="secondary"
+          text="No Preference"
+          style={styles.button}
+          onPress={() =>
+            router.navigate({
+              pathname: "../preferences/cuisineSelection",
+              params: { rating: 0, mealId, google_sql_string, tag_map },
+            })
+          }
+        />
+      </ThemedView>
+    );
+  }
 }
 
 const styles = StyleSheet.create({

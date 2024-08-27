@@ -14,7 +14,8 @@ export type ThemedTextProps = TextProps & {
     | "defaultBold"
     | "defaultMedium"
     | "subtitle"
-    | "link";
+    | "link"
+    | "secondary";
 };
 
 export function ThemedText({
@@ -42,6 +43,7 @@ export function ThemedText({
         type === "defaultMedium" ? styles.defaultMedium : undefined,
         type === "subtitle" ? styles.subtitle : undefined,
         type === "link" ? styles.link : undefined,
+        type === "secondary" ? styles.secondaryText : undefined,
         style,
       ]}
       {...rest}
@@ -82,5 +84,9 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     fontSize: 16,
     color: "#0a7ea4",
+  },
+  secondaryText: {
+    lineHeight: 18,
+    fontSize: 14,
   },
 });

@@ -2,7 +2,7 @@ export type Restaurant = {
   id: string;
   score?: number;
   disliked?: boolean;
-  userScore: number;
+  userScore?: number;
   hidden?: boolean;
   vetoed?: boolean;
   unseen?: boolean;
@@ -20,4 +20,5 @@ export type Restaurant = {
   types?: Array<string>;
   accessibilityOptions?: any;
   website?: string;
+  phone?: string;
 };

@@ -40,7 +40,7 @@ export default function ProfileInfo() {
         name: name,
       });
       if (response.status == 200) {
-        router.replace("(tabs)");
+        router.replace("./(tabs)");
       }
     } catch (err) {
       console.log(err);

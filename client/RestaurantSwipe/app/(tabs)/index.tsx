@@ -17,59 +17,120 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { Link, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axiosAuth from "@/api/auth";
 import MealListItem from "@/components/MealListItem";
-
-type Meal = {
-  id: number;
-  title: string;
-  image: ImageSourcePropType;
-  date: Date;
-  location: string;
-  matched: boolean;
-};
+import { Meal } from "@/types/Meal";
 
 export default function UpcomingMeals() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const [meals, setMeals] = useState<Array<Meal>>([]);
+  const [meals, setMeals] = useState<Array<Meal>>();
+  const [isRefreshing, setIsRefreshing] = useState(true);
+  let timeoutId = useRef<NodeJS.Timeout>().current;
+
   const getMeals = async () => {
     try {
       const response = await axiosAuth.get("/meals/", {
         params: { time: "future" },
       });
       if (response.status == 200) {
-        setMeals(
-          response.data.meals.map(
-            (item: {
-              meal_id: number;
-              meal_name: string;
-              scheduled_at: Date;
-              location_id: string;
-              chosen_restaurant: string | null;
-            }) => ({
-              id: item.meal_id,
-              title: item.meal_name,
-              image: require("../../assets/images/react-logo.png"),
-              date: new Date(item.scheduled_at),
-              location: item.location_id,
-              matched: item.chosen_restaurant,
-            })
-          )
-        );
-        console.log(response.data);
-        return true;
+        return response.data.meals;
       }
     } catch (err) {
       console.log(err);
-      return false;
+      return;
     }
   };
 
+  const refreshMeals = async () => {
+    try {
+      setIsRefreshing(true);
+      let data = await getMeals();
+      let timeout = setTimeout(() => {
+        setMeals(
+          data.map(
+            (item: {
+              chosen_restaurant: string | null;
+              liked: boolean | null;
+              location_coords: Array<number> | null;
+              location_id: number | null;
+              meal_id: number;
+              meal_name: string;
+              meal_photo: string;
+              budget: Array<number>;
+              radius: number;
+              scheduled_at: Date;
+              members: string;
+            }) => ({
+              id: item.meal_id,
+              meal_name: item.meal_name,
+              image: require("../../assets/images/react-logo.png"),
+              date: new Date(item.scheduled_at),
+              place_id: item.location_id,
+              liked: item.liked,
+              distance: item.radius,
+              budget: item.budget,
+              chosen_restaurant: item.chosen_restaurant,
+              members: item.members,
+            })
+          )
+        );
+      }, 750);
+      timeoutId = timeout;
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  useEffect(() => {
+    console.log(meals);
+    if (isRefreshing) {
+      setIsRefreshing(false);
+    }
+  }, [meals]);
+
+  useEffect(() => {
+    const timeout = timeoutId;
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      getMeals().catch((err) => console.log(err));
+      getMeals()
+        .then((data) => {
+          setMeals(
+            data.map(
+              (item: {
+                chosen_restaurant: string | null;
+                liked: boolean | null;
+                location_coords: Array<number> | null;
+                location_id: number | null;
+                meal_id: number;
+                meal_name: string;
+                meal_photo: string;
+                budget: Array<number>;
+                radius: number;
+                scheduled_at: Date;
+                members: string;
+              }) => ({
+                id: item.meal_id,
+                meal_name: item.meal_name,
+                image: require("../../assets/images/react-logo.png"),
+                date: new Date(item.scheduled_at),
+                place_id: item.location_id,
+                liked: item.liked,
+                distance: item.radius,
+                budget: item.budget,
+                chosen_restaurant: item.chosen_restaurant,
+                members: item.members,
+              })
+            )
+          );
+        })
+        .catch((err) => console.log(err));
     }, [])
   );
 
@@ -89,14 +150,19 @@ export default function UpcomingMeals() {
           paddingHorizontal: 15,
           paddingTop: 10,
         }}
+        onRefresh={refreshMeals}
+        refreshing={isRefreshing}
         renderItem={({ item }: { item: Meal }) => (
           <MealListItem
-            id={item.id}
-            title={item.title}
-            imageSrc={item.image}
-            date={item.date}
-            location={item.location}
-            matched={item.matched}
+            id={Number(item.id)}
+            title={item.meal_name}
+            // imageSrc={item.image}
+            date={item.date || new Date()}
+            radius={item.distance}
+            location={item.place_id}
+            budget={item.budget}
+            chosen_restaurant={item.chosen_restaurant}
+            members={item.members}
           />
         )}
         ListEmptyComponent={
