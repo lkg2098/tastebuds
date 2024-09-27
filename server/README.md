@@ -1,2 +1,2 @@
-# restaurant-app (Tastebuds)
+# tastebuds
 Like tinder, but for restaurants
