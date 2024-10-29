@@ -176,11 +176,7 @@ exports.meal_check_round = asyncHandler(async (req, res, next) => {
       req.decoded.member_id
     );
     if (unseenResRows.length == 0) {
-      let check_meal_restaurants =
-        await restaurant_model.meal_restaurants_exist(req.params.mealId);
-      if (check_meal_restaurants) {
-        meal_round = await meal_model.update_meal_round(req.params.mealId);
-      }
+      meal_round = await meal_model.update_meal_round(req.params.mealId);
     }
     res.status(200).json({ meal_round });
   } else {

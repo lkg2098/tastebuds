@@ -48,6 +48,27 @@ exports.meal_restaurants_exist = async (meal_id) => {
   }
 };
 
+exports.all_member_restaurants_exist = async (meal_id) => {
+  try {
+    let result = await pool.query(
+      `
+      select 
+      count(distinct mem_r.mem_res_id) = count(distinct me_r.meal_res_id) * mem.member_count
+      as valid
+      from (select meal_res_id from meal_restaurants where meal_id = $1) as me_r
+join member_restaurants as mem_r on mem_r.meal_res_id = me_r.meal_res_id 
+cross join(select count(member_id) as member_count from meal_members where meal_id = $1) as mem
+group by member_count;`,
+      [meal_id]
+    );
+
+    return result.rows[0].valid;
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
 exports.upsert_meal_restaurants = async (json_data) => {
   try {
     let result = await pool.query(

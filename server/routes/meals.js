@@ -216,7 +216,7 @@ router.get(
   async (req, res, next) => {
     let { tag_map, places_data, db_ids } = req.googleData;
     let locationInfo = req.locationInfo;
-    console.log(locationInfo);
+    // console.log(locationInfo);
     for (let id of db_ids) {
       places_data[id.res_id] = places_data[id.place_id];
       delete places_data[id.place_id];

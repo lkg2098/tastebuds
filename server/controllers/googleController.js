@@ -184,7 +184,7 @@ exports.process_google_data = (places, budget, date) => {
     };
     return res.id;
   });
-  console.log(places_data);
+  // console.log(places_data);
 
   return { tag_map, place_ids, places_data };
 };
