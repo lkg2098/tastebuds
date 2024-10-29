@@ -4,24 +4,10 @@ const pool = require("../pool");
 const restaurants_model = require("../models/restaurants");
 const meals_model = require("../models/meals");
 
-exports.nearby_search_old = async (req, res, next) => {
-  try {
-    let location = [40.93941850319317, -73.83195923491385];
-    let key = process.env.PLACES_API_KEY;
-    let { data } = await axios.get(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location[0]}%2C${location[1]}&radius=1500&type=restaurant&key=${key}`
-    );
-    console.log(data);
-    res.status(200).json({ message: "this is working" });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: err });
-  }
-};
+const KEY = process.env.PLACES_API_KEY;
 
 exports.nearby_search = async (req, res, next) => {
   try {
-    let key = process.env.PLACES_API_KEY;
     let { data } = await axios.post(
       "https://places.googleapis.com/v1/places:searchNearby",
       {
@@ -39,9 +25,9 @@ exports.nearby_search = async (req, res, next) => {
       },
       {
         headers: {
-          "X-Goog-Api-Key": key,
+          "X-Goog-Api-Key": KEY,
           "X-Goog-FieldMask":
-            "places.accessibilityOptions,places.addressComponents,places.formattedAddress,places.name,places.displayName,places.location,places.photos,places.types,places.primaryType,places.priceLevel,places.regularOpeningHours,places.currentOpeningHours,places.regularSecondaryOpeningHours,places.currentSecondaryOpeningHours,places.rating,places.userRatingCount,places.websiteUri",
+            "places.accessibilityOptions,places.addressComponents,places.formattedAddress,places.id,places.displayName,places.location,places.photos,places.types,places.primaryType,places.priceLevel,places.regularOpeningHours,places.currentOpeningHours,places.regularSecondaryOpeningHours,places.currentSecondaryOpeningHours,places.rating,places.userRatingCount,places.websiteUri",
         },
       }
     );
@@ -57,20 +43,25 @@ exports.get_google_photo = async (req, res, next) => {
   try {
     const { photo_name } = req.body;
     console.log(photo_name);
-    let key = process.env.PLACES_API_KEY;
-    let { data } = await axios.get(
-      `https://places.googleapis.com/v1/${photo_name}/media`,
-      {
-        params: {
-          maxWidthPx: 500,
-          skipHttpRedirect: true,
-        },
-        headers: {
-          "X-Goog-Api-Key": key,
-        },
-      }
-    );
-    console.log(data);
+
+    // let { data } = await axios.get(
+    //   `https://places.googleapis.com/v1/${photo_name}/media`,
+    //   {
+    //     params: {
+    //       maxWidthPx: 500,
+    //       skipHttpRedirect: true,
+    //     },
+    //     headers: {
+    //       "X-Goog-Api-Key": KEY,
+    //     },
+    //   }
+    // );
+    // console.log(data);
+    let data = {
+      name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q49ztGYFvERo9SqWDxz_mnJSxMPniYqcVz_rKSj9Q4md2JyfLf7_OzmGTZ6ihs-6-SNHqWsa2SBWZucNrVq4kqMZGssrYNm_x23Tair343v1CcIIEhFosY75DfWp3pgoJhN-hkX3IhrOBoSCinsAhXtWUka1DAQ9J6E/media",
+      photoUri:
+        "https://lh3.googleusercontent.com/places/ANXAkqE4pa5LQsJMp_PvUQUJmsinyBQOy1n2BxIB4oI97Jg0iiGbpLov03aZM0hOq5vYCrkgFus4_ovXNDAQj3GosXJMz2WfvTlHmpY=s4800-w500",
+    };
     res.status(200).json({ message: "this is working", photo: data });
   } catch (err) {
     console.log(err.response);
@@ -80,16 +71,15 @@ exports.get_google_photo = async (req, res, next) => {
 
 exports.get_geocoding_info = async (coords) => {
   try {
-    let key = process.env.PLACES_API_KEY;
     // let { data } = await axios.get(
     //   "https://maps.googleapis.com/maps/api/geocode/json",
     //   {
-    //     params: { latlng: coords, key },
+    //     params: { latlng: coords, key: KEY },
     //   }
     // );
     // console.log(data);
     // console.log(data.results[0]);
-    console.log("RUNNING GEOCODING!!!!");
+    // console.log("RUNNING GEOCODING!!!!");
     return {
       formatted_address: "200 Geary St, San Francisco, CA 94102, USA",
       place_id: "ChIJpc9FisyBhYARPN5xBWS7KQc",
@@ -123,3634 +113,620 @@ function parse_location_data(data) {
   };
 }
 
-function process_google_data(places) {
-  const tag_map = {};
-  let sqlValueString = "values";
-  // const place_ids = [];
-  const places_data = {};
-  const place_ids = places.map((res, index) => {
-    sqlValueString += `('${res.id}', ${res.rating},'{`;
-    let place_id = res.name.split("/")[1];
-    let tagList = res.types.reduce((types, type, index) => {
-      if (
-        type.match(
-          /^.+restaurant$|bar|cafe|coffee\_shop|ice\_cream\_shop|sandwich\_shop|steak\_house/
-        )
-      ) {
-        types.push(type.replace(/\_|restaurant/g, " ").trim());
-        sqlValueString += `"${type}",`;
+function process_google_place(place, tag_map) {
+  let tagList = [];
+  let cleanTagList = place.types.reduce((types, type, index) => {
+    if (
+      type.match(
+        /^.+restaurant$|bar|cafe|coffee\_shop|ice\_cream\_shop|sandwich\_shop|steak\_house/
+      )
+    ) {
+      let styledType = type.replace(/\_|restaurant/g, " ").trim();
+      styledType = styledType
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+      types.push(styledType);
+      tagList.push(type);
 
-        if (type.match(/^.+restaurant$|sandwich\_shop|steak\_house/)) {
-          tag_map[type] = true;
-        }
-        return types;
+      if (type.match(/^.+restaurant$|sandwich\_shop|steak\_house/)) {
+        tag_map[type] = true;
       }
       return types;
-    }, []);
-    if (tagList.length) {
-      sqlValueString = sqlValueString.substring(0, sqlValueString.length - 1);
     }
-    sqlValueString += `}')`;
-    if (index < places.length - 1) {
-      sqlValueString += ",\n";
-    }
+    return types;
+  }, []);
 
-    places_data[place_id] = {
-      id: place_id,
-      name: res.displayName.text,
-      address: res.shortFormattedAddress,
-      types: tagList,
-      location: res.location,
-      priceLevel: res.priceLevel,
-      rating: res.rating,
-      rating_count: res.userRatingCount,
-      hours: res.regularOpeningHours.weekdayDescriptions,
-      photos: res.photos.reduce((results, photo, index) => {
-        if (index < 4) {
-          results.push({
-            name: photo.name,
-            authors: photo.authorAttributions,
-          });
-        }
-        return results;
-      }, []),
-      accessibilityOptions: res.accessibilityOptions,
-      website: res.websiteUri,
-      // open: filter_by_hours(
-      //   res.regularOpeningHours.weekdayDescriptions,
-      //   new Date(scheduled_at)
-      // ),
-      // inBudget: filter_by_budget(res.priceLevel, 1, 4),
-    };
-    return place_id;
-  });
+  let formattedPlace = {
+    place_id: place.id,
+    name: place.displayName.text,
+    address: place.shortFormattedAddress,
+    types: cleanTagList, //formatted tags
+    tags: tagList, // raw tag data
+    location: place.location,
+    priceLevel: place.priceLevel,
+    regularOpeningHours: place.regularOpeningHours?.periods || [],
+    rating: place.rating,
+    rating_count: place.userRatingCount,
+    hours: place.regularOpeningHours?.weekdayDescriptions || "",
+    photos: place.photos.reduce((results, photo, index) => {
+      if (index < 4) {
+        results.push({
+          name: photo.name,
+          authors: photo.authorAttributions,
+          uri: "",
+        });
+      }
+      return results;
+    }, []),
+    accessibilityOptions: place.accessibilityOptions,
+    website: place.websiteUri,
+  };
 
-  return { sqlValueString, tag_map, place_ids, places_data };
+  return formattedPlace;
 }
+
+exports.process_google_data = (places, budget, date) => {
+  const tag_map = {};
+
+  // const place_ids = [];
+  const places_data = {};
+  const place_ids = places.map((res) => {
+    let place = process_google_place(res, tag_map);
+
+    places_data[res.id] = {
+      ...place,
+      is_open: this.filter_by_hours(
+        res.regularOpeningHours?.periods || [],
+        new Date(date)
+      ),
+      in_budget: this.filter_by_budget(res.priceLevel, budget),
+    };
+    return res.id;
+  });
+  console.log(places_data);
+
+  return { tag_map, place_ids, places_data };
+};
 
 const MILES_TO_METERS = 1609.34;
 
 let places = [
   {
-    name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8",
-    id: "ChIJ3z_bIK6SwokRz3XMu8xCPI8",
+    name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE",
+    id: "ChIJlZuJwOiSwokRrJNNhf-PrWE",
     types: [
-      "breakfast_restaurant",
-      "restaurant",
-      "food",
-      "point_of_interest",
-      "establishment",
-    ],
-    formattedAddress: "112 Kraft Ave, Bronxville, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "112",
-        shortText: "112",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Kraft Avenue",
-        shortText: "Kraft Ave",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.940843,
-      longitude: -73.83425,
-    },
-    rating: 4.3,
-    websiteUri: "http://thebronxvillediner.com/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 7,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 7,
-            minute: 0,
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 7,
-            minute: 0,
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 7,
-            minute: 0,
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 7,
-            minute: 0,
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 7,
-            minute: 0,
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 7,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 0,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 7:00 AM – 9:00 PM",
-        "Tuesday: 7:00 AM – 9:00 PM",
-        "Wednesday: 7:00 AM – 9:00 PM",
-        "Thursday: 7:00 AM – 9:00 PM",
-        "Friday: 7:00 AM – 9:00 PM",
-        "Saturday: 7:00 AM – 9:00 PM",
-        "Sunday: 7:00 AM – 9:00 PM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 990,
-    displayName: {
-      text: "Bronxville Diner",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 7,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 7,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 7,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 7,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 7,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 7,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 7,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 7:00 AM – 9:00 PM",
-        "Tuesday: 7:00 AM – 9:00 PM",
-        "Wednesday: 7:00 AM – 9:00 PM",
-        "Thursday: 7:00 AM – 9:00 PM",
-        "Friday: 7:00 AM – 9:00 PM",
-        "Saturday: 7:00 AM – 9:00 PM",
-        "Sunday: 7:00 AM – 9:00 PM",
-      ],
-    },
-    primaryType: "restaurant",
-    shortFormattedAddress: "112 Kraft Ave, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_CsTYW0yGXsEBd2yCkDnmL6ZNrComgouZ_v_-DD63My5rmQFhz7FYYzT7iQJ62hxUdmhFGhP7rAdWmYHaMMl9d3Q44eope0YnbtL8GF2x7FjccyYGmqN9M7RcOVE7UFz79OuPP4IuZ9NSkultsCkUkjDG7gWuruMKFOv",
-        widthPx: 2048,
-        heightPx: 1228,
-        authorAttributions: [
-          {
-            displayName: "Bronxville Diner",
-            uri: "//maps.google.com/maps/contrib/103536951004213398224",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWm1PgYl7vrRK2bfkv856TWASYTnz49w6RKH-uHOObSUhqR4_I=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_Cvy_MPC11QqoHtB0yNvF3o-rJUy76K02bu4YkyIWyAYyzj048uXIH7nKQiWOCaw4BsdCieNg4NA_RedSibEUNhy7pRCzDsQbsamQs0FJL__vvufOHNBn-guFrcQrQJIPfb8gyDxHeDYRVDkTJNhh4J8e02Uaog72Xav",
-        widthPx: 1024,
-        heightPx: 682,
-        authorAttributions: [
-          {
-            displayName: "Bronxville Diner",
-            uri: "//maps.google.com/maps/contrib/103536951004213398224",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWm1PgYl7vrRK2bfkv856TWASYTnz49w6RKH-uHOObSUhqR4_I=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_CsiJcO7P-82LgcMANWmdw-tEVaDjca80UfpL1mQ-ScjbgP8JycNYeUI83aRKioluw26kZkjR6KUferJ6dg-PmyN7GZOlh7u7Fg-EubxpCcYIirZnKVYY6vlkEr9PZub2ugA_sjMkWmWd0lDY2HlQr5y7Xd9UkftyWo",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Kim Gullberg",
-            uri: "//maps.google.com/maps/contrib/111035411571893892330",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVQICCQe1aOgee88QVbprScdUHTpWq2rX57R_XTGsCrMzDyW7A=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_CtQl-s4kXhT-sx-Fh66X4MGxttmfJ9e6qIZ4OeHP3U6zupEN8hoaKLI2lKpsdTXXf_YXKWQX29atX0ey8p2PiZvu_l1K_abSkCkuvrBTlo_RGt99v3LGFYLZEzMzVaSQ0fKWSu8PFkHlFQ1JMvUww6Dp90M5vMIKp9_",
-        widthPx: 2585,
-        heightPx: 3295,
-        authorAttributions: [
-          {
-            displayName: "Tom Moncho",
-            uri: "//maps.google.com/maps/contrib/114125059648511830046",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVIp0U9d6wWacj8xmefHG8bluUDQi8UHlEY4abaq0TDMmoMQYTo0w=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_CsUPy3FP1H5RVDcQW3fqqA9i9BYTdk4oZiuzMIQ5la1FaYafZN29V-6zzwt_1mfMeWoZRfs0i3rxev9RsM47sxDJxfDyts1vQxOYEkuXaGOHcgMKzZgOkhz2jey40XbX9M9ozXtgy-bI0sA3g4980pGd2KkLSyEe4gL",
-        widthPx: 1080,
-        heightPx: 1439,
-        authorAttributions: [
-          {
-            displayName: "Mia Flores",
-            uri: "//maps.google.com/maps/contrib/106875505515876382969",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocI3RsiJ0CYqyuJCbEkBj3AoR55I45wSSLaVFoxo4bShgi0ZRQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_CtirJ3q-lOMERReoTMLJNeqUEmw66ipjkJKu_X5AVYktgSQlnHBHeH5wT0COtevEKxP_aTVWKxhHBLv3JxraSZippFzLeieECScLrQWqMqUs3XOboHqH0XKD6E8wRqyPK6ZmQlkz5I9tfN9uYMvqLuH-fMbVlj9odlA",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_CvGOlSmKt82T4MFMoILUNtuaR2zfxAhDgDUXnzeifA3mM4LrSWZJO5KPQQi2EbdFK0Uu0RDEnEu6Qto4yQWlIPfVe6NGYxA3atjO-Q76SOzTRmlCM28K2qNFr9r3gJhiLsZcgOZYr-B1AzoTa-yf_SWxYJ2quvlqRDq",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Anand Pande",
-            uri: "//maps.google.com/maps/contrib/103660647979898389800",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocKkiZoDzZKxdsAgjBbc8eJa331GdYw3LiXdH2FXM_Fz5sbckb_d=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_CuR-XCtsEFRRP8E35JUDtT1mvVZ7ID7DGOBpuH2M5buhobR419nem0BLmM5DbmkhYkpeH8YgldHdg2KPdIQZwEK0zLVHejpe6tsQ0epvCMWZJbjowZDBMHu9pXmjQvXfV_NtDiIT5xjyplpbikVwN5i59bizEotFnCJ",
-        widthPx: 3984,
-        heightPx: 3000,
-        authorAttributions: [
-          {
-            displayName: "Tom Moncho",
-            uri: "//maps.google.com/maps/contrib/114125059648511830046",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVIp0U9d6wWacj8xmefHG8bluUDQi8UHlEY4abaq0TDMmoMQYTo0w=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_Ctlgs52dubQg41fSHjitMsNOBW5cmLXPdSG8rj6PvncuU1aTVA9YHYzI-PGnM44lR-XUReOKX68-6Q6c7_fg5eomrjKUlnozRDGMelfC8m7FyouoYBopU-Xn9HgLMQBSRK6iTxWyMXYJ_P4S5v9CKi1QMK11pUaV4Am",
-        widthPx: 4000,
-        heightPx: 2252,
-        authorAttributions: [
-          {
-            displayName: "Marcel Younes (Marco)",
-            uri: "//maps.google.com/maps/contrib/107319038800645389560",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUOo8BYqeyYxILKD8LnOb9SK7HcC6SdR9FCgaOuPmHy9b0s4l8N_A=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ3z_bIK6SwokRz3XMu8xCPI8/photos/AelY_CvlrocVg53S5u-aC76UFtZ7YIfU9xr85lTgOHkI4upHss_dXzc3nVVs2E7XDU49T8sLM9DqunEQdyu-Th1jzkPzdRPXST55ZgvUUAzBWHeBa3oJGDK_u0FSckggGmsn8gDvpQHkev4QdWN2bZxrCiriSnBJSZSNHe_f",
-        widthPx: 4000,
-        heightPx: 2252,
-        authorAttributions: [
-          {
-            displayName: "Marcel Younes (Marco)",
-            uri: "//maps.google.com/maps/contrib/107319038800645389560",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUOo8BYqeyYxILKD8LnOb9SK7HcC6SdR9FCgaOuPmHy9b0s4l8N_A=s100-p-k-no-mo",
-          },
-        ],
-      },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: true,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w",
-    id: "ChIJ23paVWmTwokRd0rp8kdKM0w",
-    types: ["restaurant", "food", "point_of_interest", "establishment"],
-    formattedAddress: "15 Park Pl, Bronxville, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "15",
-        shortText: "15",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Park Place",
-        shortText: "Park Pl",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.9395715,
-      longitude: -73.8337966,
-    },
-    rating: 4.8,
-    websiteUri: "http://playabowls.com/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 0,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 9:00 AM – 9:00 PM",
-        "Tuesday: 9:00 AM – 9:00 PM",
-        "Wednesday: 9:00 AM – 9:00 PM",
-        "Thursday: 9:00 AM – 9:00 PM",
-        "Friday: 9:00 AM – 9:00 PM",
-        "Saturday: 9:00 AM – 9:00 PM",
-        "Sunday: 9:00 AM – 9:00 PM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 527,
-    displayName: {
-      text: "Playa Bowls",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 9:00 AM – 9:00 PM",
-        "Tuesday: 9:00 AM – 9:00 PM",
-        "Wednesday: 9:00 AM – 9:00 PM",
-        "Thursday: 9:00 AM – 9:00 PM",
-        "Friday: 9:00 AM – 9:00 PM",
-        "Saturday: 9:00 AM – 9:00 PM",
-        "Sunday: 9:00 AM – 9:00 PM",
-      ],
-    },
-    primaryType: "restaurant",
-    shortFormattedAddress: "15 Park Pl, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CvYoeiAvOkj2xShDdtnH9fh5ctuf3_fXgl_63wzw4lLpqZOvJs_2_OOLgjGLozraMq45cqJPhhZqLdWRs0_TeNfCHocauMXcHDviCtg4E3pCJ1SJi_wBYwdYPgPbi_I48nKmOd5E-XX5hpjTo9Z4Mfwu6aIiB-fhpPA",
-        widthPx: 2649,
-        heightPx: 2895,
-        authorAttributions: [
-          {
-            displayName: "SPD",
-            uri: "//maps.google.com/maps/contrib/109954214289545768470",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLjhs5L_LaggmEjon3Gw1VQApDXiMs4j73QBROytW8x7mf2FA=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_Ct_Nf1x4LT0C0dqxTCIzfFN22DBu0pO47d8-jVpjvff1NuO4Nz1stUAAqpt0-EcDcxbwYeTPeZOEdvs2XqHzlvLsqaFWviwUVULIUgc2zLy6bnN95vt340G_YzytcdT4ofAzXPsWqoi1ueo-Y_Nlj0piOYg_cIK3RnA",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Ryan Raaum",
-            uri: "//maps.google.com/maps/contrib/105892243175315839968",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWrZIE1TvBwgB1gtW7zA83gkX2Gc_WtF0UZCeVz075Jbk-l0LNd=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CsPjnB7AvVVgnOQeUkXxkds9dYQsB0FfysU0oUUs0szGfa0PHIZDY8CZnoRWBETMV35SO9Qu46-FEuFscmnkNQX6EyCAxdv0xiiKrYpPBS5ahuWx4CPo5gd2E-3_8c1qlViY-CmK42y0QUaB8TExbe1If4QBapzt-XI",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Renee Perkins",
-            uri: "//maps.google.com/maps/contrib/111666520096562646940",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWPXEvAr30F89xDB3LZp4HkVUHjHbwtbnhOUpp8wr3MRJZpoxI=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CvZtY1oxxi1aGUEjZuqx3g_WqCPy0m1y3aVDVTnr1vp4tYHEf8mJ_8s-7a-F6FICXBVJTTAJP0drITePCBBSZQzcNp7DroMdrdakxN2DOBg2RPDDTc-ebBB_DOj2EJUhErbMeh8VpfKU3WEZZ5dFG11n0DyL3dpFsmZ",
-        widthPx: 3000,
-        heightPx: 3000,
-        authorAttributions: [
-          {
-            displayName: "among us Gamer",
-            uri: "//maps.google.com/maps/contrib/112552625260623853690",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUUu6_f-_b_NV1TRb9I3dIeXX5Q0eA9-B884nPglsIGb4udMMM=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CvoB6yxQJEDhEkISqwR_zauW8XCwSZ-AKEJZAWXQtba2M-iPgFM4fUwGm7BBFugetIunhjMP5FI49cDOBgMOUBQ7EAU51u31DZGe-BrZx2lXeGYwSnpybSZom6-SarLzUZZ0QJkGOF8oEwdfQg_KYjNquwUghJpgeU",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Jess the Blessed",
-            uri: "//maps.google.com/maps/contrib/108398016219706138219",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUBiio_GFueTlO7D5EvMjvB0If0eEBczigdDhndJNTvRq1jUBs=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CtQq9NEn9P81xnWqmRmHu7CtBnazB52rKG2sPXesKPYgpnsOM_02HH5G18AcBWmiIcx0ABZgdgjPbkanDl7mhk6tAsVJpP_2atnhZPOP4-_fIxtyBmxEbZNN1arwwKQO3Ek3F87nPUROmgf7nxez-w8GrI7U7xYqjxd",
-        widthPx: 1920,
-        heightPx: 1080,
-        authorAttributions: [
-          {
-            displayName: "kamal maq",
-            uri: "//maps.google.com/maps/contrib/106311411889971113392",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUwz4M34bAEKlPxrWmsq0NpwOfFiCwepaIpFyQM5ib1-g1mSC91=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CtMB1raz7NF_OUA3H6njzQMLezURWm5iKqLflctzjgsOK2825-ZNC5s6AucrH1-rFO_Zb49FyARDyCaySZJyjoPEAWKxb7iQTY6QNj_qwQsnA-yZe0rWt1uyJkTIN6ah0uvAv7_yMT8s8uybeNw2KJcV6G_nVS4TpNl",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Gerard Visser",
-            uri: "//maps.google.com/maps/contrib/117835854773569504294",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVIo-uGyIVfdSS9OnqrsUw79rnAplzsVIMjxz1BCLhstSO480Fjnw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CtEa0QQl9mSzji0gwVrJTvTcKDfvhEooAvyKMR-yNVdMIK5l_fttQ8kuj3ntOwlhcnWDh31roX7qdvPfpPitzCSz58t7zAMiIR8G9vqpmIPYdFkU_CLEby3aJDU-NFZ1iRKOM4GQmoatId17Idosyrpm8b1g5GGqBKe",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Gabriela Lêdo Franco",
-            uri: "//maps.google.com/maps/contrib/112720967901361075004",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjX6n2oLQGm24NNJ6QmKD1x5z1rcTnTocG4RCmurf1ZCNZ11EMPIkg=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CukykkSYDz0rVaQMvPGKamcI7-F44n-NEF0Kj90wj1EiE3CMjK5m_c1Yo-Ya2G173N9_1YnFV0aif10YqI532c-xU6EBZdsETGES7aVU3_Kof1O-NbitdFz_ioyYqlZCAP6ekUsftVt20ZpS0UJk-A7levuYLynTXla",
-        widthPx: 4032,
-        heightPx: 1960,
-        authorAttributions: [
-          {
-            displayName: "cesar duque",
-            uri: "//maps.google.com/maps/contrib/114571796102722332405",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjV33CZnN8uGtrOlUwZLqy4TrNnvvPhboqNiQ4BkvSWPPp_lfapgTA=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ23paVWmTwokRd0rp8kdKM0w/photos/AelY_CsLYdqRrqNGaAeUKAhBo8AwDYHShfWCKoHj6zD0PdSB8iY39SgWAMQhc8nVIdfgLHOUna5FwBmGnNoywtAfBjC4W3Y6llh8lewD5rSqN2oIG2mS5Prm6BsFQhCD70WfeUbwFgVnLdD3q2IgOcJtrwIQ8TVBoe6axTi7",
-        widthPx: 1125,
-        heightPx: 1164,
-        authorAttributions: [
-          {
-            displayName: "HD13",
-            uri: "//maps.google.com/maps/contrib/101333690446174682033",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLQQGA372_kEJZRWfCgl6jM6oToPDQ4iQ9efLxQBCgnHPSYag=s100-p-k-no-mo",
-          },
-        ],
-      },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: true,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI",
-    id: "ChIJv0CFoxKTwokR4Sfgcmab1EI",
-    types: ["restaurant", "food", "point_of_interest", "establishment"],
-    formattedAddress: "7 Pondfield Rd, Bronxville, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "7",
-        shortText: "7",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Pondfield Road",
-        shortText: "Pondfield Rd",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.942234,
-      longitude: -73.8340454,
-    },
-    rating: 4.6,
-    websiteUri: "https://lacasabronxville.com/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 17,
-            minute: 0,
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 17,
-            minute: 0,
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 17,
-            minute: 0,
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 17,
-            minute: 0,
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 9,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 30,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 5:00 – 9:30 PM",
-        "Tuesday: 5:00 – 9:30 PM",
-        "Wednesday: 5:00 – 9:30 PM",
-        "Thursday: 5:00 – 10:00 PM",
-        "Friday: 12:00 – 10:30 PM",
-        "Saturday: 9:00 AM – 10:30 PM",
-        "Sunday: 9:00 AM – 9:00 PM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 398,
-    displayName: {
-      text: "La Casa Bronxville",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 9,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 5:00 – 9:30 PM",
-        "Tuesday: 5:00 – 9:30 PM",
-        "Wednesday: 5:00 – 9:30 PM",
-        "Thursday: 5:00 – 10:00 PM",
-        "Friday: 12:00 – 10:30 PM",
-        "Saturday: 9:00 AM – 10:30 PM",
-        "Sunday: 9:00 AM – 9:00 PM",
-      ],
-    },
-    currentSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 1,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 5:00 – 6:00 PM",
-          "Tuesday: 5:00 – 6:00 PM",
-          "Wednesday: 5:00 – 6:00 PM",
-          "Thursday: 5:00 – 6:00 PM",
-          "Friday: 12:00 – 6:00 PM",
-          "Saturday: Closed",
-          "Sunday: Closed",
-        ],
-        secondaryHoursType: "HAPPY_HOUR",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 8,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 8,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 8:30 – 11:30 AM",
-          "Sunday: 8:30 – 11:30 AM",
-        ],
-        secondaryHoursType: "BREAKFAST",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 11:30 AM – 4:00 PM",
-          "Sunday: 11:30 AM – 4:00 PM",
-        ],
-        secondaryHoursType: "BRUNCH",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 5,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: 12:00 AM – 5:00 PM",
-          "Saturday: Closed",
-          "Sunday: Closed",
-        ],
-        secondaryHoursType: "LUNCH",
-      },
-    ],
-    regularSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 1,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 18,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 5:00 – 6:00 PM",
-          "Tuesday: 5:00 – 6:00 PM",
-          "Wednesday: 5:00 – 6:00 PM",
-          "Thursday: 5:00 – 6:00 PM",
-          "Friday: 12:00 – 6:00 PM",
-          "Saturday: Closed",
-          "Sunday: Closed",
-        ],
-        secondaryHoursType: "HAPPY_HOUR",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 8,
-              minute: 30,
-            },
-            close: {
-              day: 0,
-              hour: 11,
-              minute: 30,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 8,
-              minute: 30,
-            },
-            close: {
-              day: 6,
-              hour: 11,
-              minute: 30,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 8:30 – 11:30 AM",
-          "Sunday: 8:30 – 11:30 AM",
-        ],
-        secondaryHoursType: "BREAKFAST",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 30,
-            },
-            close: {
-              day: 0,
-              hour: 16,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 30,
-            },
-            close: {
-              day: 6,
-              hour: 16,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 11:30 AM – 4:00 PM",
-          "Sunday: 11:30 AM – 4:00 PM",
-        ],
-        secondaryHoursType: "BRUNCH",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 5,
-              hour: 0,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 17,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: 12:00 AM – 5:00 PM",
-          "Saturday: Closed",
-          "Sunday: Closed",
-        ],
-        secondaryHoursType: "LUNCH",
-      },
-    ],
-    primaryType: "restaurant",
-    shortFormattedAddress: "7 Pondfield Rd, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_CsKPgUlAHl2DHtbSFa4fwGE4UbcGRXZj6qcvAnmdzBkJvhUFtKwPiJhl_Fq2p308MHi4JEt-LNvo5FEniwpgC49W43YtTMfnFCnNGljrtDKroxRoCzIk_gPiojgEc-rIAyZUWAX1DGivG4fjFholRv6njm48p2q81s3",
-        widthPx: 1100,
-        heightPx: 734,
-        authorAttributions: [
-          {
-            displayName: "La Casa Bronxville",
-            uri: "//maps.google.com/maps/contrib/102498846217371794194",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVuX5PpDHz8y_nZtLKHBPTsopba_lHZmVRLrYCSBpcghX8-LAw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_CulFSMK_18BHGXFbEXGRXx2ls-PHgv9svKsRMi1qkLfzLMMdYCfi8q4sPnOuw6MJWkmWyeK8hQRrSCWebiODrU4w1sLWLSUhGYZtWqc7ZGj6QWPljfepOwlljA2I8dscgFvhdbX0QrTAPWI6bh9dPeBlbNOpEQeY1jH",
-        widthPx: 2901,
-        heightPx: 2723,
-        authorAttributions: [
-          {
-            displayName: "La Casa Bronxville",
-            uri: "//maps.google.com/maps/contrib/102498846217371794194",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVuX5PpDHz8y_nZtLKHBPTsopba_lHZmVRLrYCSBpcghX8-LAw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_CuEPZKBq_b5PjW07yTN9YzNNUmZewuKxdJyYKqnaX_GylHHN5Erbs1w21wxgfXmVSEgKD_f1Ufpt-MXyCjT_sEHmL57AXD3wpHwYxfUEZJsVHxwGp0UWjWqnaPrqYmnWsxukO55FRmDI9gZ4TwfSAPYYnPFRX8rHhNZ",
-        widthPx: 4032,
-        heightPx: 2268,
-        authorAttributions: [
-          {
-            displayName: "Jim Blinn",
-            uri: "//maps.google.com/maps/contrib/118430726648511021467",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocKK7F4x7i8c7wjIAJRr6nlW2Ks-iKEydLYreRMhaBu7Ypq0-A=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_Cv1KpCX332WoujpmxuncxynCdVHaOJKwMPYC3HSEtTKf5tm64cCmMMuO8O1w9aOu3F26nSeL_XWHvd3setD3mViuc0_QYYxd9R2jbL2WgbaenbO5a48xp9Pl0MlA2QZAV0NCu-ZfbGr2fpHaKHvxrglvVI241j-Nvyc",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_Cv7tq9PjOoBisxMcRg1X_Ti_YWcLh-eP9-aoTKEPdSDpvL2To-FrPobQklEFyS8_S_7BM6fZS095dsemy2qKW5eP0yK1WiPImIvbraEr4It7BM-mTl2oiKSd7INP9l2ePovvDd0pidgTlLRqwEGXQqfzbrMVi5yhPSZ",
-        widthPx: 4032,
-        heightPx: 2268,
-        authorAttributions: [
-          {
-            displayName: "Jim Blinn",
-            uri: "//maps.google.com/maps/contrib/118430726648511021467",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocKK7F4x7i8c7wjIAJRr6nlW2Ks-iKEydLYreRMhaBu7Ypq0-A=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_CsmMD8XxA4vDEYsgSrrdG2rJIK4AszZkecDgJ0f9noVE0hvArPjNppSOjVl0t7tQLWpsHVFwneGnVRh9E6TqwqmlzdsX6XHmzWFTkn6tE-eIh_pV3n9gtDEkbcsBREz_5UKuKOVEPtp1WsmQQ-8Q48q7znj3HSLxfXH",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_Ct8ycJNb7Q0Kg8tbm0pruxYE0vvkHD2XvjvrG9PqwvOJb6uGy3HIvXdC2kEpPDUki_3PGns3pSu0FVvuk3T_BjEe4w_54ertbseLTDHueGvwiAR4mR9yBjEZAYzfMXqVTmwDfI6L5ZAlwpwuTPjzYQAZmKAOly2qptL",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Chrystal Tyler",
-            uri: "//maps.google.com/maps/contrib/100662241990079929790",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWxhnInuTDbq-JJZiquvvUsevxAQopl70sSoGjk42O5fksU0jYO=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_CtfHgqDHo0vX8MSPn6ryFnl6scuyOtWVyr9T0V9prwXAQLcVsOFWJYW2frS-TU7DS1CelIJvJ6I1PfRgdMaRi8u6_vfj7_swiEIYBqim8Fnj_fcYFhFQ5G_aAvHJcsXVl1LQEE_ADT8R0J3lpEG2kg5_xMmHjFEXZ7T",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_Ct2-oKeKi-Z0wc_UmsioBITiHgsdGsC9tWrzEJcVHqEHIw_4jJoDjWdBHFNiahsQT5JwNDgDnZDZiIjtyoaPagD_KFzaSQDpfhMuSEB7oHghYaWV2mz7UzzNcHbfyMoRj4ub2sC1izROBFkoeNzOR8hU2Yw_Ol0XnkT",
-        widthPx: 2992,
-        heightPx: 2992,
-        authorAttributions: [
-          {
-            displayName: "Izzy P",
-            uri: "//maps.google.com/maps/contrib/106312316226975657938",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXXFxjJMQpmf98nMKdUpjBbEDGH_sJyGVDeWpUYDI8YUsXt8KFC=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJv0CFoxKTwokR4Sfgcmab1EI/photos/AelY_Cv5tZ6u5GpHeLMavV-lHDy6t19gSFICivdCCyEQMKx9ibXpmX79LSgVfYqQrquJsI3B3KIq_wSrVGaqTlBZ4vwYbyBmK6pwhmEjOpNEZdjEsc35-xy94AqnEc7aTamCzZdVpmlmtHijEeCt3L-oCDH9stX0dbSclzU2",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Chrystal Tyler",
-            uri: "//maps.google.com/maps/contrib/100662241990079929790",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWxhnInuTDbq-JJZiquvvUsevxAQopl70sSoGjk42O5fksU0jYO=s100-p-k-no-mo",
-          },
-        ],
-      },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls",
-    id: "ChIJfxSm1EyTwokRYGIgYm3dqls",
-    types: [
-      "brunch_restaurant",
-      "restaurant",
-      "food",
-      "point_of_interest",
-      "establishment",
-    ],
-    formattedAddress: "65 Pondfield Rd, Bronxville, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "65",
-        shortText: "65",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Pondfield Road",
-        shortText: "Pondfield Rd",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.9407694,
-      longitude: -73.8332839,
-    },
-    rating: 4.2,
-    websiteUri: "https://thetacoproject.com/locations/bronxville/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 1,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 2,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 3,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 0,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:00 AM – 10:00 PM",
-        "Tuesday: 11:00 AM – 10:00 PM",
-        "Wednesday: 11:00 AM – 10:00 PM",
-        "Thursday: 11:00 AM – 10:00 PM",
-        "Friday: 11:00 AM – 10:00 PM",
-        "Saturday: 11:00 AM – 10:00 PM",
-        "Sunday: 11:00 AM – 10:00 PM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 388,
-    displayName: {
-      text: "The Taco Project",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:00 AM – 10:00 PM",
-        "Tuesday: 11:00 AM – 10:00 PM",
-        "Wednesday: 11:00 AM – 10:00 PM",
-        "Thursday: 11:00 AM – 10:00 PM",
-        "Friday: 11:00 AM – 10:00 PM",
-        "Saturday: 11:00 AM – 10:00 PM",
-        "Sunday: 11:00 AM – 10:00 PM",
-      ],
-    },
-    currentSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 4,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 18,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 4:00 – 6:00 PM",
-          "Tuesday: 11:00 AM – 9:00 PM",
-          "Wednesday: 4:00 – 6:00 PM",
-          "Thursday: 4:00 – 6:00 PM",
-          "Friday: 4:00 – 6:00 PM",
-          "Saturday: 4:00 – 6:00 PM",
-          "Sunday: 4:00 AM – 6:00 PM",
-        ],
-        secondaryHoursType: "HAPPY_HOUR",
-      },
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 23,
-              minute: 59,
-              truncated: true,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 11:00 AM – 12:00 AM",
-          "Tuesday: 11:00 AM – 12:00 AM",
-          "Wednesday: 11:00 AM – 12:00 AM",
-          "Thursday: 11:00 AM – 12:00 AM",
-          "Friday: 11:00 AM – 12:00 AM",
-          "Saturday: 11:00 AM – 12:00 AM",
-          "Sunday: 11:00 AM – 12:00 AM",
-        ],
-        secondaryHoursType: "TAKEOUT",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 11:00 AM – 3:00 PM",
-          "Sunday: 11:00 AM – 3:00 PM",
-        ],
-        secondaryHoursType: "BRUNCH",
-      },
-    ],
-    regularSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 4,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 21,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 18,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 18,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 4:00 – 6:00 PM",
-          "Tuesday: 11:00 AM – 9:00 PM",
-          "Wednesday: 4:00 – 6:00 PM",
-          "Thursday: 4:00 – 6:00 PM",
-          "Friday: 4:00 – 6:00 PM",
-          "Saturday: 4:00 – 6:00 PM",
-          "Sunday: 4:00 AM – 6:00 PM",
-        ],
-        secondaryHoursType: "HAPPY_HOUR",
-      },
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 0,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 0,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 0,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 0,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 0,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 0,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 0,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 11:00 AM – 12:00 AM",
-          "Tuesday: 11:00 AM – 12:00 AM",
-          "Wednesday: 11:00 AM – 12:00 AM",
-          "Thursday: 11:00 AM – 12:00 AM",
-          "Friday: 11:00 AM – 12:00 AM",
-          "Saturday: 11:00 AM – 12:00 AM",
-          "Sunday: 11:00 AM – 12:00 AM",
-        ],
-        secondaryHoursType: "TAKEOUT",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 15,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 15,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 11:00 AM – 3:00 PM",
-          "Sunday: 11:00 AM – 3:00 PM",
-        ],
-        secondaryHoursType: "BRUNCH",
-      },
-    ],
-    primaryType: "restaurant",
-    shortFormattedAddress: "65 Pondfield Rd, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_Ct5LY_ki_tb5GJIR_payTo6_6N8rANhrtZ8kfrEf-r-_xYfmr2M9z1tkg7ub5-D8RwUIuwKrSI7enzPJpFJ6iHXSKcB-lG_EgLEN3esoFJGvR9Lne7kutLVCgsSWRcPi6bcH7sVASSnLhgh3najX1Q-B1D6AA0UtNb7",
-        widthPx: 2992,
-        heightPx: 2992,
-        authorAttributions: [
-          {
-            displayName: "Cesar Blanco",
-            uri: "//maps.google.com/maps/contrib/103754609233749771540",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUsSZU1uOH5PGcCPzqbQrtNioQ10hPbuIFrGMqcjILIMRUtiopcpQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_CuLUD8aN6YFdBf1WgbFEYQHTbvNwTvWd6097az-SXD0U4vMamLD7NHWLQmNB0jN9LXwUJMiwvrIT75-e5XkaHI8ukpm7jf1l-PTfCV79fofT7B8wjX2awiNtqKKXpDIFrHl6YelHMqDRMe7Zg1yH4NCD7fEGCAMH5LS",
-        widthPx: 2048,
-        heightPx: 1365,
-        authorAttributions: [
-          {
-            displayName: "The Taco Project",
-            uri: "//maps.google.com/maps/contrib/109397006751132688605",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXZ_NB9YpFdRPl1qbGsShixQcfG6KcjDm7dlUo1kv-tqLcijo4=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_Cs4y8C09TBIDKFdnf9Z7euLxQx1Yc9IPHcv1wpsMgm-_eeHsLZ4sitOajxSVIKLlir22A_s8_ydbGFhSndQSAP-7qXiLHUdWkHsoMpfr0x6_a8NFMHO95B0NiIfdZeZFUzdrBSXy9WRvxg6QIWvD1s1wQlLbiMvB2za",
-        widthPx: 4000,
-        heightPx: 3000,
-        authorAttributions: [
-          {
-            displayName: "Adam Corrigan",
-            uri: "//maps.google.com/maps/contrib/115051006048521434223",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUwhqqQ4QK9iUdBNQUMHPnsw7vAwUwC_QWed209cPTLnnaUPmnGuA=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_CtEBMRQ_s1H6NPpjkpCzazgYj__EMT88byCarzxOYWSR8860X1I-Ih_omNsueiitLmyWI4-CMhlIM73HIehpQjkFgfjy8jrLNFsbGAjDQdn0o2ZLeKrTMpjhWDGV_-GhB229WhQTi0E8mmNN7roZ4Y6t4Vr2NzXVB0Y",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "The Taco Project",
-            uri: "//maps.google.com/maps/contrib/109397006751132688605",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXZ_NB9YpFdRPl1qbGsShixQcfG6KcjDm7dlUo1kv-tqLcijo4=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_Ctjbt6qTgeN4WnPNSKgLX0f7vnXz3JqxFeLPXHlXz87DLkzkSV2zLQ1pp7wNDWFoejbHTRbBYq9MLOgwsqL8kzEO95Z58412s27TGgEUCLrO-Fry_D2qsHPjGV6z0L0j_Dt3pIuz6pdYS2MGl3oNZFcegG7yOUGPuUj",
-        widthPx: 3646,
-        heightPx: 2540,
-        authorAttributions: [
-          {
-            displayName: "Brian",
-            uri: "//maps.google.com/maps/contrib/105390863865115744044",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLSWyAbaJ_JS8tzZ2AcmpzQ0-_sPU9Ywearyf83OjauZBfvhA=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_CusDl9FPwoaKGIp5Kg6NsOCe_M5bCF4rfIwEcfY4w6BCgfRYoAUJj4kc2ohdgJfCyvyi5YMeI7p_TOhEB0hi0xtUJ59sZ7nAzlpXV7UDfJB3aTtG0YjJdFgjGOPkkMKTofeiMk5SJcjGaewZbAkh0h5HEROp3_PeZc3",
-        widthPx: 2048,
-        heightPx: 1365,
-        authorAttributions: [
-          {
-            displayName: "The Taco Project",
-            uri: "//maps.google.com/maps/contrib/109397006751132688605",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXZ_NB9YpFdRPl1qbGsShixQcfG6KcjDm7dlUo1kv-tqLcijo4=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_Cv8kPNheBln-J49wTPENUKiL1RZ2NBUHCU0DgnDRp5goNpRhDfQQNfA7ejEYMMYr6JqtdOacJh6MrfZCdhs4C-_k7B6o47BFRy5D6nqdioN7ACP7I1jvPSK77h17sUfEKXJButoSuLkiGpk-1lklY626q5mx4eXwqUE",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Eva Perez",
-            uri: "//maps.google.com/maps/contrib/112367570864029807305",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjW2mEbzLS5U_zWhFfjQtiKcxGx89P07qecm4fNgkNPJZit_0ibqyA=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_CtaSDYtpNO93ZCB1jGoqiBVOi-IP_zG92vhgK0Ym29nnYKXVIuXBVWWtkIS1a0D8Yat6BzVDANfG99zX5RQeDav2Jlhptn2CdR-A9kSSTM8QMuwSuQL8JXRLQuZpjnJUZEpjJW8fAEvl9y1g5DABJCLv9yAvWWyqGeA",
-        widthPx: 3000,
-        heightPx: 4498,
-        authorAttributions: [
-          {
-            displayName: "The Taco Project",
-            uri: "//maps.google.com/maps/contrib/109397006751132688605",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXZ_NB9YpFdRPl1qbGsShixQcfG6KcjDm7dlUo1kv-tqLcijo4=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_CsRNSkhlzr6DxC13pW57YDM8kVILH0GhOp8Yn-pxz1p-mUUOEEpnRTQ6kc3lQYst9OD1s3Tin0IPXZXgshHV0AqG6sv2GC9D8WTeH5MVR2CXbttXbfJsbES9vpVOY-DruU1JuHaW9RHzv3uERX5mcXxCtfRPOUbwjtl",
-        widthPx: 4000,
-        heightPx: 3000,
-        authorAttributions: [
-          {
-            displayName: "Adam Corrigan",
-            uri: "//maps.google.com/maps/contrib/115051006048521434223",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUwhqqQ4QK9iUdBNQUMHPnsw7vAwUwC_QWed209cPTLnnaUPmnGuA=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJfxSm1EyTwokRYGIgYm3dqls/photos/AelY_CsofhE5uUyRONGIGG0h01BVAZlr5Zku8ZJrbuGZfo9A27zu1TWkx57wiytnzNZhCHmFq3zMrmOx8_1i-kExdZu2tr88YsemRear7yULmfgeOIAAsqoSsNAEkDBb1XpQIPqHrqbD6C2kELNVebnfW6GjHepIHEkZJAja",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Gerard Visser",
-            uri: "//maps.google.com/maps/contrib/117835854773569504294",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVIo-uGyIVfdSS9OnqrsUw79rnAplzsVIMjxz1BCLhstSO480Fjnw=s100-p-k-no-mo",
-          },
-        ],
-      },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: true,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU",
-    id: "ChIJK0BTQK6SwokRN5bYvABnbvU",
-    types: [
-      "coffee_shop",
-      "breakfast_restaurant",
-      "cafe",
-      "restaurant",
-      "food",
-      "point_of_interest",
-      "store",
-      "establishment",
-    ],
-    formattedAddress: "29 Park Pl, Bronxville, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "29",
-        shortText: "29",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Park Place",
-        shortText: "Park Pl",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.939473,
-      longitude: -73.8344161,
-    },
-    rating: 4,
-    websiteUri: "https://www.starbucks.com/store-locator/store/12029/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 6,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 5,
-            minute: 30,
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 5,
-            minute: 30,
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 5,
-            minute: 30,
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 5,
-            minute: 30,
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 5,
-            minute: 30,
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 6,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 0,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 5:30 AM – 9:00 PM",
-        "Tuesday: 5:30 AM – 9:00 PM",
-        "Wednesday: 5:30 AM – 9:00 PM",
-        "Thursday: 5:30 AM – 9:00 PM",
-        "Friday: 5:30 AM – 9:00 PM",
-        "Saturday: 6:00 AM – 9:00 PM",
-        "Sunday: 6:00 AM – 9:00 PM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 329,
-    displayName: {
-      text: "Starbucks",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 6,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 5,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 5,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 5,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 5,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 5,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 6,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 5:30 AM – 9:00 PM",
-        "Tuesday: 5:30 AM – 9:00 PM",
-        "Wednesday: 5:30 AM – 9:00 PM",
-        "Thursday: 5:30 AM – 9:00 PM",
-        "Friday: 5:30 AM – 9:00 PM",
-        "Saturday: 6:00 AM – 9:00 PM",
-        "Sunday: 6:00 AM – 9:00 PM",
-      ],
-    },
-    primaryType: "coffee_shop",
-    shortFormattedAddress: "29 Park Pl, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_CtTM3FmxjffXxEjcKwpeSbAzs7qaMCn3Ilw0dyKwASEOZ05UItbcCuA5h3w2CnyqEaU73j0QQNg2Fxz-mAGaCmhQ_taHbl7Q9tQH7MN-Dxsy7UjFZwU06nIE4IVLJBxAlRxzUtlQzla0PcPpFA9JDEB2SeNoxL74aVj",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Reya OnTheRoad",
-            uri: "//maps.google.com/maps/contrib/108638165399857172930",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUK2nFXaZICnPGsYUCq7FEObhR3HVHM6ABqwPqvBSOo_hffi7c8=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_CsYgWMQMxsuWXBcUofjt6RWQKkeG0WXDw-NBmCg2xPfqURXVtkMM8o4G9B1rNX63BjGvFeXw4s7mSmyWLFXHqVWA_mQrqQBk3o1VxD-W7uMPqkhPlSW472tbmEmFT-IItoaX9jxtjnHyxEBT0N1AU8YZN2fqZcWjiE",
-        widthPx: 1600,
-        heightPx: 900,
-        authorAttributions: [
-          {
-            displayName: "Starbucks",
-            uri: "//maps.google.com/maps/contrib/116309899670369583156",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjV-z-q_947yluoLBu1dv0f4I09OPKHIh7aST_ACe_V9hfAVPQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_Cs2eEmEP_e6ri-igC6cTTTJFkkHjrSxM6qUNUhFL19xTCLdbBsLgxum489LL78TUAqbQj-dp-RsjXtP32pK6LKXu-8fpQhAwC6ykgX5be6PN99dr8bx6B-MQpEqXaM6ydMmQOOUYjiNpHQVhAJ3dtbRwiti14fCHCkF",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Greg DeCristofaro",
-            uri: "//maps.google.com/maps/contrib/111241687392768018033",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVuuRzqGwfBj6DIcfTpUjGbcSndZYp9VrS4H335pT62e7FjerOUgA=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_Cu3Hu_Rg2PSco4mp2kL3egrO94mAZz7ELdGtAE659HBUFsph93xFSNocKa_NmebucC_grNRSkAfg_JyVHuPWecrKO23dpRg1yc-bbN1HYnlbbG8CzK0PL-9JLs8F3M7pFJKIEpI0d6UA94b_T3-EIz2CLjFep_8WYs",
-        widthPx: 502,
-        heightPx: 546,
-        authorAttributions: [
-          {
-            displayName: "Starbucks",
-            uri: "//maps.google.com/maps/contrib/116309899670369583156",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjV-z-q_947yluoLBu1dv0f4I09OPKHIh7aST_ACe_V9hfAVPQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_CvigSRXTxg9gbfeoXANuGMa5dZFN0Heqbhlq3YCYszKXnJNjruTGeTYrJ-BQkuESHmkl1BDU6p1w_7zHAUOpabS46oPMLRjU2inDLbdXEZ12xSfS7taqbWk-tepfA3FLPJlvbjma5rrJp5wBHxbVpXfgaMvcJTzE1A",
-        widthPx: 732,
-        heightPx: 664,
-        authorAttributions: [
-          {
-            displayName: "Starbucks",
-            uri: "//maps.google.com/maps/contrib/116309899670369583156",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjV-z-q_947yluoLBu1dv0f4I09OPKHIh7aST_ACe_V9hfAVPQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_Csb9YLSxdxQYKCC0j6LUfBYrj9J3fo8t-RsHIFbHyY0wCMDcIABB5uMJdshI5c2tpBg-gl5-_6vwI-vg60STAo9y2tyFt6iGu2UnuP6QPfXpxq9AAVQLuORB96bbVmtyMtc2PXTX1P1X3Zt1kkMfx6khavvfWd9A7Jy",
-        widthPx: 1932,
-        heightPx: 2576,
-        authorAttributions: [
-          {
-            displayName: "soxxpuppet",
-            uri: "//maps.google.com/maps/contrib/113279348064979698475",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXNBS72pjlA_sFxvr2t1B5nFUqkuqJaxKHKZ9K2hXrMOb_fiDpL=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_CvfqB4--SVUNyLzZ70WySL9EdEu6FIwoSDAncG4MQzJLrokk_jnntWOWX1gJIpz_9ErpCwaf7fDVBRK9Now61wdVDPjIUQfh3NZsDQK08JNuvPa0SOcqiEqAFP5Mle5tKngpTQlTlG0Vyi-x5IPImE4iVmSEcwn9HU",
-        widthPx: 640,
-        heightPx: 640,
-        authorAttributions: [
-          {
-            displayName: "Starbucks",
-            uri: "//maps.google.com/maps/contrib/116309899670369583156",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjV-z-q_947yluoLBu1dv0f4I09OPKHIh7aST_ACe_V9hfAVPQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_Cs4g5mnfcWSI3La3Raqj_LoxYBpsNTQfhJim-ptui0s1RfOQEelg_KUbFHskQrxMkS9KivRlNfsPUQw06tX2D3jP5rZn3r8XS9TGm8Xr6qV9rdm39hv1T2dxJU-Y7vkma1qNDn2vEswzf48ZprNwZc8ALiyqqjmGP9p",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Rodrigo Olvera",
-            uri: "//maps.google.com/maps/contrib/107112452808436073885",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjV7YnBjzz6nca0ZafVBTQecuegxRpt2vnAi0TThYkHylW0ONM5O=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_CvyUIGfmA7YrYAIUeDdBJBRsvBmTCEM2qOcyQ0sxYBMRchvRCferv5ZEvbyjgueOS4p5eJrk3erJafO5LpvflDBEuxY-nyh4NoQvvPp8JXfOpp2__PuiBrBL3_rbuAIKrSU1z8aJh2ARi_GX4owo0rM0bx_nEwv6h9A",
-        widthPx: 4160,
-        heightPx: 2340,
-        authorAttributions: [
-          {
-            displayName: "Ger Regan",
-            uri: "//maps.google.com/maps/contrib/117901930310042349773",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjX43iRjWIPD59lyZKLlALWI9JohsDqGEGjFldgAHTlobiJovlX_bw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJK0BTQK6SwokRN5bYvABnbvU/photos/AelY_Cuw_kp2Fdzt9aR1FG4alXS3r-PhZTAhPo4TI9rtZ8pbbTEVgr0PVu0ut_ArP7VELFDEbOUI1tlzk4MGuWjHtICr8z0rjrCAskShreYmxiN25pEmA9bErSomp4l4V64_jB5AF80M79H1PZ8f0kw20t_EVBRhGySXJNOA",
-        widthPx: 1080,
-        heightPx: 1920,
-        authorAttributions: [
-          {
-            displayName: "Robert Alexander Boyle",
-            uri: "//maps.google.com/maps/contrib/110748589967585680902",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUJ0FkTXmE5yfsHFquLesb1S9MwMj_umU_PJf9ntRWWYpP1ADHL=s100-p-k-no-mo",
-          },
-        ],
-      },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: true,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY",
-    id: "ChIJxxDLVlGNwokRPgtjAbxyevY",
-    types: [
-      "american_restaurant",
+      "pizza_restaurant",
+      "italian_restaurant",
       "bar",
       "restaurant",
       "food",
       "point_of_interest",
       "establishment",
     ],
-    formattedAddress: "571 Gramatan Ave, Mt Vernon, NY 10552, USA",
-    addressComponents: [
+    formattedAddress: "425 White Plains Rd, Eastchester, NY 10709, USA",
+    location: {
+      latitude: 40.9563694,
+      longitude: -73.8138311,
+    },
+    rating: 4.5,
+    websiteUri: "http://www.burratapizza.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 17,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 17,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 17,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 17,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 21,
+            minute: 30,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: Closed",
+        "Tuesday: 5:00 – 9:00 PM",
+        "Wednesday: 5:00 – 9:00 PM",
+        "Thursday: 5:00 – 9:00 PM",
+        "Friday: 5:00 – 9:30 PM",
+        "Saturday: 12:00 – 9:30 PM",
+        "Sunday: 12:00 – 9:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 626,
+    displayName: {
+      text: "BURRATA",
+      languageCode: "en",
+    },
+    primaryType: "pizza_restaurant",
+    shortFormattedAddress: "425 White Plains Rd, Eastchester",
+    photos: [
       {
-        longText: "571",
-        shortText: "571",
-        types: ["street_number"],
-        languageCode: "en-US",
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q6CZfjrsM8fbpVLtQKlyPk32gIFkbHIl9wcoEHAF0vDedCBzZ1OKTPokaiTA8qgNI_s1QZ_qSy8AN78gkUG75k-VewCDroMyNoGZ-vfE4MJygDPyiTZRSRoNz0faoWfMYHNrZ8-PgyOEI-FcLsAm6ppxpfJ0BTFxFDl",
+        widthPx: 1348,
+        heightPx: 899,
+        authorAttributions: [
+          {
+            displayName: "BURRATA",
+            uri: "//maps.google.com/maps/contrib/102792430970730061751",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUbhwvIBJWKtr45_hWoLUvoVyKHTEr8ISi72LEMkUqmbkqZxqV-=s100-p-k-no-mo",
+          },
+        ],
       },
       {
-        longText: "Gramatan Avenue",
-        shortText: "Gramatan Ave",
-        types: ["route"],
-        languageCode: "en",
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q68Ya2pYDONGNos9CyhkzCkpC0pxREa7eb6TeYpj_pJpmgSbZUKWNL2Jy_uqU35snOW0Ejlx_UjWaT8ANu_JhVButqK2NTTnm0rggzwW6vheEntiaryNgInEEDlL0iXl1t9yJSexJl9J4p5EnLUZME5xwMpxY1kqFrt",
+        widthPx: 4800,
+        heightPx: 3200,
+        authorAttributions: [
+          {
+            displayName: "BURRATA",
+            uri: "//maps.google.com/maps/contrib/102792430970730061751",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUbhwvIBJWKtr45_hWoLUvoVyKHTEr8ISi72LEMkUqmbkqZxqV-=s100-p-k-no-mo",
+          },
+        ],
       },
       {
-        longText: "Fleetwood",
-        shortText: "Fleetwood",
-        types: ["neighborhood", "political"],
-        languageCode: "en",
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q5Sti1Albahg6zFaH_g5R1FnNYvYDbpjiAePqXDxCOmkXtQK7LgveDCvHEemef3TZxEgH8ns4NizZOJMcFNpzR_p_49ighjgihuAIVYMQX3GWuvXHTrFpAECb8pyzcBlwNSW24A830mjOIdN4rin6_b3nega7sU4Z7d",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "J Lim",
+            uri: "//maps.google.com/maps/contrib/109935156740971751576",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocKYnG11pwVBark64wiserzR8n-rEfTAglboJ7aaEgmmefWHqA=s100-p-k-no-mo",
+          },
+        ],
       },
       {
-        longText: "Mount Vernon",
-        shortText: "Mt Vernon",
-        types: ["locality", "political"],
-        languageCode: "en",
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q6GBXTliI-V7gctPkRtHG4rn4sPtxLI1GF7BTzsQYpTyzoMq-S6NZKjDDgY6xROik-efbx_9EEAl03m9wKWyxM7PkRX4q_1rYOkVL1qsLi7KfrxbL3COpDIbp_dEDPLG9M1vHiaFi5nQ1vszkPPUf8t-HAFlTVZWe80",
+        widthPx: 1713,
+        heightPx: 1284,
+        authorAttributions: [
+          {
+            displayName: "Bianca C.",
+            uri: "//maps.google.com/maps/contrib/116185846034886264029",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVPHPzu70ySmPXIn0hvpY7LATjAvL-8ffHTtSOjtXEsY5rGCVRSjw=s100-p-k-no-mo",
+          },
+        ],
       },
       {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q7FjFHbBwaAp7PUm5vIpw8WgVOUvUjq8sda9a-_WfoF8elhuMr59zAHsG3CNwBL12YDgbjzdOqFN4iXobXJEHUrq7meQsZz7p7hKdDI5yhVzgXV2z5K_rsrAamMBx28JvfwAz24nYQZXIqadkg-EahEMON11_N3cFeK",
+        widthPx: 3024,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Johan Jonsson",
+            uri: "//maps.google.com/maps/contrib/100207722052513615898",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVdChPFXKGqM-BqoCS5LTusXc53z0NwYcdioLJ9143qhrmjEuO7xA=s100-p-k-no-mo",
+          },
+        ],
       },
       {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q7lVaufKa9w_dENa6jg2qSuuLuTWVJLMv1TJq8pgkkYKijjdG_DARYGRGObMUAQUK3Ypf2Zmo8xIIqB3ub9_Y1i60g0MQoeLNHsRUNl0JvO7UByWb3mAmbZ24pcogVO8MqZyn4Q1p0GDkz8UPgXWmYlTqOqYxhB3K1w",
+        widthPx: 4800,
+        heightPx: 2700,
+        authorAttributions: [
+          {
+            displayName: "Eduardo Angel Ramirez Saavedra",
+            uri: "//maps.google.com/maps/contrib/100701954365206116050",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX3vRK8Zux685a0FCG5qkyBHAQ8SzZswDgmmQ7MKZIYRuKlaOkaYQ=s100-p-k-no-mo",
+          },
+        ],
       },
       {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q5YhAA3iyo_IfW6CHbCL6iF4_xRwRpckezTkIbhWogSDnsa8sKqoIsGAiTvJPa-dBOJBY07VUQFnH-IDUhPcaa9OIymOr7QFuRIZ8MWI8ZaQaOy_f5DdLLdV0CGlCxSqBTQJ9Kk1UYlzkW-w5hVy5JuRkkfv4z8L4hD",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Dominick Vellucci",
+            uri: "//maps.google.com/maps/contrib/116345219794599247988",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+          },
+        ],
       },
       {
-        longText: "10552",
-        shortText: "10552",
-        types: ["postal_code"],
-        languageCode: "en-US",
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q7wZnyrRLlTsG2CSab-7Wjq0ohxOqOJEJTnJWo5p6qL_7h3E5NfghZ4xTze_by6NeIxxN8EpegfdEL0UoXDk5dOhEfIrJBchrkd76c0X4gJtcDxIxly-QS1i5er9OBrSs_IUzkth9Y8r6y6MoFpgBS80Yy6D6GZFqQ",
+        widthPx: 2576,
+        heightPx: 1932,
+        authorAttributions: [
+          {
+            displayName: "Hiram Mendez",
+            uri: "//maps.google.com/maps/contrib/115304703684795952242",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWZymh_J3YDVAjaXOxt4gFu8WbY1iAyR-089gYzXva2xED8q7sN=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q600sZmyAD1Z22Ql6YkFBn38A3PB_C_UymH5pTp5zqFQnjSXNePpUT3TkWg7f1Gk4hmCJsmCLnYIJVV_x5kJYTdsIgLX9hdEeNtSDfQm5UHkDpJ39kF7rGwf7mD06GvIg2gqwA-MHFXnlesHd2QcHmOdKFyi5oC_Mg3",
+        widthPx: 4000,
+        heightPx: 3000,
+        authorAttributions: [
+          {
+            displayName: "Adam Corrigan",
+            uri: "//maps.google.com/maps/contrib/115051006048521434223",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUwhqqQ4QK9iUdBNQUMHPnsw7vAwUwC_QWed209cPTLnnaUPmnGuA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q7nN3W6zwyPqxujCUhBIoQb4VOjh1pksIbeC9A0HCUVa-b79D1fSql7fa5yEOLhqiZrJcSgRgD1XkggFXahTbCtsqX5BdEUFowSz4kpLhfqtrT10b9No2wHgZHPmY-jbpE__ylv80J2P68GowW6cnNGY87--oLD9YOu",
+        widthPx: 4000,
+        heightPx: 3000,
+        authorAttributions: [
+          {
+            displayName: "Alex Kay",
+            uri: "//maps.google.com/maps/contrib/112497667468245081491",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVU_5-Ygv-e9SsPOMfVZFRcaDlqFTM28WOa_hQQSuSfubejBua0=s100-p-k-no-mo",
+          },
+        ],
       },
     ],
-    location: {
-      latitude: 40.9259525,
-      longitude: -73.835539799999992,
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
     },
-    rating: 4.3,
-    websiteUri: "https://maggiespillanes.com/",
+  },
+  {
+    name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o",
+    id: "ChIJZ7aROYmTwokRc95v_J8fw6o",
+    types: [
+      "vegan_restaurant",
+      "vegetarian_restaurant",
+      "meal_takeaway",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "696 White Plains Rd, Scarsdale, NY 10583, USA",
+    location: {
+      latitude: 40.969953,
+      longitude: -73.8060581,
+    },
+    rating: 3,
+    websiteUri: "https://www.sweetgreen.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 10,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 10,
+            minute: 30,
+          },
+          close: {
+            day: 1,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 10,
+            minute: 30,
+          },
+          close: {
+            day: 2,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 10,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 10,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 10,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 10,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 20,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 10:30 AM – 8:00 PM",
+        "Tuesday: 10:30 AM – 8:00 PM",
+        "Wednesday: 10:30 AM – 8:00 PM",
+        "Thursday: 10:30 AM – 8:00 PM",
+        "Friday: 10:30 AM – 8:00 PM",
+        "Saturday: 10:30 AM – 8:00 PM",
+        "Sunday: 10:30 AM – 8:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 191,
+    displayName: {
+      text: "sweetgreen",
+      languageCode: "en",
+    },
+    primaryType: "restaurant",
+    shortFormattedAddress: "696 White Plains Rd, Scarsdale",
+    photos: [
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q6yVgUKIrOTzJ1L6Mldi974REJ4ihYvCB47XJPAdz3NhN9iMMI2NpB7WwL9UYNlzdQUbpLxYOR4MnERcxKWtDfFwH6ITR8fKbVkLpslh8xLUdR6yhBBCf7idDTTK6I0Oj4eWXgTY3FJijyb4aLnW9QXplFl_wnWs_yl",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Arthur Glauberman",
+            uri: "//maps.google.com/maps/contrib/107011581015319368608",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUF_clVoSZmScPHXT5Ms-BUb8Jmo72X-xWBoI2U0vBLB_o86Ax6=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q5fl0xD_POhu-eeWSgAoAJ3338f1UX-hZYNNGlmz3jl_b0Xs5UcocXzVrev99OCAHBNDy1Tl1ix8gsZ3NnF929trnzsbD6Jr7BpD-vrjfdnHAF4fkqVV_bpbg7fwq3FJ0oFleDVHD2VHSjM-e3BNzgIASiF_9j3U56Y",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Anthony D",
+            uri: "//maps.google.com/maps/contrib/113593374091455642063",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIAb03gYuo6tYQz1Cd4DyJmShfZGfc3PD0qTssU26NBcY4gzg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q6_Lr-XWe4sO-81WgS0q3DdljbZadKKY89NUdpDwKymRsj2y4Wo12avdjzt8ahFxHyXrQ6-lg7lLporxNfsyyS7fiHnHpDmirxQOBfR-6J1qEARD7Iwa1jNXJu5icUC5_yj7PQIaPbcJ1ASCDqY9f6OgwHmM9Nex-Q",
+        widthPx: 4000,
+        heightPx: 3000,
+        authorAttributions: [
+          {
+            displayName: "O B",
+            uri: "//maps.google.com/maps/contrib/103692497468421208893",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWjwnaVVjA7-gZY-VaXZ-Y0zCvzLwOwLhWmuqcaz7MMYIB_NhGi=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q73dk0lKJxRjRsiEFbYBc718rO6wj-XPsnRMjIdSuK5FjYD2susXbGPmjxVGLrDaaSeFsvJDaHRzukf9aAB53GJcVBojXA3Yg-2j8gJpF8UyR2S2NyAt9t840xknJsF53mNKWc-bCGtRbxH48lvq000JdLHasCik7t7",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Nathan Yakuza",
+            uri: "//maps.google.com/maps/contrib/115302143144434841038",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXhpMjjMBEzNUWiYz0HQ2R9i3Hm31y7tA4-JVORNCtC8UAp5PcZ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q5Aeqv9rlpFpKmvh9oP4hw-9utX87DTKZpwL_KMWAnNFs34UfKd2-JN_FxpDYQmOWCsOMMNcSv9JlMD7fvMH01-Dfg8FfmDFr8AjJYe86ibPXziFggt8ERe27vzZj7PrFPoNxBerLDCJGkfGatvNAarYRZMxnGmAS3Q",
+        widthPx: 3600,
+        heightPx: 4800,
+        authorAttributions: [
+          {
+            displayName: "Anthony Parsons",
+            uri: "//maps.google.com/maps/contrib/108834210692397748717",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVKXxH27NdUl1QhGplW_knYdIgoFWOCw1m03C2L6n4npknNHPjAWQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q4ByhQEumeUou-ZbkrR1Z-RtG3_Np_feTXmDhscq2kE-POlqySWO7YAGOPfW4wCnARY2f__VTT2MhVpC5eiYpna2iCX0k6ZJX6nv_mp-TCy_UsAhAzbr6XcRCTD11AIDD58AM9A6GIb49GGehgaCD3YYA0rJm_fnwQ",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "O B",
+            uri: "//maps.google.com/maps/contrib/103692497468421208893",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWjwnaVVjA7-gZY-VaXZ-Y0zCvzLwOwLhWmuqcaz7MMYIB_NhGi=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q739WCOcufI40G3uygGdj2RLcEvIzsAgfFW3DMXFHdVFQxbto2XPGNJZa6DBcMM0JtnCfQZ5uAQ8X_aVdDFv2MBqNFTS7b5y1VA5QrJZBIJ8w5VRDniVTP8YIIT9gMgrym8f9yHKEPsP156RhTId6HWcfm-IdEKt6zz",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Trix Gamma",
+            uri: "//maps.google.com/maps/contrib/105538218373413180066",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocKtOA6zfhpulr0m7gxl89HYYyLCxjDltnFR3Lpf2-m-o_E-sQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q7YJ4kzs4m8D-UI5doUkpne8LHukctTjCDvU7IMh07QfCSSfcNi1V3IQKuGj5zpbJgDsC0WRgWzy2wVwgw-sk8ofaMrz-DkSVUwJDehbCgqIlMU1KqT2vqLwcVhe9sGo6Ken6Oevmk_ItxoAZ29O-15VqJ78D7g7GPi",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Arthur Glauberman",
+            uri: "//maps.google.com/maps/contrib/107011581015319368608",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUF_clVoSZmScPHXT5Ms-BUb8Jmo72X-xWBoI2U0vBLB_o86Ax6=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q4rJM5LwyMrGDJdROAnJuky2BKoafgXNTOjc2Ub_K3fZPk9mZoBqzwDLZToVlMQVgl6Ixc1u9HzG2pXoJcTbBCOt-x5KIKDOiIi8vkgiLHlq1moYCiMvoaRUyRvhuLeBBatwalFTz8FYVbS8zaoEEsQ6yqkGTlE-7Md",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Pinkie Lee",
+            uri: "//maps.google.com/maps/contrib/106207340849886014808",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVgbqXQwjo6PqXai6gYvcr_01uBxS8Qsf2AvRvrg3TyECNQP4F2=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJZ7aROYmTwokRc95v_J8fw6o/photos/AXCi2Q7V9G4HKl15N6HJEk-R98zsrqczgtrxft5NCWDcVeTDoWEVFuhzrj4oIJdheW2tJaMoJ1cQXO2qDZfDlHp_ySv25UsrYCvMuSkQmyre9jE8cxc49akj4onPW14h4FSQUFP8y2y2ljhy5HXpg9FgYUhHOQ_8f2Jyejbv",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Arthur Glauberman",
+            uri: "//maps.google.com/maps/contrib/107011581015319368608",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUF_clVoSZmScPHXT5Ms-BUb8Jmo72X-xWBoI2U0vBLB_o86Ax6=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY",
+    id: "ChIJsdgOWwKTwokRFMerkmAr0cY",
+    types: [
+      "italian_restaurant",
+      "night_club",
+      "bar",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "660 White Plains Rd, Eastchester, NY 10709, USA",
+    location: {
+      latitude: 40.967052699999996,
+      longitude: -73.806754099999992,
+    },
+    rating: 4.5,
+    websiteUri: "https://www.giganterestaurant.com/",
     regularOpeningHours: {
       openNow: true,
       periods: [
@@ -3761,691 +737,88 @@ let places = [
             minute: 0,
           },
           close: {
-            day: 1,
-            hour: 2,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 2,
-            hour: 2,
+            day: 0,
+            hour: 15,
             minute: 0,
           },
         },
         {
           open: {
             day: 2,
-            hour: 11,
+            hour: 17,
             minute: 0,
           },
           close: {
-            day: 3,
-            hour: 2,
+            day: 2,
+            hour: 22,
             minute: 0,
           },
         },
         {
           open: {
             day: 3,
-            hour: 11,
+            hour: 17,
             minute: 0,
           },
           close: {
-            day: 4,
-            hour: 2,
+            day: 3,
+            hour: 22,
             minute: 0,
           },
         },
         {
           open: {
             day: 4,
-            hour: 11,
+            hour: 17,
             minute: 0,
           },
           close: {
             day: 5,
-            hour: 2,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 4,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 4,
-            minute: 0,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:00 AM – 2:00 AM",
-        "Tuesday: 11:00 AM – 2:00 AM",
-        "Wednesday: 11:00 AM – 2:00 AM",
-        "Thursday: 11:00 AM – 2:00 AM",
-        "Friday: 11:00 AM – 4:00 AM",
-        "Saturday: 11:00 AM – 4:00 AM",
-        "Sunday: 11:00 AM – 2:00 AM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 1320,
-    displayName: {
-      text: "Maggie Spillane's Ale House and Rooftop",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 2,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 23,
-            minute: 59,
-            truncated: true,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
             hour: 0,
             minute: 0,
-            truncated: true,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 2,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 2,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 2,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 2,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
           },
         },
         {
           open: {
             day: 5,
-            hour: 11,
+            hour: 17,
             minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
           },
           close: {
             day: 6,
-            hour: 4,
+            hour: 1,
             minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
           },
         },
         {
           open: {
             day: 6,
-            hour: 11,
+            hour: 17,
             minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
           },
           close: {
             day: 0,
-            hour: 4,
+            hour: 1,
             minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
           },
         },
       ],
       weekdayDescriptions: [
-        "Monday: 11:00 AM – 2:00 AM",
-        "Tuesday: 11:00 AM – 2:00 AM",
-        "Wednesday: 11:00 AM – 2:00 AM",
-        "Thursday: 11:00 AM – 2:00 AM",
-        "Friday: 11:00 AM – 4:00 AM",
-        "Saturday: 11:00 AM – 4:00 AM",
-        "Sunday: 11:00 AM – 2:00 AM",
+        "Monday: Closed",
+        "Tuesday: 5:00 – 10:00 PM",
+        "Wednesday: 5:00 – 10:00 PM",
+        "Thursday: 5:00 PM – 12:00 AM",
+        "Friday: 5:00 PM – 1:00 AM",
+        "Saturday: 5:00 PM – 1:00 AM",
+        "Sunday: 11:00 AM – 3:00 PM",
       ],
     },
-    currentSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 5:00 – 10:00 PM",
-          "Tuesday: 5:00 – 10:00 PM",
-          "Wednesday: 5:00 – 10:00 PM",
-          "Thursday: 5:00 – 10:00 PM",
-          "Friday: 5:00 – 10:00 PM",
-          "Saturday: 5:00 – 10:00 PM",
-          "Sunday: 5:00 – 10:00 PM",
-        ],
-        secondaryHoursType: "DELIVERY",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 14,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 14,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 11:00 AM – 2:00 PM",
-          "Sunday: 11:00 AM – 2:00 PM",
-        ],
-        secondaryHoursType: "BRUNCH",
-      },
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 23,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 23,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 23,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 23,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 23,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 0,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 12:00 – 11:00 PM",
-          "Tuesday: 12:00 – 11:00 PM",
-          "Wednesday: 12:00 – 11:00 PM",
-          "Thursday: 12:00 – 11:00 PM",
-          "Friday: 12:00 PM – 12:00 AM",
-          "Saturday: 11:00 AM – 12:00 AM",
-          "Sunday: 11:00 AM – 11:00 PM",
-        ],
-        secondaryHoursType: "KITCHEN",
-      },
-    ],
+    priceLevel: "PRICE_LEVEL_INEXPENSIVE",
+    userRatingCount: 381,
+    displayName: {
+      text: "Gigante",
+      languageCode: "en",
+    },
     regularSecondaryOpeningHours: [
       {
         openNow: true,
@@ -4453,124 +826,13 @@ let places = [
           {
             open: {
               day: 0,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 17,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 22,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 5:00 – 10:00 PM",
-          "Tuesday: 5:00 – 10:00 PM",
-          "Wednesday: 5:00 – 10:00 PM",
-          "Thursday: 5:00 – 10:00 PM",
-          "Friday: 5:00 – 10:00 PM",
-          "Saturday: 5:00 – 10:00 PM",
-          "Sunday: 5:00 – 10:00 PM",
-        ],
-        secondaryHoursType: "DELIVERY",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
               hour: 11,
               minute: 0,
             },
             close: {
               day: 0,
               hour: 14,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 14,
-              minute: 0,
+              minute: 30,
             },
           },
         ],
@@ -4580,10 +842,485 @@ let places = [
           "Wednesday: Closed",
           "Thursday: Closed",
           "Friday: Closed",
-          "Saturday: 11:00 AM – 2:00 PM",
-          "Sunday: 11:00 AM – 2:00 PM",
+          "Saturday: Closed",
+          "Sunday: 11:00 AM – 2:30 PM",
         ],
         secondaryHoursType: "BRUNCH",
+      },
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 11,
+              minute: 30,
+            },
+            close: {
+              day: 0,
+              hour: 15,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 22,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 23,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 23,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: 5:00 – 9:00 PM",
+          "Wednesday: 5:00 – 9:00 PM",
+          "Thursday: 5:00 – 10:30 PM",
+          "Friday: 5:00 – 11:00 PM",
+          "Saturday: 5:00 – 11:00 PM",
+          "Sunday: 11:30 AM – 3:00 PM",
+        ],
+        secondaryHoursType: "KITCHEN",
+      },
+    ],
+    primaryType: "italian_restaurant",
+    shortFormattedAddress: "660 White Plains Rd, Eastchester",
+    photos: [
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q54-YO8hyVGDvvFG92GeS4alyQwznovrS_t-Pw1yfOBmiXKaDve753siGJM6FXkRCMpWs2ohgK8G9H9Z8LuxweP5egVyZJYSW4dk43spIkO6eZovdzLJ3t1ulgPpw-4A8lGGNdNLAtqvlhmqmMoRwTpjjto3MPYFdMo",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Gigante",
+            uri: "//maps.google.com/maps/contrib/110627002007109250995",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXqrvUm0iIo-g92HIftEZLZqNy_ikHyXbDfqwaIBykqAOKlJA8q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q5hDNak2CvUmu-DhVKrCzm4PW5JifVhb1IM1XVl26-_X9dObnYljdC6zj2uB8veBRThzXWdjadr7uxo0yMBYuW404FmT3dLerLFlMz7GDUfiszZA4rV29J-GlGUN72e-G0mIkUZxoQF8aHHOppUPO2mdtu8QxmXfx7e",
+        widthPx: 4800,
+        heightPx: 3201,
+        authorAttributions: [
+          {
+            displayName: "Gigante",
+            uri: "//maps.google.com/maps/contrib/110627002007109250995",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXqrvUm0iIo-g92HIftEZLZqNy_ikHyXbDfqwaIBykqAOKlJA8q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q4m-Qev6q33H1k8JDOeD_dRziWWCY2m11s2Wa_J88VunAx4u5rrj67SU5PRFzXcysFsS9Euarg3NFM0wQxGO9NEnzoljEpNX6k45ei7uzAcrZcWjZzFIoTjF-OLJSWrcSIBwlaKqqJ70BjS4INxeqk7E3TS9W-F_6Ux",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Gigante",
+            uri: "//maps.google.com/maps/contrib/110627002007109250995",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXqrvUm0iIo-g92HIftEZLZqNy_ikHyXbDfqwaIBykqAOKlJA8q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q7ON5IG1LgWUAQyydfRG7vhH0abeSWpoTZyWx_ePRoLA4lsoK2M9qAF6l9VhqvAR8y9GyM6FKL6idnLVT4bl_mv0WtKGQk5VUSHNvcBjPsSDkJyy_xOcB_B93jVsqI9fZCjKSUszRCsKolWU8I4RidFv8XBZT0zQE_i",
+        widthPx: 1080,
+        heightPx: 1080,
+        authorAttributions: [
+          {
+            displayName: "Gigante",
+            uri: "//maps.google.com/maps/contrib/110627002007109250995",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXqrvUm0iIo-g92HIftEZLZqNy_ikHyXbDfqwaIBykqAOKlJA8q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q6ePNGmHAVX6j-VAhkd9Hy6s3Hh9_cAwZs0A5ZBsApLtZorXX8DldUpfamG_zNuiV6F465Q2O9N4bjfI1E71YAuxVcd9TxZmp0UoccbegJhqFtl-PtDdk3-u69a2T0yxr65I60dLCA9Fyt72J7eQOjHOavprMJaRYf8",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Gigante",
+            uri: "//maps.google.com/maps/contrib/110627002007109250995",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXqrvUm0iIo-g92HIftEZLZqNy_ikHyXbDfqwaIBykqAOKlJA8q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q7aVlsornwvSS_oXdF-rfA0IkFNqv4Usn9eTorvcwyIA0AsUsSFwLNqX29o1pJhB_8dLNxl5TdtbYSNC54RjaAhCGurpx_ohI-cEN4AKmp1lRxs5rnu-w0_jQJ0kZZJFpr2C7GbShq6R50ACfyUM4NoKklwHHfomVRk",
+        widthPx: 4000,
+        heightPx: 3000,
+        authorAttributions: [
+          {
+            displayName: "Marie Pavia",
+            uri: "//maps.google.com/maps/contrib/101579886649390140224",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX5MCxW3B6WlDIXZWGfU49Dgjxs_kfItw_Aj2l7U28oMEf337MHhw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q7rwBUMTN7poeUr-wswThHduGXPUxEveN_QVv48HFmyDLalreFR2fW5daTAxi5YHr3E2n93yXhSeyHMG9DrVDKt-bl7rjXz4Hx1oc3nH7PoDzBqUIcMWjm1FuzDaRmoMbIxAUwQoPOIFQx9uHimsrFTiJ9NDTjsJxRe",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Darren Plateroti",
+            uri: "//maps.google.com/maps/contrib/101344542437460749802",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXt7bFaxzajZoPDpOMonzkXNGsFI5akQlboX630EsBQ_WJDBljC-A=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q4qC0a1CuCc0ACn6coR4IECLnqB2PreaOHgqoMR6QVHZ7ICZG2s_rNCtzBKD4kR3nEiTdKL2rq0VBCQNUPuSpYyXGXLDv8Wx6-wLTxYkyPXX4Ofak3tHRyZ-jFlcE0Vp3VwmD6rgWRaoW2d2OZQ4WcJJq0piTkjvVqG",
+        widthPx: 3600,
+        heightPx: 4800,
+        authorAttributions: [
+          {
+            displayName: "Jessi",
+            uri: "//maps.google.com/maps/contrib/113263006284678873475",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUtvhfHRyMj60YBfoYIuFKTApmD4mDGaHD-MYPlbt_Ve9DWij2v=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q5C2vDVCpcEfeSMUqq0qtF1za2ih-YpFe1FS-KUZXNn6cLhFaN4eti5Bp9T1eisqh8U5qHmeNTYyzj0nuSLGyy-MFf7pbKO9ifCh1Bj7B65RevV3AbzHrJrBv3On07Uw_kDaBSqiemhw05bU1En9gCDjgUa0kH6E5zL",
+        widthPx: 1600,
+        heightPx: 1200,
+        authorAttributions: [
+          {
+            displayName: "Googlemyskills",
+            uri: "//maps.google.com/maps/contrib/107430401041578557719",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUSprRCAgvyQ80IoWyeBuQcLWjk6IwBmCaxbZMMRXTu3C0G4QamYw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJsdgOWwKTwokRFMerkmAr0cY/photos/AXCi2Q6YpG8bgN84KgA4fWuU5Un0SGdZ5Mb8lU5czcOuxQoQKcRF8Wio5a_GR7n6r6MT-oVwTKVinnd94pPI5iYrrIkSamCFlbzk4POgsCa0ZI8qsfDKqamVSzBZkqTyfA5ZMdxie2Ed9I6P_BgzPHcaJCPRWgSaepcz3Bih",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Dominick Vellucci",
+            uri: "//maps.google.com/maps/contrib/116345219794599247988",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw",
+    id: "ChIJ--5iQuiSwokR7jxhtfFChCw",
+    types: [
+      "italian_restaurant",
+      "pizza_restaurant",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "102 Fisher Ave, Eastchester, NY 10709, USA",
+    location: {
+      latitude: 40.956803099999995,
+      longitude: -73.8167425,
+    },
+    rating: 4.3,
+    websiteUri: "https://www.polpettina.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 0,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 22,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: Closed",
+        "Tuesday: 11:00 AM – 3:00 PM, 4:30 – 9:00 PM",
+        "Wednesday: 11:00 AM – 3:00 PM, 4:30 – 9:00 PM",
+        "Thursday: 11:00 AM – 3:00 PM, 4:30 – 9:00 PM",
+        "Friday: 11:00 AM – 3:00 PM, 4:30 – 10:00 PM",
+        "Saturday: 11:00 AM – 3:00 PM, 4:30 – 10:00 PM",
+        "Sunday: 11:00 AM – 3:00 PM, 4:30 – 8:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 427,
+    displayName: {
+      text: "Polpettina",
+      languageCode: "en",
+    },
+    regularSecondaryOpeningHours: [
+      {
+        openNow: false,
+        periods: [
+          {
+            open: {
+              day: 2,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 17,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 17,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 17,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 17,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: 3:00 – 5:00 PM",
+          "Wednesday: 3:00 – 5:00 PM",
+          "Thursday: 3:00 – 5:00 PM",
+          "Friday: 3:00 – 5:00 PM",
+          "Saturday: Closed",
+          "Sunday: Closed",
+        ],
+        secondaryHoursType: "HAPPY_HOUR",
       },
       {
         openNow: true,
@@ -4596,711 +1333,160 @@ let places = [
             },
             close: {
               day: 0,
-              hour: 23,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 23,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 23,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 23,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 23,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 0,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 0,
+              hour: 15,
               minute: 0,
             },
           },
         ],
         weekdayDescriptions: [
-          "Monday: 12:00 – 11:00 PM",
-          "Tuesday: 12:00 – 11:00 PM",
-          "Wednesday: 12:00 – 11:00 PM",
-          "Thursday: 12:00 – 11:00 PM",
-          "Friday: 12:00 PM – 12:00 AM",
-          "Saturday: 11:00 AM – 12:00 AM",
-          "Sunday: 11:00 AM – 11:00 PM",
+          "Monday: Closed",
+          "Tuesday: Closed",
+          "Wednesday: Closed",
+          "Thursday: Closed",
+          "Friday: Closed",
+          "Saturday: Closed",
+          "Sunday: 11:00 AM – 3:00 PM",
         ],
-        secondaryHoursType: "KITCHEN",
+        secondaryHoursType: "BRUNCH",
       },
     ],
-    primaryType: "american_restaurant",
-    shortFormattedAddress: "571 Gramatan Ave, Mt Vernon",
+    primaryType: "italian_restaurant",
+    shortFormattedAddress: "102 Fisher Ave, Eastchester",
     photos: [
       {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_CvWW1inVDgl6WZ8ulsU5RlD1NJKj9CVdi-CFezDk6Oibk6dsGL8IDwRmNNvRCe9S-j6jlgpfqtQenaqsmN0N1juVgkjLD0kMrKz-kmqJq0rhzHC65sW-BIxz72CikdE5-sW3twRyo8WYRGWsmPTfoG4QRT3HpegpbW2",
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q5IatksZqvtuO8Bn7AeyhgbMdBNMsNf1cwDtfZLQn3V6S8vkjkeyqM11vNnQhAVDP_4aQlQEjzLXLAhIBn6y3-kagGGQ01Au3708zX15MfrHu71nUOngKCbGKVatL2wky8ijs1ltR_MmltU-A4TG6Scuqp5AfGH2zGq",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
           {
-            displayName: "Maggie Spillane's Ale House and Rooftop",
-            uri: "//maps.google.com/maps/contrib/106435698067998768834",
+            displayName: "Muffetta's Housekeeping, House Cleaning & Household",
+            uri: "//maps.google.com/maps/contrib/105457051218273602036",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVR4U247et2Ok8VqVffhh-TUHF_Ku6hIaL4wBpKmK-cu6eXPg4=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjVY1RGxGwIV3WXq5MczEHy8u0se8udfO_8kIv-FGzl1e09aMdI=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_CtiVlb7SSMgSz-zKDktFYJ93IWsqH0SmMbKQGHSECRgceCeKe6JUT95igNehX6a-4H-EgdbRhL8AOkApX26deqDlHn1cu9xSDSBf5HpDs7PsuJvsbcdWnvXBEqx8WQsthH5aI2RF2bK0olvnSuIa8_rlCw96esqc6UH",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Maggie Spillane's Ale House and Rooftop",
-            uri: "//maps.google.com/maps/contrib/106435698067998768834",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVR4U247et2Ok8VqVffhh-TUHF_Ku6hIaL4wBpKmK-cu6eXPg4=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_CufnwjhNLo0xc1YGlXQm2WK6VIK-rcNryVUyoh1eYEF8kKT2TXz4-DH1OLxyHNhgT5f3YGe5lx8kE-SKaCfSKjPk5gwRRNiORvMrBOyxxPnpQJFd7lWhUxhYl4t336raogAdtjVQhxydGGPAxwLKe4eFL_itbG5-bZA",
-        widthPx: 4000,
-        heightPx: 3000,
-        authorAttributions: [
-          {
-            displayName: "Kel Ar",
-            uri: "//maps.google.com/maps/contrib/113775708780393704509",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLtLDFImCCnym4sTJIm9v-oZBpMTwrH53Ef-T3h1lcl0wGS7Q=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_CuCzzeUsl1zuemk-ZRot7ADAOgqhluiDDno9NkHUHlBFtcdIgpd_SsK9jwt_LLaw-Tq4zTUtaKACWKd7bZZfO82mKpp3L8Fy3HjfjYDXOkTEQ9C-q90kh-7t7OvMdKRn1ZANTMbLd-HRINiubnRC2rfAUwznKn2n6Pk",
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q6XYi5H7n_Lp6_YipTBRfyVFgnLCmlRhyIFYrEcMZiN4E0M9SfyWB_MoZsyekG41lXxFGdnXHfuL9vKRtwXqcaYghktKa2lw-kAuiNuGMgoOeuEPsI1HJiF5hy6zixWhKDR_z6qB7YljiK-mbEtgmXSCG8KuXD4jU4s",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
           {
-            displayName: "Lorena W",
-            uri: "//maps.google.com/maps/contrib/117856844632677286155",
+            displayName: "ML Ong",
+            uri: "//maps.google.com/maps/contrib/103876713633083931019",
             photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocJ8JJWObbH4V2Ab44eGg3B6zNOIEicVptIEn6zwzMmpGEM4Lg=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjW_r50JhgdkBaSLfG3z23ZQfytAyq2FfMaUgSOsRJETzabYpO79=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_Csh9Nc1BgOj8JjtIrpI-FKyHYAq359QZPzPphpDqCauD3tE4bJjlyTnVG_MbGY6nsk--L9ANQQ54JO0LWYZVrXFC7q6SdlkmWsApJRuP3TI5-QNQ8a2zYUxl8XOmR-wqkG-i4opc_W4P3ws277dHuujHL8gBhrPZdCk",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "David K",
-            uri: "//maps.google.com/maps/contrib/114977162681690667327",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXtboaUyo_Jq45KsaeZH1C_pjpB0ZOn9G3ORZKc5aPO0ovus4T4Hw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_Ctei16qsaymW8hE5nztVcPPHeB3dF-w1ShuJni8D3TE6NLaD6IYB4YOtXZMKcMsvTjrZiemqfxdQjV5ZFCpubXX1iqmxRvGfZTW4LbfPWRgoJQXyNtJnUS3E0sw65oDcL7XLsTv2squ22aTL3OJLcHTWIw06V-Xv0it",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Maggie Spillane's Ale House and Rooftop",
-            uri: "//maps.google.com/maps/contrib/106435698067998768834",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVR4U247et2Ok8VqVffhh-TUHF_Ku6hIaL4wBpKmK-cu6eXPg4=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_CsqbAgWq8Jf-2yLzUiVMCbkHQFyHXib-IU1s9FUEsxjHPp2-y6LK3jrrirp0MSKuGYha-z_PWeF7JlpCUM-imXLt2O64KgbW_pi__dzCeangftqKrbaszS7h6VW1eeVG2gQT8HY_klLbB45mbh1Wg5KHD1y_3804--p",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Roodlyne Woods",
-            uri: "//maps.google.com/maps/contrib/111524359342142530503",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUx40UpARMV8tiM_wWc2r_Gxe-ZAxs3Fv7axaEkGFHPt2ON74Y=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_CsVYKqq9MxYPvm38bmKyu4971XUgOqdVjmUgmarHLuSAnW3_e0LAqVJb2ilkC2HLnYXMZecWCLf2-UNuQ4NrQ9OVUt55Qjnu3Bm2rgoI6VOttPzA3Zlqd7YBG28D7Qh0zyfKAnvJlZJbNG-bp4KV-8yt8NRU8aojTHO",
-        widthPx: 1600,
-        heightPx: 739,
-        authorAttributions: [
-          {
-            displayName: "Brenda Btrayed Oliver",
-            uri: "//maps.google.com/maps/contrib/102745241926829807994",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVVoEL18msE23QBGV_rmuvJeLLQ5e5Wt3ukkxj3t-bq3susxe8=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_CtUINafbO6Rwi2s3TKZtBhpMDtWoUBXfHdVtLloLsfuuJAF-nG-H-IzEfaiZJNQ49N-cQxlaPM25TIIUkc6EyXT-7EhSOqGhtXnFDwUTJuYoP6WnM7aeICJeV7lqMnr0_tCvKOjFEgBB37LipYZWJ01XScMy2nFZBB0",
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q7qxA03fmItP_4j9f89RdiZl2U4kFzqHPhXNRJVBnDWHe4w83wT-zbiCQRWpmwM-2y7GlsBXI4_JpM5-g89OQvkQKHtL33kOTk6R9ru9h4A7h516myiryM1-xQgTXGF14ntSJEfwbX8LLP4_dKR5n51_Zm8eE9m2JDP",
         widthPx: 4000,
         heightPx: 2252,
         authorAttributions: [
           {
-            displayName: "Brenda Btrayed Oliver",
-            uri: "//maps.google.com/maps/contrib/102745241926829807994",
+            displayName: "cory hartman",
+            uri: "//maps.google.com/maps/contrib/117113678754225878848",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVVoEL18msE23QBGV_rmuvJeLLQ5e5Wt3ukkxj3t-bq3susxe8=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a/ACg8ocJ2ZH3sAUp_WC4WVZdxYOSiTuKSHGBrqyp9xACvH7R8dMOtbw=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJxxDLVlGNwokRPgtjAbxyevY/photos/AelY_CubQShg9ia80vW1VUnkmY75xnw4eqF2FlZWIVy-ctRy3ZjPhvvo-wB0yOJNgVJP8T7GVcmT6Gd9hCA5i44dQxU67k81PAqhv0A8CoBj_FCUBZJGi9MGZgCLIBzVaxbo_jayc24fUD0WBjt4hTlyhpD1WnuFDJ9m1jzM",
-        widthPx: 4800,
-        heightPx: 3090,
-        authorAttributions: [
-          {
-            displayName: "Xiomara Liz Gines Rodriguez",
-            uri: "//maps.google.com/maps/contrib/114489898649489933574",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVdSXxjRZjDQAFyyz2-MnKvDxWy6AcObXd_ojSxIJkOSCnD3s8=s100-p-k-no-mo",
-          },
-        ],
-      },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: false,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio",
-    id: "ChIJJZ99iq2SwokRkbZKRzJeoio",
-    types: [
-      "italian_restaurant",
-      "restaurant",
-      "food",
-      "point_of_interest",
-      "establishment",
-    ],
-    formattedAddress: "10 Palmer Ave, Bronxville, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "10",
-        shortText: "10",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Palmer Avenue",
-        shortText: "Palmer Ave",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.9412211,
-      longitude: -73.8379159,
-    },
-    rating: 4.6,
-    websiteUri: "http://rosiesbronxville.com/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 20,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 1,
-            hour: 20,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 2,
-            hour: 20,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 3,
-            hour: 20,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 4,
-            hour: 20,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 30,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 12:00 – 8:30 PM",
-        "Tuesday: 12:00 – 8:30 PM",
-        "Wednesday: 12:00 – 8:30 PM",
-        "Thursday: 12:00 – 8:30 PM",
-        "Friday: 12:00 – 9:30 PM",
-        "Saturday: 12:00 – 9:30 PM",
-        "Sunday: 12:00 – 8:30 PM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 685,
-    displayName: {
-      text: "Rosie's Bistro Italiano",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 20,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 20,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 20,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 20,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 20,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 12:00 – 8:30 PM",
-        "Tuesday: 12:00 – 8:30 PM",
-        "Wednesday: 12:00 – 8:30 PM",
-        "Thursday: 12:00 – 8:30 PM",
-        "Friday: 12:00 – 9:30 PM",
-        "Saturday: 12:00 – 9:30 PM",
-        "Sunday: 12:00 – 8:30 PM",
-      ],
-    },
-    primaryType: "italian_restaurant",
-    shortFormattedAddress: "10 Palmer Ave, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_CtLkRvYq8TLROywLg9eVMYZzUf_6b1UezH-qdtHY9UzQ8cq3DGnzwzvEwWaUHHUnNgvnmOSgvhslELvk5Pi3QbQc0INpqiaNEDDa39oRAdMoJtMmQOmScX6x033Q3sGbGmVX6bIteRdz3KoEDS9-AQl7-FgXkISQM4S",
-        widthPx: 4800,
-        heightPx: 3204,
-        authorAttributions: [
-          {
-            displayName: "Zvi Shapira",
-            uri: "//maps.google.com/maps/contrib/102377657754236385313",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXlfEDLP5gtGxn6y7MrU6FSkOLrIeAP3hvkakh8VM-Yrwg9A1O-=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_CtwS4J2h3Z1J4o91qlhyOVdhzVcBfB6v6zvLe0SapewgPI0wM2qq15AkSKw0rjwEIXq6Z2dPyXQ7HNteGqFJzcvaBHKDNTsJYcFUMP3dJtDxlNAfk3YHbvn8BwMvV8VYPbKVgA6uZyRV2b0pG_QlAH-WEYyB5KGN_Dh",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_Cuy5KgIs2xy1ZaTZ8-0vmhq-RxYrfybNUrU9cXOV7OvGN9ErhmAtCL4p01Kn6tyMhRHijK51TxL58pTYDKHdE8O7ujPAnApR9NPqy9VSAauvZ7bFtFyGdFj_lmC2yLJ5KBWdaRu6TILzXTV2xux31ddddh7iR-OywU2",
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q7MIBAznaZOtIUdb87WAe82_Gn3Vbb15utqzvUgqZu6LSpaU1jByjyt86z7VvFzMcjf-WKW8H2JO3uWV9uMjjQ_diRVT_ZP4CB2Y2PB6kLNEGrI6hDcgmYvPSF9D3CrAEDpSLDSJmTGTjMMjGvST5PR8rnWeROirjMy",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
           {
-            displayName: "J.",
-            uri: "//maps.google.com/maps/contrib/109143634381712227841",
+            displayName: "J Lim",
+            uri: "//maps.google.com/maps/contrib/109935156740971751576",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXcw_1JZSZIIK5ufGlB7zPf_ShSr1vFwICrYi-3tVjbV9LSf1pf=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a/ACg8ocKYnG11pwVBark64wiserzR8n-rEfTAglboJ7aaEgmmefWHqA=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_CuL6Gt3OFtI6hFEkyXkd5hic7O6dU7y9G3L8qQFQbnx3CyxB6rfMxyszdd5a4iotj8BBgUTz-rD5it9-i5KE2sDFLaWsUb1w2yAEU4fUx0VBUGe3oWsylNccS_P_PGfk4vbTUpMyPogwmJJp8jBRiearVhZ_ujAs77-",
-        widthPx: 3072,
-        heightPx: 4080,
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q5l8vuS_IgOU4oHbIKvTcprJfXG6-OOCVOc0I_vK5NNnJiEm-72J9_Vodjd-iVDyjehZ-9BkERZ1z5LrKfV-kRbsgmDDtLv63iMaAEune4XNT3nJJQYPL2I_RNbYDYcnnbuhfEwyijIovseCH9-q-sly346BDe_nALm",
+        widthPx: 3600,
+        heightPx: 4800,
         authorAttributions: [
           {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
+            displayName: "Gianna Salmas",
+            uri: "//maps.google.com/maps/contrib/112422668535582317523",
             photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjUBKPdwD_XhEp9TqzH8cd_YtCpQLtflV-5leBE7QOrQB99KcRvc=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_CtkalOATNcIU9bgo-wUz4jooZGztZkctFaz2VyHSrnPoaLB4SyugNVy2WfSO4pFckZdT1TWfUwdBJz7GCzOR7GEf05AQUyDPogJTlrVWU9-ro9NiPtBwDBSViWb76knLYrmQaUu5294IELHEJ8Vtpvc0cbQtaQV1DL4",
-        widthPx: 1848,
-        heightPx: 3208,
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q5ohVv2eXtsHssCfjs89eAJfypCXOhEmVkbicM33eMj5RssTwjGJsWICu7Ej5IOF46F7o0iBZpvak1_47CNN4a7eS7rUBVDVINv_kciG4kcT5SsRWhYHbzOJwweX2B43f3vgLOZcI6eMwu2L0y9Eg03_lylHesmZePA",
+        widthPx: 3024,
+        heightPx: 4032,
         authorAttributions: [
           {
-            displayName: "Hy Mayer",
-            uri: "//maps.google.com/maps/contrib/108278630450163148791",
+            displayName: "Albert Belegu",
+            uri: "//maps.google.com/maps/contrib/115126213285502150012",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUta89KLvBfkXdLZB1Sc4Gu9Kiiv-yWKPqoDA_P3b6Mbm40VsgAwQ=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a/ACg8ocJq7DbD2MZI3SNBz4CqXrjMp1NCo5qfZxu1WI_Mib3NBlcvyQ=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_CsuS_3xweW90QgEdSVbQw7CVNXVgmaNPjNCbI-WI7uEtXCYKgWvlKcVHDz-VicjO-FOkM_en9PgzRMA_VIMeNQn0ycvk25VYqsiOOerNSfiD3MjAxWVsXC83ZKm6SM57Q26OPSglevQ4fI-cvTEHtXb5aMbWcAYAj1d",
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q4ygUKxOaJ2qlPwLkEfahMSpgS2BnYhGQVywF7U74DI5d2SomO7pXviQuWBtVzh7FXIOjOpggoV7Wz0dXSJwkn5_lU9WBpWLkA7YSgKpR5-i-yZclcSaU-JyQyO6_kHO_xkx-zWhedN8ho5heFDwpC9G0E6DOlxzptC",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Maggie H",
+            uri: "//maps.google.com/maps/contrib/105905109091108364011",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUrk_-BPSIyptNscSnvoYDXFqWFkk5I056EVWvtAXBVGbB0aHtt=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q5ks2E5nmIv9sSTLnW10g1asJbwEmJnd42cy2fditBvTDJyTEzswc68XgTbCSHq5lAHTYx6AfUB7xfDgHvbiX7kEH3uH_tSoh9wM1lV6hcBTi7m-UE8Q1NXbh2N4iq_ZGHWNXFUufvN7xX0qQZNk267CfNHHS_weShh",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Malia Villafane-Robinson",
+            uri: "//maps.google.com/maps/contrib/111182177539209873837",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVeGUQnN2PT3WDYX0t_b0k_VIIbn8sFYAcUyp4wjBaxd80mz9CN=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q7LrTMhKx2qicLgj6gohtIQBx6nWY-UiRRyYGQE8lyTrvCYguL79FCcEXgmwCLukw7HsLK8LE_UMHy0voUPjhZzJgPQotSiR-wa6PBZGrR9Uam4XSNrcz7YJ8ACTB7Euo7L5MGfnS6UP-R1OXIn4M2LjzPkAIkLmqw8",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "T Claz",
+            uri: "//maps.google.com/maps/contrib/115336123914713811551",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXj7tUwf95VFY3i7Uey2K5F79YNztb8eOznSEWovQLdi-ayYwqA-Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q7-scN8FRpcwuwG7_FJnS6E68yiyFdp224x0EsQFZd7HWqBW1_0pi8nf1T0x1osffs8hFRwaPvNYM5kSS2Lfr0sgQPVm6knvokhHAVPasNAJBTeW_Owjye5cWRrnHqgAQPkD_8u4ECJOLlGLkOvgrTwRgLVcyLl_o5y",
         widthPx: 3000,
         heightPx: 4000,
         authorAttributions: [
           {
-            displayName: "Donny M",
-            uri: "//maps.google.com/maps/contrib/111483564916078492645",
+            displayName: "Jay Shin",
+            uri: "//maps.google.com/maps/contrib/116593646974560181054",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXRAZVwfQMCE0w_Rq913CCIv-D-G6WZno488yZf8SYAkRvsl_PN9A=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_CsKEqBNsSOo82BuW7wqpD2MzDMJ5ghqVn2RcwM4l0p_Lqk24DCDg7QSvvayIrO9HRmG5LHy7yxIf554FJeQYpiGlGN_eVRnDIONOGUb5NfeTn_ePW-AlHlJbEifm85MLkic4R8WMKFFusiABpwc03buGPf10c-JMob1",
-        widthPx: 1802,
-        heightPx: 2429,
-        authorAttributions: [
-          {
-            displayName: "Hy Mayer",
-            uri: "//maps.google.com/maps/contrib/108278630450163148791",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUta89KLvBfkXdLZB1Sc4Gu9Kiiv-yWKPqoDA_P3b6Mbm40VsgAwQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_CtXSkJquYIHcF9fLcQdgcfkVPnZkDuVCjNQj--u5Vhd5q1-wKhXn6xl_VpRW8iITvosOczvbTDrnuMLuodX1aZUs8RPKwk7p-qi0R29URjoha9-OPmB3e7naeZdukJMFPBr37-Z3QlFklw67TIAEg9d5vQkIG_PQnPr",
-        widthPx: 2268,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Amanda Petrescu",
-            uri: "//maps.google.com/maps/contrib/103240297358981213320",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUNezYtXCQP1eLl6P33zLOAtapjjAvJvWg_tXYP6rWoZJy7mAOi=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_Cs7zwPYI0Ad9AZ1-qgNNcue8fi0D_NvmfIfLx4y4TSOgGoiDfS2IBeceAHN-VpYDHdzVnc3Hw5jtLeu-aDewHJe8n4Y0GBT-LQEYMXEcFGJwA6OqkNhFZ7sxbauWDYceqFer9m4-ZMHyL9p6Gfi0GJhF7iWm5RNhyw0",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "J.",
-            uri: "//maps.google.com/maps/contrib/109143634381712227841",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXcw_1JZSZIIK5ufGlB7zPf_ShSr1vFwICrYi-3tVjbV9LSf1pf=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJJZ99iq2SwokRkbZKRzJeoio/photos/AelY_Cvfm8WLRA2SS4r8xn3vBoP_dxeFn1TFwh2uTNzG5Ph2iUm0mecX3P5kTWPh_BuCk7re568fabgD5c-AZrBPiWx7zIpJZgVrUT4qStJ-YKWmwz0vSbWiS7hYGLYn2AhtSr10P0a24v5s1yDUU45QRNpxPkZxN3E6Y43s",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a/ACg8ocKzKsu0oxd3cRHAHv4Rw0ZSHHi81T8uQMVmqLamHPrGc4T7SRDg=s100-p-k-no-mo",
           },
         ],
       },
     ],
     accessibilityOptions: {
-      wheelchairAccessibleEntrance: false,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
       wheelchairAccessibleSeating: true,
     },
   },
@@ -5317,56 +1503,6 @@ let places = [
       "establishment",
     ],
     formattedAddress: "5-7, John R Albanese Pl, Eastchester, NY 10709, USA",
-    addressComponents: [
-      {
-        longText: "5-7",
-        shortText: "5-7",
-        types: ["premise"],
-        languageCode: "en",
-      },
-      {
-        longText: "John R Albanese Place",
-        shortText: "John R Albanese Pl",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10709",
-        shortText: "10709",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
     location: {
       latitude: 40.9496325,
       longitude: -73.818533899999991,
@@ -5477,179 +1613,11 @@ let places = [
       text: "Ciao",
       languageCode: "en",
     },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 12:00 – 10:00 PM",
-        "Tuesday: 12:00 – 10:00 PM",
-        "Wednesday: 12:00 – 10:00 PM",
-        "Thursday: 12:00 – 10:00 PM",
-        "Friday: 12:00 – 10:00 PM",
-        "Saturday: 12:00 – 10:00 PM",
-        "Sunday: 12:00 – 10:00 PM",
-      ],
-    },
     primaryType: "italian_restaurant",
     shortFormattedAddress: "5-7, John R Albanese Pl, Eastchester",
     photos: [
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_CtD4SJrfmgT2j4ePJEAIhk6Dzxcin31KlKg9-LMMf8YOInJJ7xlHzPrvYxYL14Bf1iz-3SLXYjoMPqT9CPxsBcnatWb5-PmreBwMaImurI7dPveoAH25phcJQhHHd88ClffgBNu0gX1ZHXqgdVhtVukOH8w2j7givoK",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q49ztGYFvERo9SqWDxz_mnJSxMPniYqcVz_rKSj9Q4md2JyfLf7_OzmGTZ6ihs-6-SNHqWsa2SBWZucNrVq4kqMZGssrYNm_x23Tair343v1CcIIEhFosY75DfWp3pgoJhN-hkX3IhrOBoSCinsAhXtWUka1DAQ9J6E",
         widthPx: 4800,
         heightPx: 3179,
         authorAttributions: [
@@ -5662,7 +1630,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_CtzJKWDOxsPkssuPIAWhJ_lzIx5DyWUj_8OQifN8LCF2bgz-V7yJTuA2exPMiswC2_EIYaDPrx4KUyPT8bAzVAszxyK5SH5IGf6hEGMuDGFscgoA-ld5nDhvfoqjALKlIpM_7zdfzJ685MfjB-fDLmhtRNzU70cUaB1",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q70lbIYgtZAnR_BYzLhat5G2vOqLGX45SKBZOI0BKiSTd1SN0R-3XSygJr8VbxP5M0flz5CYsV20V3SQmV6OeAAHqJ5Cd1BMzAQdbDFgFd3O1PFejAcdypQ_XXxi0vUolD5mQF2QtalvfyQsSSAAqrWn55NWN0nsFX3",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -5675,7 +1643,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_CuZOmto-NHc0a-ZunVQke3PDvrgkjwj1gIsvQjLgP6o_8u-t7kufQuGGKqUGENJ1H9cDj4XstQw8vhyPe-IP-kO6gydnVcyhx9NpAz_0lVkJjxEWuB6rQXMcX8XY_0HEQAUKptulo0s4GqG5Q6MDDjHoqgkXkTa6SwS",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q6VCB8ntQS1cKGeq2LplUw6rOIHK0oJX8MIgC0Slg0BohhDAkwCciaj2z99nrf8BLfI4WgyBfkt1su-MaVntjpQZlDHg-s--TWl_OLmturhiuZckeGBTxA5VHHfvl8sNo2uatwvW8KFFDX5qFdge4l2p5FFFjP4YigV",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -5688,7 +1656,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_CuB8AHaII7IYTV3V_MTDtvA32f0gtkFuW3wpma1nvXf8DhP-1EVhiVqHRRqy2xC7YIXCDCSio-RZ9DxxseOlwWGCoY1bli7wQu8RR_3-GyFbLUvE51MD-boVdgo9nSOW1zxzzQaRHDX1OBYAHTr2pNwKjfif_2W0BuO",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q6WvgXjQuVn2ftIgc5AOxCzIqS_o6C7ni44RDdViZhPsAJbEHwXom-VXyLsME-Ar0-AsSUotQFk8OtYFUmf24345AvrLpj9Jrix-FafIicj1VacdPHtdKVs48lXAXBkfLRzNlEhZDzZ5N7JVKhJLczUEdfzOp6jcbrI",
         widthPx: 3072,
         heightPx: 4080,
         authorAttributions: [
@@ -5701,7 +1669,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_Cu05cYmrilUvTZoksk36RXBmJB-PQ-jAnK_gjOjmO-qfl-QO8gO1HfEdZvyG10i0atmTimU2IKlLu4yEQruYBhgFVY_cR_O5CJhpStRTR91DriKsYIso9nlIhdjUv3sQLTstPWvQ0LRaE_B5EmaNZNorHdK2bybWSOJ",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q4UOM7rW1p4TG5nJJ6iOhG2xhYASat7ymRP66wtxIUHLKHmPGfr3XuIxiVN4kyGrj7HqaQH_ceFX54nu3T49uJ8nJd5knrKNMKQtmCMFvdUrnQHhjbw01rEi_DZGxV2CqhNV9_104uJTXVUwE4nl5uNepkI8mkMfs2h",
         widthPx: 3000,
         heightPx: 4000,
         authorAttributions: [
@@ -5714,7 +1682,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_CtmJ85QGRH-JzXzr-Eh_9_JDcaoDinLvJqAIM8l2C5KJyqmSs9eaZbTRCwCL9hHCjTFCePnhFTl7FzW_zp_SSgdm3QPQoTiWRhPydynTewHos3B0mQy9wL4Wfk47NOURy7EhEssqOJbl-IPkCYG8omX9EBIAR62nHi5",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q5bmc0GwxeYs2bi4kSgphGmuQcCvuMpQCj7DGCee_ekXpA_TXfGtTO1OS8ZEQ3DcwJZDx-efzKQ6RcHFmZV6MMcBOHMiCeEFIP-v285cfaBVooY93f15gHUrUhgHdPIBH3OO7rJ-d7GVI-hUO4RykRBJR2-KRokKO8R",
         widthPx: 4000,
         heightPx: 3000,
         authorAttributions: [
@@ -5727,7 +1695,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_CsJgD4tzxlf_I0ivkmsiqMnePgYfMYGJXRtjI6zJ3UBZN7nrnnVXkuSuwnMJye0xxctNm4Ju40w2B8lD2VVxvXgg4qLKNZeaj_ehu5-VOeiZ6XWlZKE9IeW8bHM39x9ZwOZKR_JgR1ccMMeQWnvyiJTJKMUfqWbCmws",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q477bIV-pLuQ1_GzC5Zyrrao3nhsde5oXy8dbHP9ta1AFD9XcB8OUwBZs_eFGVm1eQJ5reRdrGpK4qscOnfQ3SBeyp7AukltNPjJcPWF77acAVQsQWqsXZ5PbpzVHr0wC7Va9xOGadOjTVogg6LTHIYoOvV6ww4IaQU",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -5740,7 +1708,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_CuuHlBW9k78VGaMhPIqP4Qk3zVHaWzze2ef-2HKHaGz3N8Mfyo7ub7knulhqxSnsxu6-uYBoaqmSKJk3mCkaiTclpbYN25sRuPi-7kk74h5E_tp8IqDEJNFDGukqNLxIRuCf0WyuT0hkP6OAQzzgJJG6Zk5rMwB17oA",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q5vMMPdHjnW8WNu2mm_hBCTM_swaUf1gsv02FIQGZW4w6EsxYYT8SJ4wAW2reSn0hbhdYjNgKdthlNaciur3777AGbpIqZnMaYozl0up1B_4RahO5Nt-VDnsjbiGEXkvDxzzY8UxMUvRL_5p2SeSgKXdVG7LPv7naxY",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -5753,7 +1721,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_CvGlzJwnqPcEs77DIkxxpu0Hv6Ff9cJa2l2WZvVnGjzyR3A0CFMUIuKdtczAr4pnpRY1vbOCJcjgzfPGxZt2umqIrsG3b53udyRmiSLEJElHHUAUbzPkAgRMc6LiLjyqcuE8lI6y9ql1bRIGIg-sDKypvSoGwulU92s",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q42_G807lKZvn7o8EU0GOP5-5DyRbPoIqelNpkhYq63eWXSov3ToT4_hlO_Lv0z1bm3ObyL6hVqLiLubNyCI05hiZ9LeWrLBdvrOgJuQ4cdkCWv3qiZqhnxhBwZ5s3d8xrt16yj2l3C_UAKPH9phRvWZ0-SeV5q9oQ0",
         widthPx: 2252,
         heightPx: 2638,
         authorAttributions: [
@@ -5766,7 +1734,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AelY_Cs8qPVXdKbytzlgLPFpGZ-LsSibppf4kF6CgSWdT06L3NnBXDv0vDhKCpZbxwFy4YfV_MkvY28H6osmJWJ-VYiA-MixusKiFlldZqG2PbDriJypCDv5zHvejSYX8Fk98nUdxGuME5oBP0zY_WpsE7cgAs_wxitCpx-9",
+        name: "places/ChIJ3dQdIsCSwokRs0eyh6JtnNU/photos/AXCi2Q5BH1FzSiw78dYsAht9Pklzqw2oTxOzWRS_kgImE7nuapeEoXsFL_lXmYccvTfSXXpbPqy9UL1kNMRN02iM6xIQ0jY2LEM-7UUlBDmjBlTynWyL5JhqF3jV5KHPNszY5qkxy_6zdJhINvoTz8iGoFVLte3y7rBzz2yL",
         widthPx: 4080,
         heightPx: 3072,
         authorAttributions: [
@@ -5787,66 +1755,535 @@ let places = [
     },
   },
   {
+    name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4",
+    id: "ChIJvd_wzOiSwokRKwzdpR4KUM4",
+    types: [
+      "japanese_restaurant",
+      "sushi_restaurant",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "36 Mill Rd, Eastchester, NY 10709, USA",
+    location: {
+      latitude: 40.9559032,
+      longitude: -73.8125465,
+    },
+    rating: 4.2,
+    websiteUri: "http://www.eastchestersushi.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 12,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 1,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 12,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 22,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 11:30 AM – 9:30 PM",
+        "Tuesday: 11:30 AM – 9:30 PM",
+        "Wednesday: 11:30 AM – 9:30 PM",
+        "Thursday: 11:30 AM – 9:30 PM",
+        "Friday: 11:30 AM – 10:00 PM",
+        "Saturday: 12:30 – 10:00 PM",
+        "Sunday: 12:30 – 9:30 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 638,
+    displayName: {
+      text: "Sushi Castle",
+      languageCode: "en",
+    },
+    primaryType: "japanese_restaurant",
+    shortFormattedAddress: "36 Mill Rd, Eastchester",
+    photos: [
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q7OM9iqeESdEm7Yxncr8orBJ3ulRhvKhH6sttqWIoPGvL64dZS5lfOYl1rB36IEgwlMKhaOrtXlQCzpJ1yawlssRURfZB07NK4GuzDIB3UX-CsIGQZNtYiYpJjsumZxonEYGlpCKF1Ux4JwY5cm51mtW3aaYGekLWMt",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Bianca C.",
+            uri: "//maps.google.com/maps/contrib/116185846034886264029",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVPHPzu70ySmPXIn0hvpY7LATjAvL-8ffHTtSOjtXEsY5rGCVRSjw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q7tq8bNMN8wADkvXxBiZNn6CTZ7iJY71G43IHNs7Vd2fzRKpue5K4iirK0K7oIu_S1330DLo-C8Nb2T2Lrqxy1XF6I07AvMFPdPTXKWLUQbNQBsFgfxCAmCfxY1pkfFp0C1TXQrNxKEg-53jbVADh0ce9IeicUfrixz",
+        widthPx: 1017,
+        heightPx: 612,
+        authorAttributions: [
+          {
+            displayName: "Sushi Castle",
+            uri: "//maps.google.com/maps/contrib/106612539680170731762",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXj_G2kkzBzQIO5hZ4MHLWKdF0u_UBLZ6h98tdDjH_ZB45Xe70=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q6GtsNlLOx-KP_pf8mWwXR4DSY87BBbMnE2xqb7EUKsoK5ig1lTDmLl341s55lk4NQOEBaxt7A1fBaZoDjgbYFMTIaTWe8VLhKfoubbp86oslPV5kM1cWhsdDrfyaueqx66u4qu2OGldC-ZqIM2bfLlVqxKdWAdEV4u",
+        widthPx: 1712,
+        heightPx: 1284,
+        authorAttributions: [
+          {
+            displayName: "Bianca C.",
+            uri: "//maps.google.com/maps/contrib/116185846034886264029",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVPHPzu70ySmPXIn0hvpY7LATjAvL-8ffHTtSOjtXEsY5rGCVRSjw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q5v_lQaBsyy_G3JP0w5Ku8TAs_ZwO2McDxX7c6LPWBq8_JwoBUrNjtY6Les3ngaXzXErdypkLXTMqpkD7hTX-qofyGFKL2Q6-NnmQQOUeToIYBLX-urdY8D4Otj_zLrVxiDKVRtTMcaDm7k8Rxl-f-gmzX4gsvbDRMl",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Lindsay Baum",
+            uri: "//maps.google.com/maps/contrib/117886812567082072385",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWbtQxNnCFQ7FYcMKUYQgck9CZtme7DiOdFG83Sft3YIvO21APv=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q7D4kQsne3up16THy1D_o95_kb4c0pf6-z8M8NBuddmcq_Irt3bj4IVz5Zrj6-k7gYkOBkJEvbZr4O1jY_sbHUzhWL_3xfnrzyVYXWtWrdXzUyjhjGgJKycBbNBVJrJPPrs11n3Anbw_SfXp6ZgUV5vO-oTy9O30bpG",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Iris Z. Stucchi de C. de C.",
+            uri: "//maps.google.com/maps/contrib/112442927169769262813",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXlEwygxg5DhcEyLzc-teFQf9KHGkBwefjYR8Izq555bEbuq-gr=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q4eZHeE897GetI_r6oazBj4oofaiq9_4zajBFf-d97OjDnGfrWe3l6s983R-FOZ53SqAcwgnXkis9XokPDEO4p7jpTFvVNcq3SEmmArBH9Ti0hhUtMwQ3ftrWBPpZM-gI1J3qEW-nyFIUgKO3mUnIyI7ujvioOB6NBr",
+        widthPx: 1440,
+        heightPx: 1440,
+        authorAttributions: [
+          {
+            displayName: "Long Ho",
+            uri: "//maps.google.com/maps/contrib/110854011937575254013",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXiD0KpDr1ihiiRGlXfa8x42rwn1XNSN2HrkkdTaYM7KaML1F3L=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q4hNFIuxrxqGEfUGI3XCd-TQJzwpIOS2SthC6EAdMgQ8EutIWCEcLZ6zjRR1WA_UPiCaM0GJDmU8_8xITDwHwnmJyHyGzFfie0rIqxNY2p5GuNDF7f73yDU5rgUMbvX-VuS7U1ocYNzjp1EAoOeG7va_MyA5KqGLxby",
+        widthPx: 4618,
+        heightPx: 3464,
+        authorAttributions: [
+          {
+            displayName: "Eric Velazquez",
+            uri: "//maps.google.com/maps/contrib/110693572211916477709",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUsXrx5XhHKdaB2taPkBG2ftlIjmOSyAApczymt5otVVaOuerUZjQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q4XcULi5cdYfQyYVZ_xDI9KrYw5OWOvCKE0hyem1eB7BYwoMhHsE29SN8KjhxILT_76b1dmJYYNVwnHVrEnZUs-5kRDo3ICa3wcMw2Vwp_qxiSPCMm-U0i3EHj9CauRMGXyRB9tVj0cmx7TU-WefNTsIRb5S5QZqyyg",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Mei Ly",
+            uri: "//maps.google.com/maps/contrib/100509301056425583485",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjU0u7J2TNfxF_rQMWtetUd0xutbAAsVfrtXtmph9T1pIAgtp9fJ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q4NQkcD65r6Sesri5783kxLW5rmz1DihGeYt26XBf7IltD1ev6u5Vs4iVjf0DLlT7VqUjOX-kQkE6AuOBsegoCZ1-gvZVNVDEJHtU22c-hU4ohRhb7LfRN_T65ziGq96Jnzmc5Lpp6TbM2AdT-VncvBN1PKNzSYRTrG",
+        widthPx: 1440,
+        heightPx: 1440,
+        authorAttributions: [
+          {
+            displayName: "Long Ho",
+            uri: "//maps.google.com/maps/contrib/110854011937575254013",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXiD0KpDr1ihiiRGlXfa8x42rwn1XNSN2HrkkdTaYM7KaML1F3L=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJvd_wzOiSwokRKwzdpR4KUM4/photos/AXCi2Q6rdw5B281vXfbdW8f4BFHSnR0uakygmrdeOt9H81rUQmREpEcK0Th8uxvq_PIAVUR-xRPBlyKjTSd5AeMEF6WObnYGXnezQM4hhVmjGG8DX7tSuaMot_xhCLJtl3leaYunWkgnB8gMES6Qhp0jYWjrHYFLF8niFQRt",
+        widthPx: 4000,
+        heightPx: 3000,
+        authorAttributions: [
+          {
+            displayName: "KC Choi",
+            uri: "//maps.google.com/maps/contrib/102587242510383059186",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWTBGcR9F3i_H-xjc6yYo_p4chWxQREuFCPNA6dksQhR3oDfaj-Og=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk",
+    id: "ChIJdXWPRu-SwokRa_l7nmeaCKk",
+    types: [
+      "sandwich_shop",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "33 Mill Rd, Eastchester, NY 10709, USA",
+    location: {
+      latitude: 40.956421,
+      longitude: -73.811545,
+    },
+    rating: 4.5,
+    websiteUri: "http://www.masonsandwiches.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 21,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 11:00 AM – 8:00 PM",
+        "Tuesday: 11:00 AM – 8:00 PM",
+        "Wednesday: 11:00 AM – 8:00 PM",
+        "Thursday: 11:00 AM – 8:00 PM",
+        "Friday: 11:00 AM – 9:00 PM",
+        "Saturday: 11:00 AM – 9:00 PM",
+        "Sunday: 11:00 AM – 8:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 551,
+    displayName: {
+      text: "Mason Sandwich Co.",
+      languageCode: "en",
+    },
+    primaryType: "sandwich_shop",
+    shortFormattedAddress: "33 Mill Rd, Eastchester",
+    photos: [
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q7A77BlNFrRCh5Vm7DQ41Gigd2QVRY3sUL1b9UTmthOQ0oeARXa6Q9j_VYXoV83vvsMz-VMcudjY63QHrWU8RP7C9AtBGAG15hcHSMOrTMtr7qf-NtsXcb69j62yq1Zzu4Q0jRFqQ16uinZjllZ8tAj9tI9OTfmGLfq",
+        widthPx: 480,
+        heightPx: 640,
+        authorAttributions: [
+          {
+            displayName: "Mason Sandwich Co.",
+            uri: "//maps.google.com/maps/contrib/117174005420327472282",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXy-o-DvI-iKafrczx8k_W_Aq4e_Rb32r3-RV_wfNEW487tfTKC=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q4KjA5hpU7ee_d246bk7rIU5P_H_59XFDyi3R-ZYmDnxzzIZG433hDEOPNJ3FxB_u3g_oZA7KQ3Y8Os5wnmpkKFcHVuujbn8SmUjoVdDkpx7cHvtQdKURRGdrw7IMrA3k-r4NT5FwG8K6cyeJsn57QxfN_WhC3Gz1jl",
+        widthPx: 1284,
+        heightPx: 1474,
+        authorAttributions: [
+          {
+            displayName: "Mason Sandwich Co.",
+            uri: "//maps.google.com/maps/contrib/117174005420327472282",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXy-o-DvI-iKafrczx8k_W_Aq4e_Rb32r3-RV_wfNEW487tfTKC=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q7rn_b43LGypHZz7Diyd6WEOV7kWZm3ZPqjXDDGjatYokBBeNfggeZOsLEi8qA_sofvlJ7knKocJX0avuz9xbsyZ6BgMTYe3qO8G28zvyi2fqIGrZ3Psc0NihndoETL1Ad3E1w57EG5JGmWnTvfJaD994H_QRNCsKxN",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Cristina Cruz",
+            uri: "//maps.google.com/maps/contrib/108566340892873914144",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVXNl0uvXJRsFxY_jRCJloDJsRhLNNXTqi9QquFTnlayYeiGIgf=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q40tmeC6U6kd-Jr_iXHf0S-MQMD7vCl2PMQ4Dw59j5GBKHGEQhzC8PJjgVMf33NuSlaq_5pCeIDGc0gHnF8fytBZGkiKBTsgPs3wEt_9KysvMITaPQknUynpP0vfXxuktX45vtZHERZg9kK4H05tC1WcGgA6yfNLkk_",
+        widthPx: 4419,
+        heightPx: 2946,
+        authorAttributions: [
+          {
+            displayName: "Mason Sandwich Co.",
+            uri: "//maps.google.com/maps/contrib/117174005420327472282",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXy-o-DvI-iKafrczx8k_W_Aq4e_Rb32r3-RV_wfNEW487tfTKC=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q6ookdWm23qUzbluS7Mq3cYtblu82kktdkWdFSa1hb5_hTu0seQELMOmHVf3g5q2ZkRLak70fEKacBxI99RymK7r8bd9rJgCltMZhdsm9lgTABYPBvYFanGPZU19x-8TuK4KNEkTk6E08XZqv1cQlaSs2OzBVfBtJKW",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Rich LoPresti",
+            uri: "//maps.google.com/maps/contrib/105616908630415566190",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXNVZH4g8di7rLAO-jHn-b5U4gDT6LbDauQFfGk16MELWivBX3kZA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q5wguaxyZdoQu0gyqQs5C5KkUeHVHs0oPHyeyznd1KS85mBrsipBeI9kJR1f8x7KWqrBOXffgM8nHK5GmL3qHHY715FSYGCk3evkWXZU0jDF_mDUyT3kP-e3rk4c3hGXrA6rPh_v8EaWRPckM85QIadB8rEm3pdHt8Q",
+        widthPx: 476,
+        heightPx: 640,
+        authorAttributions: [
+          {
+            displayName: "Mason Sandwich Co.",
+            uri: "//maps.google.com/maps/contrib/117174005420327472282",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXy-o-DvI-iKafrczx8k_W_Aq4e_Rb32r3-RV_wfNEW487tfTKC=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q6sM3eHKmJmm-7CdpzDeFINHWIIrK-e-iysHSC0KeT-Lj0fvSopsqcXMg1I_0PostuRYELtg6zhMjhPz0QQ_2Z5So4-HP8v1yV_hnHpo6NqUr7bmYtSoTVgtc6im6Sqj4hbBf3f6lDRcJDdP9wflO0UqvzyWCj20NRj",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Cristina Cruz",
+            uri: "//maps.google.com/maps/contrib/108566340892873914144",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVXNl0uvXJRsFxY_jRCJloDJsRhLNNXTqi9QquFTnlayYeiGIgf=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q6CDbjDUt76urokInENZEKFoDmTbOeUv9DrJ-M51YWXKL4bzCt0pkYD9DHEnCprjDaZ2UmQWU_hjBM8svVAFJodO9Wvmch4bqko9NRJQkO1eK_K6jOdoOsoe77YuypFeImsMW-1tXlNK51b-zxut0HrrPbj0IDOyyTm",
+        widthPx: 4000,
+        heightPx: 2252,
+        authorAttributions: [
+          {
+            displayName: "cory hartman",
+            uri: "//maps.google.com/maps/contrib/117113678754225878848",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ2ZH3sAUp_WC4WVZdxYOSiTuKSHGBrqyp9xACvH7R8dMOtbw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q6FILsUuwdpacBhda3Q_fq0mg_l6zQKyscFonWEPr2AhroHkmx1LIqK4s4es5l72JZVbeke5bzm5ns1MX3YRrfZIkuo4MxrzPrAleY0GkzWKF_E_IBw_IhXJVOjU5J8Gefzlyhl4F89eM0NKYE_b8p5McEtLm1r_SrK",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Aurelia Baker",
+            uri: "//maps.google.com/maps/contrib/112229304119874866482",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWtFdIpALY4kZ0qWrdK9Uq1D01oYOQspNultz7shO-lRAxz4XJk=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJdXWPRu-SwokRa_l7nmeaCKk/photos/AXCi2Q7nGrnSUtudBdW67XPud2rkGzC2N5-uC5ok7bU-BoDeY_a1bqbu5MIf4A4qDrLJucbYKL-85wQKlJ9tEuXu9bohwm2YJpci-xZRX6YLXJ0YhxG0QqMJEVkz_6JaXiYP95LgArm_h_Y-jqrGKpdCLTcVCqRvBjhVevE6",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Franjez",
+            uri: "//maps.google.com/maps/contrib/112464858785745680405",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX054yhN_LPVH-1PywZ2qPn-1t5PoxvuKIsVK4umjSTY9EHYMyx=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
     name: "places/ChIJDYixUwKTwokRPRmLS0smLjY",
     id: "ChIJDYixUwKTwokRPRmLS0smLjY",
     types: ["bar", "restaurant", "food", "point_of_interest", "establishment"],
     formattedAddress: "219 Main St, Eastchester, NY 10709, USA",
-    addressComponents: [
-      {
-        longText: "219",
-        shortText: "219",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Main Street",
-        shortText: "Main St",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10709",
-        shortText: "10709",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "2901",
-        shortText: "2901",
-        types: ["postal_code_suffix"],
-        languageCode: "en-US",
-      },
-    ],
     location: {
       latitude: 40.950269299999995,
       longitude: -73.818876,
@@ -5952,351 +2389,11 @@ let places = [
       ],
     },
     priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 341,
+    userRatingCount: 342,
     displayName: {
       text: "Jack's",
       languageCode: "en",
     },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 0,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 23,
-            minute: 59,
-            truncated: true,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 0,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 0,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 0,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 2,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 2,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 12:00 PM – 12:00 AM",
-        "Tuesday: 12:00 PM – 12:00 AM",
-        "Wednesday: 12:00 PM – 12:00 AM",
-        "Thursday: 12:00 PM – 12:00 AM",
-        "Friday: 12:00 PM – 2:00 AM",
-        "Saturday: 11:30 AM – 2:00 AM",
-        "Sunday: 11:00 AM – 12:00 AM",
-      ],
-    },
-    currentSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 12:00 – 9:00 PM",
-          "Tuesday: 12:00 – 9:00 PM",
-          "Wednesday: 12:00 – 9:00 PM",
-          "Thursday: 12:00 – 10:00 PM",
-          "Friday: 12:00 – 10:00 PM",
-          "Saturday: 11:30 AM – 10:00 PM",
-          "Sunday: 11:30 AM – 9:00 PM",
-        ],
-        secondaryHoursType: "KITCHEN",
-      },
-    ],
     regularSecondaryOpeningHours: [
       {
         openNow: true,
@@ -6402,7 +2499,7 @@ let places = [
     shortFormattedAddress: "219 Main St, Eastchester",
     photos: [
       {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_Cs0hOBs3We3gsDVdgOjCarj3sh5rBfI-euY8G1qshMq_Ief7mKkg3gzPRhdfzU7WjJQLMHG_FWALld77sVqboCsZELBQ9nJXpUYLBFjM-SWGa1jd3fM5iMBMcPJfJgCVNVs0_JBzou-Q2EjLOkS2vHLIdKdYniy0s65",
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q7hv9bIHG2xK_kEYkT0kv2bMxb4yp2HY8XsR0rnir8hvJKiDRTq0S4nsRsnshtFUSY4lloVVxMNTd-7KEBSekRh5hPnQhETb4Y8JzNvFpAP_KqBlGhan4cXjmaCqU60eGPdMTJ3kR6gn-hzsFiB30woEJla1W1-o3-W",
         widthPx: 640,
         heightPx: 480,
         authorAttributions: [
@@ -6415,9 +2512,9 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_Ct7sNZe-0q7zEbvNaKtgBNu_jDigGPjWZBKzqxNHHVUyRg1nsKDtade-kmvbzg7n1-wVRMzfdxrzgi9HogCE7fotR7jgQ8pued_vudIAkZaRC3jwX8Jr5Hg-5IB5nv8NQOYxQ_jGoRbJtuDw237ntSx6lWkZTaHjBvg",
-        widthPx: 3024,
-        heightPx: 4032,
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q6pZUz2mXrtQdrf5GMjne_94wRyE5FrepojA8QVz7Hmf-0gnj9wm3UlwBNMKPzvAJPjje5M6toIo8DxEQN5HHZuemOLacmG0JPqOXkZtd0hBEg8iXFdqeNaGuPre2dzEAwax8LEAEh1EAK0t0AvF60z_Lvre6gOs1Dd",
+        widthPx: 1284,
+        heightPx: 1645,
         authorAttributions: [
           {
             displayName: "Jack's",
@@ -6428,7 +2525,46 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_CsHj2GX-xLS6v2Ekaeg51poDtkW6vCbMWQBBJKW4LfeMt-wdeX5u36ntf8E3wdlQ7wJHpo_ip1Y1yaDHfBb4xYTWXoMBc7MWuwjsouJGkKPpWDFYX8EJJuk-pOmkb7X7JKVn0emerez4ibHoNoJ4CADVwx71vnVCS2z",
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q5Fe55ufG1ufulM5dGE8WZ0FSV2q0WISGsKFUVP24-LuW5fJH0UWAtpD8N3IulLn3_6hdtXXJx5FAuJxsfMe9mNSgTrTzVCknYNXeg29gK1db9-klnOkcBJ4M6VjWg3x2o_UNKc5-HzS4XB6dbT7gCG0npF12CjVdQz",
+        widthPx: 2610,
+        heightPx: 4640,
+        authorAttributions: [
+          {
+            displayName: "Yalitza Rosario",
+            uri: "//maps.google.com/maps/contrib/108455200207497416099",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVCYDwYnCScxCYBtnTamNSMmgLkhcH2d2srlh_aLKmo8nlniPD6-w=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q4qmtGXRyE4wylvo9xhc7KYoOszcLYfMzsr7L9BRXheYtyTYSDnGWyWPdnwbQ_XZ27qAqu6wFtxeKYaFpNzPKpCebkzXjYBaqfXJKF5JqjHgs-048CEc8kPBazSZLrRgxDLLv5wKTVnkeHPW9tjiqjZlmHhj01gpmvj",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "Jeramie OK",
+            uri: "//maps.google.com/maps/contrib/102502995502536648210",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJm6LK9T4GO8H2o6Ixn085dgQjFLDzaxhjOGzRlIBqZhTYd-g=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q5G-2KyYrxaAiFZI1rY0KlTA1431FCJi3RULi_9iKWQb82j0x67J32PjpBf10Oxw7AIFcMS5kVVn_Lgxe97aUzfxfrO_VTIu-cu3WpreiRfzb9MVfVyTHXdewI1zV5CUye9L-ayVQd9DUjFzKRjfLRDKkAjjcsiGd5j",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "Jeramie OK",
+            uri: "//maps.google.com/maps/contrib/102502995502536648210",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJm6LK9T4GO8H2o6Ixn085dgQjFLDzaxhjOGzRlIBqZhTYd-g=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q7y8kegUBTIV9rgHiN7I06IOA9nNWA12Yno1UWk0XxRQoELC82N5C7YOiltqOttsOJ5nRjuhBATAervTUQDP60T6cOYMXyWXrT6NlMOKH0HYKtJkxDzj1bEBv4xryfmPUT7tVBlNufPW3doIgIEerfVN-ehW38BI7es",
         widthPx: 4000,
         heightPx: 3000,
         authorAttributions: [
@@ -6441,46 +2577,20 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_CsoRT3dlTE-_9CSqKgyNGEHRsbhnqvzLbcHeBYDy7TedaoU1Zqs0j8AV8DaMBnRydMsAl04mB_AxY7H4RjVCukyrf85ZFTWOPbrU6vCkfuc2-zdUpg7RnmJx4ytWkCOA2OccGdte7BtaYeR-APrmpD_s36fSGPmBZ7E",
-        widthPx: 3024,
-        heightPx: 4032,
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q7hMGr3esQKWiNbHKFahW7LDw2ui9cKcsECtnTnFl3kxsA3Go1jgD2L0XK32mkZL9bnGPUZlkDASQdPMI1BT1bdie0kiK2V83_nA91DxS8-tVBB9dfQn-4tNgTv7rR-vSTPzmYNfNo1sWAnmN0cgodjcFj7xubqZ7Hp",
+        widthPx: 3000,
+        heightPx: 4000,
         authorAttributions: [
           {
-            displayName: "Laura S",
-            uri: "//maps.google.com/maps/contrib/102477198696170101239",
+            displayName: "Jeramie OK",
+            uri: "//maps.google.com/maps/contrib/102502995502536648210",
             photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocJXIaflwRaeXGCu95dcdZXWZ9sBNi1fFTtvWfyquOA3bmQHrQ=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a/ACg8ocJm6LK9T4GO8H2o6Ixn085dgQjFLDzaxhjOGzRlIBqZhTYd-g=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_CtafTHlNA8SMDFcPdIr4o5zksN8oz0WuoWwlzbY5I4KltQlN71fGUaUjEo3VhKP-fOOe7KdchENEYmdjIM24b3L21Z4K0PN8wXu6ujIzIxK7Ev27Bxh3frCgphn44X8Gnoj7XPwAL7-r1wE3xOaIrQpkBtFpQsRLkuq",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Judy Luo",
-            uri: "//maps.google.com/maps/contrib/112527693418309422445",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjU5h-HS-IZZKdwFqOyp_jJThxM2j1rQUdDFHwsH6Md7QvNw1Vyj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_Cv1chbrDA_QhV9oOBvNHbw8he-aFXWbNwKQnnchX7_J4WvOWQzjyPyC9P9_N3wr0gxtImDw5B17Ii9vQalMPIuuDodISmZ2EJBgZkQtZEYmla29WNLRzCpwI3FKKTpihv3RvOnNYsfyMXNoik3hXxD6M_wpNjDpC2HE",
-        widthPx: 4000,
-        heightPx: 3000,
-        authorAttributions: [
-          {
-            displayName: "J Iskander",
-            uri: "//maps.google.com/maps/contrib/106919901381164780302",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocImj8zbMx5SkaouTbeVTwsfQ-hBOispR6af5DyVfdGyFy_sWOx-=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_CudVPYymT9Gvw80dxu9i_MkbKCqXJ2HbI85C7ARn2m8uA4nUvni_T8mGV2Z1Bbxrd3HCUkmTFRFCxaFPgdnWqK917cr_tPLMYYUUJd6ZG384S7z9CPNR2M2ViMnHjBn7ryNeBd_Aw45yJfLCKvF_WNVMGKXXa0_k3yY",
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q7efqgPkVXqBPmSSMtuXZDkycB2QvY-TQK5Dd9ryue6QYPTrivBlc5yUYXjiBloY8x27hI89j-OW--aPV-ARuVRqb0sJxgVUXgkZf8xa6Y3pkSfId7Cc9NR-7B_WDOFS5m7IN-q7_r-wW62AlT-qKVmnvusEXiTFE4c",
         widthPx: 4640,
         heightPx: 2610,
         authorAttributions: [
@@ -6493,33 +2603,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_CuVq7d0AjuK_gDGiiuHD4sN7uly5fxkM89gKXaT1BfOwxGFapEhRYo3kbktXeCmp9eCrvijSmvCalXwNclsNEoMWnbEVE_mn7PGIF3uKmpSX2m2GaqJsqU2n_DCww5LnCdRO18yV0EvbWhRdBDwW-Ur2teq1JNJcG_F",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Yvia Laguerre",
-            uri: "//maps.google.com/maps/contrib/112918318986860252877",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXnvQ4--fFCCGYT3yCclRpdE9tk967H_pMYSCd2N2e5AvNNp-yP=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_CuuWAF34MrTwmxa-AkE3A26iugJOLGK027Xhxwwnsq8NGsJJ1E5wBXtODXwvovXtt_4HrsasA5i9i4F6nHetIbdzUsx0fipnhppQ7l3am_C2dCamSyVS8yLsGUv2i7h3U9NDRyU_kOPS5BsNAd49TjoNV0wMNh3VMFl",
-        widthPx: 686,
-        heightPx: 914,
-        authorAttributions: [
-          {
-            displayName: "Jack's",
-            uri: "//maps.google.com/maps/contrib/114144078933753421404",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWhVCxMfSOgUaisdkOTvMHU8Sf1Mlwk54Uurdwnb60ON5XG1Vg=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AelY_CshxTjuMdJLl5zNDfUJBAFL9u5pB6zMLgPLVWxzl_vSxY5RLtq3Cv7MJ8ACakhqsLIoqnbboxwY1n1sN_22HVkIDUEGedvNR8krCa2n4du_tIYcFazze74tTdE4EiP1F93RQFci31F6kbJ-CNGhGP6GvEw5ubdDXb1r",
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q7Dd8OuQT81LV-qQIgEp8HGO6rNViczo31Asva4q5s1IwTWcptcbcq0IGMfOlF4RvxzWqB0KZ0-IqvJ3Be4XBVPYPYhK4EXXAd6wwiMZNsFLfYlOQ7n2T-S6TNNhibegO1_VMZDsTU-AYvFjCiWKCWU98bQfxau0P_J",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -6531,8 +2615,1454 @@ let places = [
           },
         ],
       },
+      {
+        name: "places/ChIJDYixUwKTwokRPRmLS0smLjY/photos/AXCi2Q42HfAg0gSnoQj8KEW4gCdoLrZu-9ERtXWiq60Gfj02I9l7RQiy574dFYstjsWKZ0KK4frMx7ptE_-vGqi_lwSjJRjl1DZNZdJoXPCfiHpuIL3WsbApOU8VQFpKKEfQvIoIeKrXk5lP20e4pLipWD-mGiV_nbbtxpX2",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Yvia Laguerre",
+            uri: "//maps.google.com/maps/contrib/112918318986860252877",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXnvQ4--fFCCGYT3yCclRpdE9tk967H_pMYSCd2N2e5AvNNp-yP=s100-p-k-no-mo",
+          },
+        ],
+      },
     ],
     accessibilityOptions: {
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o",
+    id: "ChIJVQGVOAOTwokRTb7nlptnV4o",
+    types: [
+      "italian_restaurant",
+      "pizza_restaurant",
+      "meal_delivery",
+      "bar",
+      "meal_takeaway",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "696 White Plains Road, NY-22, Scarsdale, NY 10583, USA",
+    location: {
+      latitude: 40.9698766,
+      longitude: -73.8061,
+    },
+    rating: 4.1,
+    websiteUri:
+      "https://www.serafinarestaurant.com/location/serafina-scarsdale/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 21,
+            minute: 30,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 12:00 – 9:00 PM",
+        "Tuesday: 12:00 – 9:00 PM",
+        "Wednesday: 12:00 – 9:00 PM",
+        "Thursday: 12:00 – 9:00 PM",
+        "Friday: 12:00 – 9:00 PM",
+        "Saturday: 12:00 – 9:30 PM",
+        "Sunday: 12:00 – 9:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 192,
+    displayName: {
+      text: "Serafina Italian Restaurant Scarsdale",
+      languageCode: "en",
+    },
+    regularSecondaryOpeningHours: [
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 15,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 15,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: Closed",
+          "Wednesday: Closed",
+          "Thursday: Closed",
+          "Friday: Closed",
+          "Saturday: 12:00 – 3:00 PM",
+          "Sunday: 12:00 – 3:00 PM",
+        ],
+        secondaryHoursType: "BRUNCH",
+      },
+      {
+        openNow: false,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 15,
+              minute: 30,
+            },
+            close: {
+              day: 0,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 21,
+              minute: 30,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: Closed",
+          "Wednesday: Closed",
+          "Thursday: Closed",
+          "Friday: Closed",
+          "Saturday: 3:00 – 9:30 PM",
+          "Sunday: 3:30 – 9:00 PM",
+        ],
+        secondaryHoursType: "DINNER",
+      },
+    ],
+    primaryType: "italian_restaurant",
+    shortFormattedAddress: "696 White Plains Road, NY-22, Scarsdale",
+    photos: [
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q6MGzHZ0kFYy2xOZ4gO0Q1Vvac41tNBMhk4fTamTwa0-974KM6py6juR9X2s0csAROT31Hrkx_iO4VUJy6gGdbygAU2_lkHgcxlzEnOFgO2pbnelnOyuFDOnyFKf7g7dxq7RthZ029CuY3l4FWwmP1VGXSdsx4VQZTZ",
+        widthPx: 3535,
+        heightPx: 2653,
+        authorAttributions: [
+          {
+            displayName: "Serafina Italian Restaurant Scarsdale",
+            uri: "//maps.google.com/maps/contrib/106644107406854249277",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV_rQ1bJLcS2VWvekO0_LvlgF_6fzzEBFqygYfGBxwOH-f1NBmD=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q4sxwJ-7D-bXvZ11HwlKbeEvaXeJpl5SBPF2Zj7rQrKt-zPaCNj_IW4skSEfm-mm3MlhRXSrRN7I1hRvY4xi5s9msTfEcHxqS78FrckpCM8um3tBLo6QB-_bN6sKZMvuEVGZ1zVrhmuaHKrkvlOhm0iXL2B6EgUzQzN",
+        widthPx: 4800,
+        heightPx: 3200,
+        authorAttributions: [
+          {
+            displayName: "Serafina Italian Restaurant Scarsdale",
+            uri: "//maps.google.com/maps/contrib/106644107406854249277",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV_rQ1bJLcS2VWvekO0_LvlgF_6fzzEBFqygYfGBxwOH-f1NBmD=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q4QRzt-HaWJqZCaNTQ7ea_Bdod7qpm8fDTkx0HJ_QfMZZxMes9yjDgG8xKrAMHzAPD09OzUmMSYOqrb94Xf6vE2wZv_b1drJxY0YkWBR1feRMGBKK1RM6t6kc9LrsEkc6x8gMmOOeoZY_tG5ksc3-1orTpqhJVBgkS8",
+        widthPx: 3600,
+        heightPx: 4800,
+        authorAttributions: [
+          {
+            displayName: "Herta",
+            uri: "//maps.google.com/maps/contrib/116091518199794408654",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocKzF2_W51slavYJ1Yfl00N0vDXgn7U26jscDZpwr_GT4lNhjn6l=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q603azknXCmvr_CJYB7UbudU3AVWzRWufIx2y5wM-um27iG-KedNGjLv78jPlhHO9y8UKF6nG-S4LznVSmOa1vkym2XVcbN8zemsAlm2KLJSesC1Ssv42PeJ05UK0Zx-zt2ruQ7Ypj6Pp6fKY92EQoTthsP7FPcSBmU",
+        widthPx: 4000,
+        heightPx: 1868,
+        authorAttributions: [
+          {
+            displayName: "Luis Ruiz",
+            uri: "//maps.google.com/maps/contrib/113543986670124079972",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX__zEYY8Jep0HjiViNkzVQY-w1hAjtidcI8R_sWWiXAzYZnVC9=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q6AMUs3gzpkHP8rt7e2GUQFN_YyJ8hrhkAEFUsluJp7ALSEIDULtp8VM14AtIrH_DHPTwdg5MP-qBiwjmYPXxdL-bq9LIyaczQSrsz8Pf3vnVddHQXGInU8y83AC5_vVur0U4C5EVHGluXKCUONqJ4ALsIhtZPyDjHC",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "Joann Hassan",
+            uri: "//maps.google.com/maps/contrib/105451520381023512013",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLv8pVHoDdOJBNhY6OgeHhoOwp11I9WyXy329ZUKm5_S75xYGtZ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q7Tr_jXqMyRF9uitzMBpNC0gFdmPGwjSSCnnIGurTGDkb5rBzmXx0xORvrs5ocSDsJuU9DJyoXj6ms5uI-pUTFmh7zNZhRGNkMr3jjzYvkz0ywo-lFkTw0DLKy1PxXhvjfdX-rld_owkzLGz7YFiSJ4r84U-xENfDJG",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Sweet Wheels",
+            uri: "//maps.google.com/maps/contrib/112656066010342058497",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWLb9z2efEpXiBriM4U2JO1oP3eTYK9gwfw4CV9GdKyiD2R9aOC=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q5w27MI9E5OdFtzMiBeeg6EnrinV17w7N6jGJJ4YAYmmXTsxkv05eSCxIV-47teEc73lml0p1o30j5iFi7uG-j2Uy9-oY1hCKa8unKgUqZn1g4XVvXyVl8wSU0Ld99bNVGIyHZMDvCUN4D3En0xk_qjDdul7dEJnJpj",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Dominick Vellucci",
+            uri: "//maps.google.com/maps/contrib/116345219794599247988",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q6if6wqH1yfHKe6sFFIhoWF5KmcfmQYHt1TJPCpWj3hZWzh6SSFK-gYB1C_7dtBNQx3r_8bK6hZyLtvEy57oW2XdN0o0kONR83dxiObxToESZNIv-bvVcSCvOLU4fPVPFAGSZiqEHDpJs5kl_Jyl12aloVEkO177zgZ",
+        widthPx: 4800,
+        heightPx: 3200,
+        authorAttributions: [
+          {
+            displayName: "Serafina Italian Restaurant Scarsdale",
+            uri: "//maps.google.com/maps/contrib/106644107406854249277",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV_rQ1bJLcS2VWvekO0_LvlgF_6fzzEBFqygYfGBxwOH-f1NBmD=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q7_VCv_V-SUozOLacAmMOC3eaM4S0TySnUTUVzZgTqV3l2tQM_LckpmPE53WY0BYggQTVs13MQu1M2ZK-FvuYc4q1fI3_vujmH7tmN-jxQkecnyM8BGjH06BNB6nBvqryzkOtA-qwHQtFWwqXc4YKS3q_7bLsT9AwU5",
+        widthPx: 3614,
+        heightPx: 4800,
+        authorAttributions: [
+          {
+            displayName: "Ethan Fixell",
+            uri: "//maps.google.com/maps/contrib/109757193752719986290",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUAVINn7kJAOASY36pmRQPYk-633MpLNygac0ULA7_NwRF10ouqSg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVQGVOAOTwokRTb7nlptnV4o/photos/AXCi2Q68q2xOvtCHtEa4HUc4ZLAPYFjK9ums7cESHGRXcvgrbj9vrzPek7Q0Jpl3Ege9klc_mOusLOxMuos87N8Qz8rJK4jZCzUYMcQiw7hcVnOsTmAehVysUOQxEN886_WGomlwwhTw5h0iXUgSuGlXJ2H4GYBSQRwBxhbz",
+        widthPx: 4800,
+        heightPx: 3200,
+        authorAttributions: [
+          {
+            displayName: "Serafina Italian Restaurant Scarsdale",
+            uri: "//maps.google.com/maps/contrib/106644107406854249277",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV_rQ1bJLcS2VWvekO0_LvlgF_6fzzEBFqygYfGBxwOH-f1NBmD=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c",
+    id: "ChIJc4PrvuiSwokRB9FSa4E-M2c",
+    types: [
+      "hamburger_restaurant",
+      "american_restaurant",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "433 White Plains Rd, Eastchester, NY 10709, USA",
+    location: {
+      latitude: 40.956677500000005,
+      longitude: -73.8138207,
+    },
+    rating: 4.5,
+    websiteUri: "https://piperskilt.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 1,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 2,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 23,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 11:30 AM – 11:00 PM",
+        "Tuesday: 11:30 AM – 11:00 PM",
+        "Wednesday: 11:30 AM – 11:00 PM",
+        "Thursday: 11:30 AM – 11:00 PM",
+        "Friday: 11:30 AM – 11:00 PM",
+        "Saturday: 11:30 AM – 11:00 PM",
+        "Sunday: 11:30 AM – 11:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 963,
+    displayName: {
+      text: "Piper's Kilt",
+      languageCode: "en",
+    },
+    primaryType: "hamburger_restaurant",
+    shortFormattedAddress: "433 White Plains Rd, Eastchester",
+    photos: [
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q5fd685W_SNDTyHkH9v-t773IJQ2CUD3D-WnIEJ5uGXdcqHSzZiVR6ziePcvUx3WF5Eo7ooGZFXsXmmwDkTUl_FGQ8xNoTjtbUDDX6nTuZ5cqINbSe5kDce9o3xYRihLTusBAJeaQcw30_C5MT5xh2FZafPRJhbP0l5",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Justin Jose",
+            uri: "//maps.google.com/maps/contrib/104461110991213594947",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIkNNYNWeD6XfqQD6Gv-6ELJ5TVcrAMy8P6yYCadimz4iSfsg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q6A50MPoe1NRJomxEPhVY66sTRGdWzESPzVdBL5li6L86iyxIjvrfWesDVkcuOZZPuDP8EeRcSFI0Bjfl6m-5IDKxIh2Z61RrFn8NHv6lH_50wLPn6O1rNC10nMDYjWoXX5VDsY2mqP-cuEBqA1NXQM6OFNNveXsVJj",
+        widthPx: 4032,
+        heightPx: 2268,
+        authorAttributions: [
+          {
+            displayName: "Michael OSullivan",
+            uri: "//maps.google.com/maps/contrib/112973660369400591056",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXA3nss9f2BdBEmXIkHZplyNN1GsfafMtzLe2orkHuOvWBcnA0KIg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q5cevkWomxfigYlNExLBzbi8HN-NmSFJTsWi8FHmxE2NSMBe-Z7hBmaOv-1OKq8MoEMMu-wXcLr_Cpk707v_spaoElvfaXaHEMRnm60SWwC62s4zr58_bBe-libgIEg4XiBcn3lLt0rLVLbc7mDVmBTAXpNrMz1XnGM",
+        widthPx: 3284,
+        heightPx: 2794,
+        authorAttributions: [
+          {
+            displayName: "Space Dandy",
+            uri: "//maps.google.com/maps/contrib/100563658592719678557",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUpsyu8vW2oXbHTCKLwcc5cH-Jvk0s4MCCm5AZoYHbnHtDP22X9=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q4h--y4pBGbOQAAJQZ4uREdOUdjwqBTLXOp0qZaw-zm_Q-cPBdjiV5fdKrGuk8Sczg3IWbPjfPvwV20MRbjEuK3C9jDao8LRG8zr-3-Y691mg_X92DebOzbBK7fQtvjPHJCX-V3Cl7zHo70i4Zrh9eBI3PA2kDriuxi",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "RAM IMAGERY",
+            uri: "//maps.google.com/maps/contrib/114290696883181775441",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVRuWVTHxpSa2udh3aSgz6sasZf8Kv_Kt21M5XuzGvUuyZXfHmOSA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q5kT6RACK2p6EDAgqIzefFPSJ23_bEUdJ-a3Khvt5-TS9KKI39ANSM81_mSCDPfwznsewDIlYDNLxJa0wM-khz8duoBBuJxFwV65O7KRVYlWD3uRc7jEIyyJkxNmI9WqNRZKxjvZ-LC2CB9Ji65RJX1sz3-e7ky0uyD",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "RAM IMAGERY",
+            uri: "//maps.google.com/maps/contrib/114290696883181775441",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVRuWVTHxpSa2udh3aSgz6sasZf8Kv_Kt21M5XuzGvUuyZXfHmOSA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q4-XodUgDqw6fzlJeP5PMA2AQQJJkguUMIcaIxe-Xxz2HObX9HKh64RPytbaHm9aiUrTOzQeWL0sHh4eKtjJsaBwEmVRI52m5DMPTSpNzH7aQwMwTGZbqtZ26Jaszg51tr6scNCLwpLop9KnhKDV3094KCOSPkwNf0L",
+        widthPx: 2897,
+        heightPx: 2326,
+        authorAttributions: [
+          {
+            displayName: "Space Dandy",
+            uri: "//maps.google.com/maps/contrib/100563658592719678557",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUpsyu8vW2oXbHTCKLwcc5cH-Jvk0s4MCCm5AZoYHbnHtDP22X9=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q5nUcj10t89rmbga-I7IHMLo4FqzsQxA36snqJBKOk0_GlnAZL7i7K1xRkkIngsmK0ybs5VANNLwE8rFle2V79NK21URXPNIHaHwCsFkOPSmWUGAUY412onpw-jQDzsavwS3k3PQJz1Tf27vfK2tGMB1PL1sd06fR5j",
+        widthPx: 2122,
+        heightPx: 2528,
+        authorAttributions: [
+          {
+            displayName: "Space Dandy",
+            uri: "//maps.google.com/maps/contrib/100563658592719678557",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUpsyu8vW2oXbHTCKLwcc5cH-Jvk0s4MCCm5AZoYHbnHtDP22X9=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q5KiD0Auiek7cMx2qioCd8gYrVgmrZaXkU5kcMZlnqgC3EPASD1IMw-cVhD6-c-vXuLj8XGl1IRKv9a17CL5MHwj5wzU_f8a-kAqR9GewIrBIg1pxpmEZbtG46OyQi0I1XprMOpMY9nbm6Loo5LvYt6aDtG_xjlFWOb",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Gigi!!",
+            uri: "//maps.google.com/maps/contrib/112478717277988621985",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXm_Nf5VzVwHtcj36e92xTIxgH81PpwgHLnauqZ-5AXRXjHb-vw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q6nf3nX0ne0jRI17tFcC186M6fY5nwZ2q6ehJmKMtsHaBHlTVeeg3HlKoAH4i-7Qa0uxjDFeBVq1QkFNldYevbTuObsacYGSfnI8XQniJrqFRXA3nEVCPXfoJlH1Y_eU6YPMS214HUXuD_n2ZF477P5j6efle0U41u5",
+        widthPx: 3072,
+        heightPx: 4080,
+        authorAttributions: [
+          {
+            displayName: "Sergio Henry",
+            uri: "//maps.google.com/maps/contrib/117985336786129991115",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUF3JTgkFU6-7Wu22cxwNhtn5PqFxei1NNEgRx2pjqn0hvbG9OJ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJc4PrvuiSwokRB9FSa4E-M2c/photos/AXCi2Q7TstZo5Jmbdn4Ckf1L6zeRbjXoKyBkXuwfEpgEhxc6kmQCKCEVjog4O6hB9iBZpCw_H5ZXjDXCpdLj7Nb62B3nSZQEV6y2WbNq-DGCi7B5J88WCiZwX5g9_c7VTo1xT9fHJuRO1F6LLwPLjWUJSOjHJmLvgJ-3wYEJ",
+        widthPx: 4000,
+        heightPx: 2252,
+        authorAttributions: [
+          {
+            displayName: "Joseph Raczynski",
+            uri: "//maps.google.com/maps/contrib/105936865002446491373",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV89Dpajb5B4XQMIQwgph41Z9YGQ8o_x3x3rRiN1sCIy0hcTBMq=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU",
+    id: "ChIJ9-DcCKKTwokRYUxQqy5dQlU",
+    types: [
+      "mexican_restaurant",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "296 Columbus Ave, Tuckahoe, NY 10707, USA",
+    location: {
+      latitude: 40.9589335,
+      longitude: -73.8201667,
+    },
+    rating: 4.5,
+    websiteUri: "http://riobravotuckahoe.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 23,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 11:00 AM – 10:00 PM",
+        "Tuesday: 11:00 AM – 10:00 PM",
+        "Wednesday: 11:00 AM – 10:00 PM",
+        "Thursday: 11:00 AM – 10:00 PM",
+        "Friday: 11:00 AM – 11:00 PM",
+        "Saturday: 11:00 AM – 11:00 PM",
+        "Sunday: 11:00 AM – 10:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 558,
+    displayName: {
+      text: "Rio Bravo Tacos & Tequila",
+      languageCode: "en",
+    },
+    primaryType: "mexican_restaurant",
+    shortFormattedAddress: "296 Columbus Ave, Tuckahoe",
+    photos: [
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q4uiK3wtsTGhs7-vtc3PZ8HanlYraE0G_fUEPFeq0UGzFvhTM8lL3tNqyJd4Ns7Bg_4qllqX52TewJdeS2L0oeV3wFIHpPI7gGy_ltR9fouaoE_qy6ebLTy31A1Gfye1WoYZLD6JFasRK1EgFvU95JHPen1oho3kH05",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "mike blumenthal",
+            uri: "//maps.google.com/maps/contrib/118405393025299785535",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXNBIj4GyrdQx1rW0r7x4SDWQ6ugNoTn3KelLQt_Xf4AUANLYp8dQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q7oQeox02Zx6vMB46p5DgoBBbPneoNekiIVMRCavbROdtXcdZIe8w0_qaRaANTibje9D4NHwy-2_0mKivWSeXsneBRWeqO1Wn4k0RK3eJm8IaRXhsajNzk4HRv_aP8JbscYstzXM7iLHisarR2Jw3GPf8BnA-Ets2nZ",
+        widthPx: 3024,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Timothy Smith",
+            uri: "//maps.google.com/maps/contrib/116486913247567213032",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjULTSsQfxgrRP-PtdWaSsCteJGVFCwSELJ0OTd7qbIQcyXy_clpjw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q4Eu5cvtJoCtn8tO9p4GifScPMfSBnpEZ5EzSHB0Vkgwz9pEaajNWF0SRXNAi7JGBgcRDH8tCcOZnKNAH7mmwLUn_QhOZ9iYa3LDsOPIDM8gxC9SgYyomutFvA3LsGlkMacx8iDpexP_HVLefFfjjjOMlvx-y_Xj9TK",
+        widthPx: 2992,
+        heightPx: 2992,
+        authorAttributions: [
+          {
+            displayName: "Timothy Smith",
+            uri: "//maps.google.com/maps/contrib/116486913247567213032",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjULTSsQfxgrRP-PtdWaSsCteJGVFCwSELJ0OTd7qbIQcyXy_clpjw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q7pF_o_SEAspltzAkvj4EoFzwEYsQW95O3t3A6X1RBMiDF-ZCEJwL25XvkUDzG6o3UQvvQLxx8QSu8GmuqB4XuTxG-0fXhkpHa1O7nhIhoQA2DwRF0b48OFhLfSpm5bMNprzHthd4vO6CTXGucBhKYOY68TONjp74Tv",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Trevor John",
+            uri: "//maps.google.com/maps/contrib/112912470598506815753",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV3al8-fZk9sB06rSa08L-43C8pNDGZh_lCqAJEBfTdYHRT5ww=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q6zvv9cNlZ93XwM3n2zqLstOA4tAMq3OlknxvaCyetJrpSMGfMxMZgvtZlRexLZaLOoxYKaUCyZCgRLKaFY_SP57VPFQOnVwPPJvHgRBax4V-omc55WudwsXymWriZiUmQNBO-5utGy-SKDcX9p3kFkpXerye53dJ5D",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "French Mex",
+            uri: "//maps.google.com/maps/contrib/101904452653254582234",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVaxE_sXOwdfU6HzmBYDl9L19C9_mcEgbDuqH3z1Jv1LKqPw9ps=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q6pO8dKCBx0P_71cCqlwbjbtBOfMbtujcKqr0_x7nXe0LmtjLRZXp9eld-aM88VYLTaVn-IzepszJmUEPhju05JAH46S74OzFJPfE3lgctQTYvL7uspn7y6rg6cQ_7TEKt6RbGJEshOCt1zvlgNxnCAutXcJd122C0n",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Dominick Vellucci",
+            uri: "//maps.google.com/maps/contrib/116345219794599247988",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q6lLQGwKBq3KhPdxzMgw3ncHeYaaSh148ez4A-tOMMnA1N72AgnASl_5ub2AyYiCeKGN407AIfKx8xAWtPSrDi5D5o8x9VXd4FAEVjxNNc_4sCMA3SxTaO2rWCeFr1zM7BH_6tX5yRMF_CvESclhEzQPmO9nmqEsOkr",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Dominick Vellucci",
+            uri: "//maps.google.com/maps/contrib/116345219794599247988",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q7Bb7QYVDIDi3OAtyMRpeWMXC71iROwyZuGRi06vHUxGC8X7eagvzpdD1iT1RJFJJEFbnI8ZtE0twU9p4_mexZeHwJLGxyTCc1w-LH3tVZzSxrMEAoayerIGFhYCLiNlPat7HvGJ321y_vcWQhP8mABcdC0Aj1sQZcR",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Trevor John",
+            uri: "//maps.google.com/maps/contrib/112912470598506815753",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV3al8-fZk9sB06rSa08L-43C8pNDGZh_lCqAJEBfTdYHRT5ww=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q6nU2ViwrzvuDkOsPDs2miVBf-E_F5oLQmiFE5CWXUtUUGEXCMJ-XOzpexunrjJ7fuiv9V6fO6PbcA83RBQy58uaAiNUNsWK2YHUo6dcl0f62hHWjCmRlDISVT6ZetB_Gni0a2q4KBQHMevVGXLcTWOJRoYdstoY_5Q",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "French Mex",
+            uri: "//maps.google.com/maps/contrib/101904452653254582234",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVaxE_sXOwdfU6HzmBYDl9L19C9_mcEgbDuqH3z1Jv1LKqPw9ps=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q66e6ks7z_zgawIa-Q4BJ66vsinVrHg1o37WvYiZJUWesFulFSELUPnpPZDE7bF6XgAA1G3rnmFZ3Dtp6h3TP4FVuwKao-VY4ozchKz-tkykSWIzOAozKzzgDjm9TJEdi3lWwbstR-nLI7JXdCjZGt0rIKn53c0DLDw",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "French Mex",
+            uri: "//maps.google.com/maps/contrib/101904452653254582234",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVaxE_sXOwdfU6HzmBYDl9L19C9_mcEgbDuqH3z1Jv1LKqPw9ps=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM",
+    id: "ChIJjzQuZOmSwokRJY6Tl0nn3TM",
+    types: [
+      "american_restaurant",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "431 White Plains Rd, Eastchester, NY 10709, USA",
+    location: {
+      latitude: 40.9565834,
+      longitude: -73.8138199,
+    },
+    rating: 4.4,
+    websiteUri: "https://www.mickeyspillanes.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 1,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 15,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 4,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 4,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 3:00 PM – 2:00 AM",
+        "Tuesday: 11:30 AM – 2:00 AM",
+        "Wednesday: 11:30 AM – 2:00 AM",
+        "Thursday: 11:30 AM – 2:00 AM",
+        "Friday: 11:30 AM – 4:00 AM",
+        "Saturday: 11:30 AM – 4:00 AM",
+        "Sunday: 11:30 AM – 2:00 AM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 470,
+    displayName: {
+      text: "Mickey Spillane's",
+      languageCode: "en",
+    },
+    regularSecondaryOpeningHours: [
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 17,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 1,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 1,
+              hour: 18,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 18,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 18,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 18,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 18,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 18,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: 11:00 AM – 6:00 PM",
+          "Tuesday: 11:00 AM – 6:00 PM",
+          "Wednesday: 11:00 AM – 6:00 PM",
+          "Thursday: 11:00 AM – 6:00 PM",
+          "Friday: 11:00 AM – 6:00 PM",
+          "Saturday: 11:00 AM – 6:00 PM",
+          "Sunday: 12:00 – 5:00 PM",
+        ],
+        secondaryHoursType: "HAPPY_HOUR",
+      },
+      {
+        openNow: false,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 1,
+              hour: 16,
+              minute: 0,
+            },
+            close: {
+              day: 1,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 16,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 16,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 16,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 16,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 16,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 21,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: 4:00 – 9:00 PM",
+          "Tuesday: 4:00 – 9:00 PM",
+          "Wednesday: 4:00 – 9:00 PM",
+          "Thursday: 4:00 – 9:00 PM",
+          "Friday: 4:00 – 9:00 PM",
+          "Saturday: 4:00 – 9:00 PM",
+          "Sunday: 3:00 – 9:00 PM",
+        ],
+        secondaryHoursType: "DELIVERY",
+      },
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 1,
+              hour: 16,
+              minute: 0,
+            },
+            close: {
+              day: 1,
+              hour: 21,
+              minute: 45,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 21,
+              minute: 45,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 21,
+              minute: 45,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 21,
+              minute: 45,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 21,
+              minute: 45,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 21,
+              minute: 45,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: 4:00 – 9:45 PM",
+          "Tuesday: 12:00 – 9:45 PM",
+          "Wednesday: 12:00 – 9:45 PM",
+          "Thursday: 12:00 – 9:45 PM",
+          "Friday: 12:00 – 9:45 PM",
+          "Saturday: 11:00 AM – 9:45 PM",
+          "Sunday: 12:00 – 9:30 PM",
+        ],
+        secondaryHoursType: "KITCHEN",
+      },
+    ],
+    primaryType: "american_restaurant",
+    shortFormattedAddress: "431 White Plains Rd, Eastchester",
+    photos: [
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q4dZY8CWQLCL65YGrz0wiy-ItSNngrv1T3OrCWT8O1723r7vxZvBnLVz0ONXDdRV6meHrgHfBXW7uXOOZfP0cWcB7DYSDuoWQskWNZ1yDd6V6iOk7bPNSLRrI5c_ADrHb_1irxqR1kfons6XZeojkfHBn_kGoSfqq05",
+        widthPx: 2048,
+        heightPx: 1153,
+        authorAttributions: [
+          {
+            displayName: "Mickey Spillane's",
+            uri: "//maps.google.com/maps/contrib/111547767710877828673",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXQQasecNH-zF_n1xM2jjm9e2G60S9Aon_FGcsftvtuw4O2h_1D=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q6j7eH61SRqC9SBb-1gD61He3XcrOikM0AVRSCk07zFLkiNoiZJNWGGeMjD5bFl_jrsYrD8jq7EIDju9V3R4uqfvh6YjRNBhxEhDDHTTQY7EWDkttkgLxnJKtNdaVcpEp_AtL0N0-pWvRXrUcFshQ3_XAWFl2KGZzmS",
+        widthPx: 3000,
+        heightPx: 2251,
+        authorAttributions: [
+          {
+            displayName: "Mickey Spillane's",
+            uri: "//maps.google.com/maps/contrib/111547767710877828673",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXQQasecNH-zF_n1xM2jjm9e2G60S9Aon_FGcsftvtuw4O2h_1D=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q6r2S8olUe1AJZ9IxC02VAN3bhheB6llQvPOlN22mTp6DBIPwEwuxwmjVrvRf4Hvm5E9zK6AP6uULqaD2UyChaC370Ev38YtO7aXEovbxcRwp8Btr9wo1tLn9iDqu5C9vKfRoL7AAzttEg9VYxC1NVtqlhJePSHh4Ev",
+        widthPx: 2048,
+        heightPx: 2048,
+        authorAttributions: [
+          {
+            displayName: "Mickey Spillane's",
+            uri: "//maps.google.com/maps/contrib/111547767710877828673",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXQQasecNH-zF_n1xM2jjm9e2G60S9Aon_FGcsftvtuw4O2h_1D=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q4eNSzprLDo7GD3Lm55ZEFs_ejQddNM3KgRAH520KeyhbmEtFYfPjW41FY8U28zqBMP6iUYL7slGw9ZTpdTayJH3XA4Ur1GkTBCPfwz4Ma2u1SPuZkSk45RltEkPsgywFMDfBPRLY37AttuYlsWok0NxJVPpCjoHcB-",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "JP Cone",
+            uri: "//maps.google.com/maps/contrib/117105371824823478012",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjW5CI5dm_g-qc2cCT5H5ifKBZmWqeeEnqbFpcHToBapta9eFI_X=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q6xbb8TVE260dkh0-TuyHW2MxUHpGcAUpEQESPvR5Y8MTTZrSfa7WOF4aLgbQvizSLxDeWTx3ZAD3yjOUH2otXSHqAZYTvbhiEjR9fBEqiJdOSjxtPkuXcohu2IXOGbfLm02qSTuDITVkE0SA29D4YqmPqRI3-ibbqq",
+        widthPx: 4000,
+        heightPx: 1848,
+        authorAttributions: [
+          {
+            displayName: "Traci Laffin",
+            uri: "//maps.google.com/maps/contrib/101450108017878290375",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUFwvZzONyDyukqgDUhqq-mPY-6mCau7VXfPLnzjylV0I5AibNs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q4q0_29D2LaWO53C5imT6bvy8f2lb_Hhk3Dfie-zTKEDsfq4tK-c3ITQ4qMJa3uklnxGO9R3_avvM5QC8BWeJzOyZUTV7FSY3yj-54h4vvB2CQbe6gsBD5PVYROvMhsqouewa4fAWp6hDVQUutAUASOKuhcAlYrB4oN",
+        widthPx: 960,
+        heightPx: 661,
+        authorAttributions: [
+          {
+            displayName: "Mickey Spillane's",
+            uri: "//maps.google.com/maps/contrib/111547767710877828673",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXQQasecNH-zF_n1xM2jjm9e2G60S9Aon_FGcsftvtuw4O2h_1D=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q59bdmBnO9KKOHFvKDrcvx3O33ZCFeKzl_iKP9noNerCWp5ERBHC8fYr52--3_srLpscNw9Rf48Bkhax6t8DD1eSQjEDaJTMiDfwq6YZEDzUyCUTxVC2p8x-rhV_ck9ssEhZ9X3cs728ct_9ToJ0dsEpAxFIPAq-ctc",
+        widthPx: 4800,
+        heightPx: 3200,
+        authorAttributions: [
+          {
+            displayName: "Mickey Spillane's",
+            uri: "//maps.google.com/maps/contrib/111547767710877828673",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXQQasecNH-zF_n1xM2jjm9e2G60S9Aon_FGcsftvtuw4O2h_1D=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q4obc38mlv8TkLmlhUXz6JpKJWOpF78k2Skp7rvQxADEwwYeaQL5ARfaniUpv6NQ8CPTc5Cua7jJQnlM74crHlipIpPVdCAutFbYSbCS9VPIgMyML_Co3l1b1YR9T8W6PPnNRaN33SZVtq_IrUJNUpw4LT8IqXSydP_",
+        widthPx: 4800,
+        heightPx: 3200,
+        authorAttributions: [
+          {
+            displayName: "Mickey Spillane's",
+            uri: "//maps.google.com/maps/contrib/111547767710877828673",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXQQasecNH-zF_n1xM2jjm9e2G60S9Aon_FGcsftvtuw4O2h_1D=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q7PKUfpJj5_ZOozFGJwwq77qr7C5AvFOx4CAOuZfDr1WbPQhWZ_EcdGHkkXFNf-w7_NT4a5tSP2KAlT-QE2bw4A4YVFgU3_I3NjbLjHxIfomtGP_WD1mHseVQemQVASod7T_EJMLiwaGW_lO4Hl3it7VoZPHvAtigxW",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Alan Klayman",
+            uri: "//maps.google.com/maps/contrib/115483301734295559069",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUycxPWqIhB93lLVC_UWWWcZiKLTk08oAJ4iaVsSxGafW8GOGeI=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJjzQuZOmSwokRJY6Tl0nn3TM/photos/AXCi2Q7krz24zNAD4uhFlE3dMeF_8J1_JVAEXSI-DUVwF2E5Hrboe00AR7FZtzFCreqyrHaGMQPu11HRJhF3kU0tMdLO37qIchwyLULZ0zXh-3Ykk_63xJmovrTXqu4HKGWLdW9zAZYGkI6J1vUav88FskXYVdyvEAsraL8Y",
+        widthPx: 960,
+        heightPx: 960,
+        authorAttributions: [
+          {
+            displayName: "Mickey Spillane's",
+            uri: "//maps.google.com/maps/contrib/111547767710877828673",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXQQasecNH-zF_n1xM2jjm9e2G60S9Aon_FGcsftvtuw4O2h_1D=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: false,
+      wheelchairAccessibleEntrance: true,
       wheelchairAccessibleRestroom: true,
       wheelchairAccessibleSeating: true,
     },
@@ -6548,56 +4078,6 @@ let places = [
       "establishment",
     ],
     formattedAddress: "16 Depot Square, Tuckahoe, NY 10707, USA",
-    addressComponents: [
-      {
-        longText: "16",
-        shortText: "16",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Depot Square",
-        shortText: "Depot Square",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Tuckahoe",
-        shortText: "Tuckahoe",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10707",
-        shortText: "10707",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
     location: {
       latitude: 40.9501585,
       longitude: -73.82773139999999,
@@ -6756,267 +4236,11 @@ let places = [
       text: "Zero Otto Nove",
       languageCode: "en",
     },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 13,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 15,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 15,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 15,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 15,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 23,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 15,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 23,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: Closed",
-        "Tuesday: 12:00 – 3:00 PM, 5:00 – 10:00 PM",
-        "Wednesday: 12:00 – 3:00 PM, 5:00 – 10:00 PM",
-        "Thursday: 12:00 – 3:00 PM, 5:00 – 10:00 PM",
-        "Friday: 12:00 – 3:00 PM, 5:00 – 11:00 PM",
-        "Saturday: 12:00 – 3:00 PM, 5:00 – 11:00 PM",
-        "Sunday: 1:00 – 9:00 PM",
-      ],
-    },
     primaryType: "italian_restaurant",
     shortFormattedAddress: "16 Depot Square, Tuckahoe",
     photos: [
       {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_CshBY802P-VDjC5Wy9npaYKlWd0O7GChtw7CnEfuWOJV7YCwMVj0e40K0kBdxql145Vyt7y6RO7dLTim_QncVR4-a1khg7GDHHadTwaimE3OyMc_qdR4HFZ2zTxiy8yHEVGD97mQiCFzaOi4y28qT6_Fj82wKgZUDdD",
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q63akkKLulk1sd7Z3TJt4WCaHw5K7tlB-4-CHdSu7NTno3LmwJuqeZeIKWyv8VLdhJdCDoBJj8P9xT6tYZIvn-7mJpj1IE42KgYEk0dtFIORfB0tM-VVTf9t953xLibsViK7f_hjVCcVym-_5bzecHKliK3eIp7c3iz",
         widthPx: 4032,
         heightPx: 2268,
         authorAttributions: [
@@ -7029,20 +4253,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_Csnq4eOv6iWeCHY8YlBFqMjypIuETU5t2CAF8tLhhmpDfl-Va-dwkCF-zJtyoNVf8wmZPkPsacW2Pa1fTTjRUTAVtoZFAjqT723QapUj6Q9ho1Ye6EQA106NTeohVZDEkY0NXthv6nZbYrDoCrcANVo4_OLSntOWOCg",
-        widthPx: 4032,
-        heightPx: 2268,
-        authorAttributions: [
-          {
-            displayName: "Jim Blinn",
-            uri: "//maps.google.com/maps/contrib/118430726648511021467",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocKK7F4x7i8c7wjIAJRr6nlW2Ks-iKEydLYreRMhaBu7Ypq0-A=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_CuWjHU2EdcLZRjAK1iutrHWS9ZJVd0qtFh2OLKHUfo3_RCP-nr2HH-ideR7j1gNRCkJ1fgAmR1hfMtwnJN4Mk_KJtRy8Q-pIXfmlX91s2AkIJAJmv99RXd1SyQzP4U7EbxbzwHii9kuvvzrZV99-x3eNTcyvfRuZlXX",
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q4fFipV1B-5kUfFXRQLMwe7uqHmVNM-tJO9DfunNaK0fXfQp3YpWjouFZA-4MXVZTHZiWNtByw2_HLxXRRxMEyTwFM_5-rV-2Ix3uWS8CH6W0sAuHbLwMcIoluVlWGwNldn-7MtrOrzFnB22Hg-msHza0ZOGvgG9Arh",
         widthPx: 3600,
         heightPx: 4800,
         authorAttributions: [
@@ -7055,7 +4266,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_Ct4Q5TmdsXANq1-n1WPmBixI9x_SiYS3mdE22qNygoNrXK0WA0GkfBeiNKxy3Z7GGevuagw3xM6427caZ3XwnDhjmtJ-BtTdmgd5jFPdW70Oojb2ozGF9BdjZn7WrDRmD6i5g_O6CG70fVZ78zCxLx9MyenQlOeh_r_",
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q5mE7sPwFrK4xpV1vCJBvh8NfIYhXSxDyHOcAz4ug29zxc3sPYUWityUOwOK-cNvenxTplV7bSvHlLIMXSukWvQtmvpjPsLQ7VAGKnaxHWND1qGf3kTlDczPHcC_CK9E08PFBpNf2snA3cNsQ8XhBcuuChJwuc-YjnT",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -7068,20 +4279,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_Ct9oVrRR4jAjxClI_AES2UuAYmwixb-PRlxjpHej-T-UZHfBEpazr7TxO-O9OjUuH_yaOhlsLZohqMR26mVnFomDvX59jmXHY22avicY92SCgRdZ13B9p51iNK0ATg8Cg_UXwQruY7xZr5HB2LRSGWgyPiYTWOIFLnR",
-        widthPx: 4032,
-        heightPx: 2268,
-        authorAttributions: [
-          {
-            displayName: "Jim Blinn",
-            uri: "//maps.google.com/maps/contrib/118430726648511021467",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocKK7F4x7i8c7wjIAJRr6nlW2Ks-iKEydLYreRMhaBu7Ypq0-A=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_CuP70IgLYw-pSvbXM8JHLksZtIKt8eoFqBEc_hfgdD6tsPuc8xGme2NhhltOGgzQZ5iHh-y7QhkgiKvjIE3y36rrX1D3sDYv4ileoIAEqz57QquOFjGggDHEbhl5Aai5w-Hbr2wAss3uMw7yIzCrDpPoUAkYEdpkKBb",
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q5N6GCC9LdeEv2IaS1bCqyZbiT5Lc_VKoESYEbCE9tkgh1C7UEg9Tdgbi9vFDWBtOuqavC3xqRjY33TESQ0HvxtFUjsBkoWVvkTlZ5xCeDJPW0kJfgs8nwukSsC-DucDWsHKFjAgPST1uiZu2P33j6E15Soph-67YuY",
         widthPx: 2252,
         heightPx: 4000,
         authorAttributions: [
@@ -7094,7 +4292,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_CvUeztfLuxOLIswaIWKsFCYTozfg6jNnq7S4FRKU01gtueNrF0aMiwUG53wEZVPWt-dmovBEFHcejUwCER-11bbj999J6fE-8krstCwTjFN2-fn9_Gq0BDQ0HtyRbRz1GRR3bOR21_W2D2sWy2jRN3N1OMSNu_GziJZ",
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q65kZoIsFKHv19-rc9eMSjb8E5j4yLlFKtllOE4YlotaHmlS7OW_inwTk55JSdu8Yr_MxyGcejqjvab1BfSg-JYtW3b2CZqu01P0wsQoswswNv55xgJJR4ekIzjaXQM8kU5XsMyQX0FGelx0KhF2NR10chn4IB7oNvV",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -7107,7 +4305,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_CuPzFch_f4Fj3x2_H8sZJToj2teBl88E1-tPOa9-TP-k4Vc7GjUZNaIHn5nWElfOOlBN-f8EOsgxO47acFBRJX0o7JBpr5ePunzXFq0y92yDaj63pvS13Yl7Rk0acjTAxMmIWeGBEiZkOtWE5KZBitlQ5ve9HhPXuVL",
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q57cbo56DsMFUMMr8_-xNPiHcBp2T3HYLcRPk6z0puvHqveW5KrutJCk4E3FDTL3n9oy6oDnTEdab5mGGy89UPw7Q3ej7bdNu44zvsmduXSvmyUC5T7zD7UM1w3WZHvVATue5lzRYIC4mqGSgtLPInGXdy4VMdHTnLT",
         widthPx: 2448,
         heightPx: 3264,
         authorAttributions: [
@@ -7120,7 +4318,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_CviL8rn80nw6GwGHZX25B33KbXPk86NXgYryGxGpu_xB0jh0g02yaEMBGGdfKlJ2vpsfzBSuUxceCAO7_SKv4ZAn2-A08LGhWGjBHFyuMlrVG0gftQ_I2PmC0oyNcXIUQ-SEccNVgaJiV9fTvwKbXvyrUx4DuLWpcjL",
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q561XQxB3y97IIAfb6OXuYn22kmbCoiaWBsR9eCLOh7Se37nf7YFsUFmZCNes7vQqMkd8D4_Zn1rlP0hFli-YAm1INyPZtEfYsA0UG_PzQRfnNmQgPBZCPDReZBLCj4cz0IZDT8ySZXndoSJDq-6UDmroKkDcmGrP3u",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -7133,7 +4331,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AelY_CtSIGgwAyWYz6qX7hloampV4SHQISbntY6gwuxgIKzYjeFXcml4yni1QGQtrGfnKed9-KEMTEM0H6EfjLgAKuQngq_VkKdLhtneEUNGctMpxnCZYQQ-iSBHZTQ9ksgcp4UrykxYwDiMGfdks05IL5j0KsO-tOfsvzHN",
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q64ze1XZBQIORnH-QAQC2vVP1vPJbM9ZdK_GaOF-V1a74h5jYtWdX38RIyZ0cWqpXFiMfh1EY6n6WVc9z2RD6tBdWkS_g_92UXWSqr9J9XQZoaTCtFFMBNf7CR2gOdNDNkiApace9WQls9M0qQY_OBpz-jjhtSZolLu",
         widthPx: 828,
         heightPx: 621,
         authorAttributions: [
@@ -7142,6 +4340,32 @@ let places = [
             uri: "//maps.google.com/maps/contrib/107372912487772157290",
             photoUri:
               "//lh3.googleusercontent.com/a-/ALV-UjVjfowaCPUpPdW0CiVCdbIth0Kgb6W4C4L8H1qvLCrwsSfp84HJ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q6qXrPrTrvMva9SNdVKwC1x7zAfTtmn_nL7-07hLP-y4iSbVyRFdfHepNa8NL8ONiNPTVXSA47RyBjMHZUUtJ4BRTtOT9VNTdVHlGL89V-C15hQ01pYE3Z2RvAlcVfUhz2HqnqzgmSnDj5TjtLiGnUD9pa84RfXRRkQ",
+        widthPx: 2268,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Bill D'Ambrosio",
+            uri: "//maps.google.com/maps/contrib/105150057202037169165",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocKjWLps5XzvQsQ2QTVaXakx9r3VUglBltEmTNBHEZVC4YDsx9k=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJu0cRRTKTwokRfNplZS8Lbjc/photos/AXCi2Q7DPxIhKYYXSWSmzdtF2okRuzHEi3_UdbYHQ8CY8vtgTqtC6QrONMtpfltvd-kex77_9Vgj6yZFeLeZCco65Ca9LlnWVhx_QZfgqlnjHFufMTog8lsKq1gB0AuNpZ5Mb1avemWDiUyLAGPGRYYJvLoyAEWzIyTBlwCk",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Chris Gerber",
+            uri: "//maps.google.com/maps/contrib/107448670651566569306",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUGW-rgBfRJzHWXmt3SCLPn2-NV4rTYL2psrhmOBkQoX1gMOg1fNQ=s100-p-k-no-mo",
           },
         ],
       },
@@ -7158,56 +4382,6 @@ let places = [
     id: "ChIJBzAI6pKTwokRquXPFwGcFOA",
     types: ["restaurant", "food", "point_of_interest", "establishment"],
     formattedAddress: "2 Scarsdale Rd, Yonkers, NY 10707, USA",
-    addressComponents: [
-      {
-        longText: "2",
-        shortText: "2",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Scarsdale Road",
-        shortText: "Scarsdale Rd",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Crestwood",
-        shortText: "Crestwood",
-        types: ["neighborhood", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Yonkers",
-        shortText: "Yonkers",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10707",
-        shortText: "10707",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
     location: {
       latitude: 40.9523248,
       longitude: -73.8294315,
@@ -7318,179 +4492,11 @@ let places = [
       text: "Wicked Wolf North",
       languageCode: "en",
     },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 23,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 23,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 12:00 – 9:00 PM",
-        "Tuesday: 12:00 – 9:00 PM",
-        "Wednesday: 12:00 – 10:00 PM",
-        "Thursday: 12:00 – 10:00 PM",
-        "Friday: 12:00 – 11:00 PM",
-        "Saturday: 12:00 – 11:00 PM",
-        "Sunday: 12:00 – 10:00 PM",
-      ],
-    },
     primaryType: "restaurant",
     shortFormattedAddress: "2 Scarsdale Rd, Yonkers",
     photos: [
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_CuWWERvDKxnSEbCkSLZNWcRuO_xd34Qphq-0IhNfW8vOYEETrR9YDigAh0HL4NE5-XELwid_rpOqmpjziVqstsF47kJTyE6YzXKLA9KU5flJD9dfS6bBBXsCyKXxCsetaJDheqkd6_7WrFuBrbkbg9CZNcxhUMSqCwf",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q6u2_khj9sWUFjbTUyfAzgBVrk-hFm2jytzQ4zEebl5PZ05AJg5oWE1iJ6hvVs0sSWeHettRqgWPooP-u6WWlZEoIlCrIPvXt7DqKHokjHCmDWsB7ltphKDOMsUDNWkVGoMt8MgOoEt3XAbzRQQDtugGrW8mR9C9AYw",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -7503,7 +4509,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_CuNNlLiylbU7gQjr6wFOPXJJUO4gRya7wM-0Yp_ItY8JM0bTGTNE8vjNyubxLcG0DysELwkRXhZSTyXjMLiUQNTM84DdQsOe98G4xfLaxiADT4Gtuv3LzW1WSHNlLhNDr7rAX1ZjsZWvProOn5ZPfyRWakSAodlLOul",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q6nDPWKIdAjq3RTM_cM6gv-vFJ-9qVnc007jkhl9ZVFojfrFKevNG3Ez__Mh8joEsLGQgcGISR47SfyxCN-_VpI7o-BJnZfxvM0pFReO1NNwHRH-sIvWudtFbFP8nADJ60_04OBP1fxl4zmLIe_TfiIRQEB9xKfKXa5",
         widthPx: 1080,
         heightPx: 2340,
         authorAttributions: [
@@ -7516,7 +4522,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_CtrFWNUWXumZ8R7ksttFAVho7DmA3OdnKd0fjgtWq1TmzL30m2tjcnbLkGjd6efkGQw7zEw2k-1C4ngW3NwXsmYkHhxeiezKXuxYRUr90NUgTDWq0xeOnq84Gd_zbgsri_kWUJ-wmA8NhvcQQSFPsYtGutJUxGbvHD6",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q5v2wMEYgfdt39rX5ZxTDCkFqXJ6aIUxNn5mBkBb-GKHmo5mTLU-EbXyFoW6ClEL0Ai-SAHACcei-K0O59p24lowuft6elEYneVPhCsEvqrhDjhbm2tPlWe0G-7wfsFJyHAbJmsFXKMW2ui2tj81alOCPvr6oYIzIST",
         widthPx: 1080,
         heightPx: 2340,
         authorAttributions: [
@@ -7529,7 +4535,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_Ctl1aet2GuCxM84BajSDY1IeJzqs5FVHVIEAKEbeFPNZqUQGLmq5D1hEVQ3TfGJ4mh61_LiZATyWo823vbwd3CKEvEBY1tLKJbvg0eD1WO2aNVKYVpqLcSNSNQLrXgRkIlv0vKrlfLpACzBKe6xGVW6GWdfYxXcB-mz",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q7SSHECnVuUmmFVgQj6AawwHp7w2iKQojukE1iwwLFfttmBh-Ye15iWJszcqXmcUn8hUYVZVpyGk1TrRx5qdBduWYEvrwR9la2GPbHjYJNi0daJhDvVbqnFRkWQcYYdr1C2-AWp_bGPBTtKlN9dc7_yn5D2jC4st-DD",
         widthPx: 3024,
         heightPx: 3546,
         authorAttributions: [
@@ -7542,20 +4548,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_CtdQvx9VUtOZhmuPrNkdP5xH9mYl9nfJIJbZ4FYcwk9_S3EuJVgVLafavkuVT8HICD2amsSlTvhK6T4dpcvoRsGYwZp7zcLpnCxA6vYbZ1SRayjmf1pAyEs_JR8tQUHPIYdc2O51DrjWGOkSTnCRWSn2XryhN4kkXiX",
-        widthPx: 4080,
-        heightPx: 3060,
-        authorAttributions: [
-          {
-            displayName: "John Galluzzi",
-            uri: "//maps.google.com/maps/contrib/100996336935688938713",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjU2zW8oL5nk_WLY-k-F9bObKtBI1dUc0ZJl7ePDEoWCrPGWeVUf=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_CvaZBrCEyV33ljszGyZ2c1u7WGSttmZxImJnD59W1o3lLac5R03KZQLFhUVUzl0Uuk-mbkMeYZ8NPRFA96Ka90KJ7p2lN6LY_pYSgs2bvmcjTl62ozRV2YoqGyV2b7P9eLQ8gH5TJnmYi7MMZLC-KJd86r0MMCRazQe",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q7jXZEf9YpwFoxFBgFHwmi-LzPkXBYLW7Xbck9vh6QiPQIkrkFyWH4-ylVzz3xScIopgslTfGlHRXUzDc1UVYQ7AtdMFxX6Iwi9Q2yetzefvm7Sjj5njN20Zq1WG2MhmSJC9PRTxlr7oU_BDYLEkA35EliMYOHe6Kba",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -7568,7 +4561,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_CtM_nnyqcD8NcN2zhIMeW-w1T7Iv55tXoZdISYsnJKqbQSsJ9FP110CBwcTc--5J3thfM3bxi42uO-sx-tQcx4WzUMnHzsDXl5xgAd3XkqycQdBPjl412gyfLjEQt5NEOtk-qxo_RtPCXaB2U7XBVdzj4DGZ-73G95H",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q5m3C178s0llveFP8byCPTKuC9AjxpVt5YEIdWrzpuKraEmstLlYga0lHm9LGiwXjO-ap035WXOyC7Or5NX6Qdd14CUmiBuIeYSrPFpkwERQ3TiCcN8kyj9DOs3wl5yK5L18C6uc9GN-HI6ruMg3QgNkyitYYtG9eXQ",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -7581,7 +4574,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_Cv7Gi2toYcgT_IxUmsDQHmXWFFwUEgpylR-aTg10X9OiGmfw_1jOWxSADnYCRDVyInckzRe2nTL9LqLzQszQ3hTbuYIdglrDHGe51cGH28i2fCB298boJFECprUTW263aVJ7RPJPzZOaoXmIL3rRyD4E6BFyd-0Ywy5",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q4qgW0oAhS5h_9iCIgl3v8jbpZ0MkKGGqLMT9MKcA-fawhVoUiPE3VE-zI8HluxmBrYpTNzlkdlZGdUPg8FMAJf_IYZPUN5zgfnt2NSScCqdVrG_3878cTz_YWUP-hhE4FtDJuZd7HttRDfk4GiVNbgi5PZmJm7ibeQ",
         widthPx: 3072,
         heightPx: 4080,
         authorAttributions: [
@@ -7594,7 +4587,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_CuimKVeGDthgYxuDJMBvwD5ipnL3n0KVsRqyno0kyuvBqeBQRY8QveKdFX7tZx2rbMLH3AxgjvFcvrUELd-TzAW4oze8H_Dmu43MoQOA4rIaeg_VnIPpSyqNqFWCPiYLKHuS_GdW_mrilJPwpr54IU72cph6s769zAp",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q57HGkAg_ymtf19AScJJZLiDgS72t0AdxVo5pznDDytWyd-bSTly_QYgg30Cles1b9Bi31nmn5HvqVClpHN_eISi9H-W92FHDgsiIbLKh-WZGC4ZngGj1UylG0sLVN5D4AYZVUIEV2_BFw-fsBThAqzIfEG1PsP9eUf",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -7607,7 +4600,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AelY_Cv6ipbzcYVyXgDA5E0m-VqGcBcDXRDEYACot9qaWxNiBA3FOYPfgQCMVNS2FwfQuluMc85Nhc8QKpnWH2lejqIUXL6eme0gHDV5OLmTmTD9nj30tek6P3VKy6W4OFh0UhDA-0eIRhjS8YGN1fSia-hHAsC7fIWcI1tU",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q7mZ2WQlM2ay6pLQxcBgsq9SMi1TVPa_K_4_jON3R_QmGSV4WJHjOkBRUj14qJSIAHKxN7mMhIFAibGOceizLpKV85t4pFY6rJd2hpzFU8bmEJz6DKpRzlL2kDsmye_n50dT8oPTxW3aXTSetnYISpFa5zEdOG1szuC",
         widthPx: 4000,
         heightPx: 3000,
         authorAttributions: [
@@ -7619,1663 +4612,16 @@ let places = [
           },
         ],
       },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: true,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJG3TgE66SwokRX0scyzq-V6o",
-    id: "ChIJG3TgE66SwokRX0scyzq-V6o",
-    types: [
-      "american_restaurant",
-      "restaurant",
-      "food",
-      "point_of_interest",
-      "establishment",
-    ],
-    formattedAddress: "74 Pondfield Rd, Bronxville, NY 10708, USA",
-    addressComponents: [
       {
-        longText: "74",
-        shortText: "74",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Pondfield Road",
-        shortText: "Pondfield Rd",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "3801",
-        shortText: "3801",
-        types: ["postal_code_suffix"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.9403778,
-      longitude: -73.833586099999991,
-    },
-    rating: 4.4,
-    websiteUri: "http://www.underhillscrossing.com/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 1,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 2,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 3,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 30,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:30 AM – 10:00 PM",
-        "Tuesday: 11:30 AM – 10:00 PM",
-        "Wednesday: 11:30 AM – 10:00 PM",
-        "Thursday: 11:30 AM – 10:00 PM",
-        "Friday: 11:30 AM – 10:30 PM",
-        "Saturday: 11:00 AM – 10:30 PM",
-        "Sunday: 11:00 AM – 9:00 PM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_EXPENSIVE",
-    userRatingCount: 455,
-    displayName: {
-      text: "Underhills Crossing",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:30 AM – 10:00 PM",
-        "Tuesday: 11:30 AM – 10:00 PM",
-        "Wednesday: 11:30 AM – 10:00 PM",
-        "Thursday: 11:30 AM – 10:00 PM",
-        "Friday: 11:30 AM – 10:30 PM",
-        "Saturday: 11:00 AM – 10:30 PM",
-        "Sunday: 11:00 AM – 9:00 PM",
-      ],
-    },
-    currentSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 19,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 20,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 20,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 20,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 20,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 20,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 16,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 20,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 4:00 – 8:00 PM",
-          "Tuesday: 4:00 – 8:00 PM",
-          "Wednesday: 4:00 – 8:00 PM",
-          "Thursday: 4:00 – 8:00 PM",
-          "Friday: 4:00 – 8:00 PM",
-          "Saturday: 4:00 – 8:00 PM",
-          "Sunday: 4:00 – 7:00 PM",
-        ],
-        secondaryHoursType: "DELIVERY",
-      },
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 19,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 20,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 20,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 20,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 20,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 12:00 – 8:30 PM",
-          "Tuesday: 12:00 – 8:30 PM",
-          "Wednesday: 12:00 – 8:30 PM",
-          "Thursday: 12:00 – 8:30 PM",
-          "Friday: 12:00 – 9:00 PM",
-          "Saturday: 12:00 – 9:00 PM",
-          "Sunday: 12:00 – 7:30 PM",
-        ],
-        secondaryHoursType: "TAKEOUT",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 11:00 AM – 3:00 PM",
-          "Sunday: 11:00 AM – 3:00 PM",
-        ],
-        secondaryHoursType: "BRUNCH",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 11,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 11:30 AM – 3:00 PM",
-          "Tuesday: 11:30 AM – 3:00 PM",
-          "Wednesday: 11:30 AM – 3:00 PM",
-          "Thursday: 11:30 AM – 3:00 PM",
-          "Friday: 11:30 AM – 3:00 PM",
-          "Saturday: 11:00 AM – 3:00 PM",
-          "Sunday: 11:00 AM – 3:00 PM",
-        ],
-        secondaryHoursType: "LUNCH",
-      },
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 20,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 21,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 15,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 3:00 – 9:00 PM",
-          "Tuesday: 3:00 – 9:00 PM",
-          "Wednesday: 3:00 – 9:00 PM",
-          "Thursday: 3:00 – 9:30 PM",
-          "Friday: 3:00 – 10:00 PM",
-          "Saturday: 3:00 – 10:00 PM",
-          "Sunday: 3:00 – 8:30 PM",
-        ],
-        secondaryHoursType: "DINNER",
-      },
-    ],
-    regularSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 19,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 20,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 20,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 20,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 20,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 20,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 16,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 20,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 4:00 – 8:00 PM",
-          "Tuesday: 4:00 – 8:00 PM",
-          "Wednesday: 4:00 – 8:00 PM",
-          "Thursday: 4:00 – 8:00 PM",
-          "Friday: 4:00 – 8:00 PM",
-          "Saturday: 4:00 – 8:00 PM",
-          "Sunday: 4:00 – 7:00 PM",
-        ],
-        secondaryHoursType: "DELIVERY",
-      },
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 19,
-              minute: 30,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 20,
-              minute: 30,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 20,
-              minute: 30,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 20,
-              minute: 30,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 20,
-              minute: 30,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 21,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 12,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 21,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 12:00 – 8:30 PM",
-          "Tuesday: 12:00 – 8:30 PM",
-          "Wednesday: 12:00 – 8:30 PM",
-          "Thursday: 12:00 – 8:30 PM",
-          "Friday: 12:00 – 9:00 PM",
-          "Saturday: 12:00 – 9:00 PM",
-          "Sunday: 12:00 – 7:30 PM",
-        ],
-        secondaryHoursType: "TAKEOUT",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 15,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 15,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Closed",
-          "Tuesday: Closed",
-          "Wednesday: Closed",
-          "Thursday: Closed",
-          "Friday: Closed",
-          "Saturday: 11:00 AM – 3:00 PM",
-          "Sunday: 11:00 AM – 3:00 PM",
-        ],
-        secondaryHoursType: "BRUNCH",
-      },
-      {
-        openNow: false,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 15,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 11,
-              minute: 30,
-            },
-            close: {
-              day: 1,
-              hour: 15,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 11,
-              minute: 30,
-            },
-            close: {
-              day: 2,
-              hour: 15,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 11,
-              minute: 30,
-            },
-            close: {
-              day: 3,
-              hour: 15,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 11,
-              minute: 30,
-            },
-            close: {
-              day: 4,
-              hour: 15,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 11,
-              minute: 30,
-            },
-            close: {
-              day: 5,
-              hour: 15,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 15,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 11:30 AM – 3:00 PM",
-          "Tuesday: 11:30 AM – 3:00 PM",
-          "Wednesday: 11:30 AM – 3:00 PM",
-          "Thursday: 11:30 AM – 3:00 PM",
-          "Friday: 11:30 AM – 3:00 PM",
-          "Saturday: 11:00 AM – 3:00 PM",
-          "Sunday: 11:00 AM – 3:00 PM",
-        ],
-        secondaryHoursType: "LUNCH",
-      },
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 15,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 20,
-              minute: 30,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 15,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 21,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 15,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 21,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 15,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 21,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 15,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 21,
-              minute: 30,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 15,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 15,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 22,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 3:00 – 9:00 PM",
-          "Tuesday: 3:00 – 9:00 PM",
-          "Wednesday: 3:00 – 9:00 PM",
-          "Thursday: 3:00 – 9:30 PM",
-          "Friday: 3:00 – 10:00 PM",
-          "Saturday: 3:00 – 10:00 PM",
-          "Sunday: 3:00 – 8:30 PM",
-        ],
-        secondaryHoursType: "DINNER",
-      },
-    ],
-    primaryType: "american_restaurant",
-    shortFormattedAddress: "74 Pondfield Rd, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_CtEK3TQn6DqRVogkHRHpqmzSlBo1GqE8AWRMLMQCfItgqtc-1R8ATD-Vi-8leDVMbuWgXPvi5rzQN9faDaxqK48hMcokjeGjNJqaEmvoJ7zLCh--arQhzhgEaXNVfCVTFZ5sTB_FIq2Hxz0vk4OJk_7uSIfvFrh5IWq",
-        widthPx: 850,
-        heightPx: 314,
-        authorAttributions: [
-          {
-            displayName: "Underhills Crossing",
-            uri: "//maps.google.com/maps/contrib/103357425819361248278",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXPdeA5-piNbIadZ2W5M5FQAF5lIc6FQDaEKdTFQJ1PZd0716s=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_CsBGDQIlDt_nR0WDgf26g9GwQKRZAnsBqucWlvR-KtoX0E5ixC81cHWy8sjrP0MIs6vCafnDlifKiU_HixNTG33RlMvH1VdPjqIqGtCoKQPL0d4xVWjEcBPKlSZ_O5a9eIZ0eyfcAIBVGidqEhrDaK3nev-okDuxHUX",
+        name: "places/ChIJBzAI6pKTwokRquXPFwGcFOA/photos/AXCi2Q5Af3cLcPEIu11btU19KOE1Dn2Vw90RPltyGpxSQItx_vBUgEbShMBjspZW6VDD5o8TDTKe6W-J-Fr2UeQxaNNDrazO_t1s_QrFBnr2IjJEXbzKt0ksanYKeGUrM32m0QcWUIZTri3-CZkeplok-V2wWTnjJEIR4iVT",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
           {
-            displayName: "Donna Jackson",
-            uri: "//maps.google.com/maps/contrib/113431868701443650462",
+            displayName: "Miya ko",
+            uri: "//maps.google.com/maps/contrib/117570797442064915482",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXEYnfmoPg1jc97TmzQXORtXKOF9VbkS1LdAWP0IiNgoVPEH1rN=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_Cvl6yuONr1ZzxUzf5O53x2KzoWHU2Cru4hQAhsrORrzuvJepbvBBledKDIBB4QckY1P8suWHFap1SwsxeckjYKMUJ1qMf88QW97gbySvC6UcLox7mj8N1n5OqXTjsaWvNOAaPZG6nl8WRToh8p58yEGKg5Ir9sHg-hE",
-        widthPx: 3072,
-        heightPx: 4080,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_CvKrA6oQIoXB-9bVI755pdMQ7ILzTv60z0LOlyMjbQ6YCVWHsuNDPjFQkgYPi1qnheC34Fn06viy2H-hJRbS_mBRcmGWqw8squH9WHkGe2196PdSNNzpgHSSCt72k0gTesU8TJrw-yfpH7MjK0nY2o94UBbCeBe-SDh",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_Cs_EaKJU6ldK0KHb3TGvL1hFdAx0a6A_7LtkwpOVwpEPu1fjeZjkV80x8lNuSLlWxE0WqXi7N1cmj2dmrz5QIv1sn1w_z2AgNg2zDowzTSVx10CujopM6-Ii2WUxIZX95RoymyQy3PPGSS00-R_kWDGgGmcvL-7X6jK",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Carmine Battista",
-            uri: "//maps.google.com/maps/contrib/105370633778241153025",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXdqmQxSkDZiKWzMj-lQoSJwv2cpR8yDliWEqYOUROPDtOv4pM=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_CsTYx7fyI-tmLVj1DwmUJa8XxfuyvvSKQOGS4yCoBi64uJ8QhXZn6sOnoLndc7d4nDmcddnhcCuwOPRhbSxzjMXVE_ryeiARZ0o6hhx5AP1qaiDtZf0M-CpCDmOXUrh3osztWyRqff7L6MQnFUHgdWHFnwJYGT66Cpk",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "V",
-            uri: "//maps.google.com/maps/contrib/117620114219458563753",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocIa0OxihzOODheFM9i9cdvU9bst8eEowB_9dtK-2RcE7x1Obg=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_CvDWJk1emzEigzaQRS05lzUSdBaG1svCrgjSNigIwLkVQ6VUqHvS-PWq_QJu7MkeU_z4oNBWz79DYlR8UAvz4ShS2Q24k7mUcripD50HpzKJ1Vooa0bjB0T5NL60RxW4Ot4u852t76G-o9cEEg5Sv_lkcoQLpAL8slT",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Carmine Battista",
-            uri: "//maps.google.com/maps/contrib/105370633778241153025",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXdqmQxSkDZiKWzMj-lQoSJwv2cpR8yDliWEqYOUROPDtOv4pM=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_Cv-7T9PbHW0x2KW9UsrOW9CCWeu3DbNijFtwFmDk8xBPfZJPz2m2FzON-RPIC-P0xUfDKArF3PqKmNkUpwfC0g0OJzVMc-YdUKyN3IW3iUqfvUbjcaViWcMkxx-Mx0PprLHO7n7ufBHpRqNkMsASnjQd4NvQXaKV96U",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Carmine Battista",
-            uri: "//maps.google.com/maps/contrib/105370633778241153025",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXdqmQxSkDZiKWzMj-lQoSJwv2cpR8yDliWEqYOUROPDtOv4pM=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_CshhM7RaoOS7prgjLHifsj-bLfI1jB4jLZ-eDJtBQBTY6gtyOdUUpIE1mU-QC1R59v7X_T4dkVO9nZenEp8NmrLnc9CipXxO4ePD5a2p77XVCsaB3Ds3-WhLCmsjhhZp1KQDpUnuGWem2uE8tbKBIruT7xewYrbHAE6",
-        widthPx: 4080,
-        heightPx: 3072,
-        authorAttributions: [
-          {
-            displayName: "Dominick Vellucci",
-            uri: "//maps.google.com/maps/contrib/116345219794599247988",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJG3TgE66SwokRX0scyzq-V6o/photos/AelY_Cvdaz3Tz0loQTEb1SjNuzWwUpwIIHd43DhNQoKKC2KfMIpDdt43us-AeA0MxYIMNRYs-dRhTydXXpMTqHiZFlRt-dEaz_PEXzB6giI9lWerOOq33Ol-Xua7Nb0plkThnavkdXzxyvEr716Q0pQDX_XFnNFH-LQEGYt7",
-        widthPx: 3000,
-        heightPx: 4000,
-        authorAttributions: [
-          {
-            displayName: "Larinzon Bruno",
-            uri: "//maps.google.com/maps/contrib/114101730503913719322",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocL9NAssS95MOX52-Xm2I8CoE_H_p-au2WJkAE1Fu-8tfBzmkg=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a/ACg8ocJnC80TaKIo_CisjxhJ34qQg9F5fT7oF507kzmieQ_56LK9Uws=s100-p-k-no-mo",
           },
         ],
       },
@@ -9301,62 +4647,6 @@ let places = [
       "establishment",
     ],
     formattedAddress: "Train Station, 1 Depot Square, Tuckahoe, NY 10707, USA",
-    addressComponents: [
-      {
-        longText: "Train Station",
-        shortText: "Train Station",
-        types: ["point_of_interest", "establishment"],
-        languageCode: "en",
-      },
-      {
-        longText: "1",
-        shortText: "1",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Depot Square",
-        shortText: "Depot Square",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Tuckahoe",
-        shortText: "Tuckahoe",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10707",
-        shortText: "10707",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
     location: {
       latitude: 40.95043,
       longitude: -73.82833,
@@ -9467,179 +4757,11 @@ let places = [
       text: "Starbucks",
       languageCode: "en",
     },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 6,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 19,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 5,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 20,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 5,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 20,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 5,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 20,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 5,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 20,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 5,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 20,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 6,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 20,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 5:00 AM – 8:00 PM",
-        "Tuesday: 5:00 AM – 8:00 PM",
-        "Wednesday: 5:00 AM – 8:00 PM",
-        "Thursday: 5:00 AM – 8:00 PM",
-        "Friday: 5:00 AM – 8:00 PM",
-        "Saturday: 6:00 AM – 8:00 PM",
-        "Sunday: 6:00 AM – 7:30 PM",
-      ],
-    },
     primaryType: "coffee_shop",
     shortFormattedAddress: "Train Station, 1 Depot Square, Tuckahoe",
     photos: [
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_CvcKoHGmlhspUehFIFbJiiTyErBuRBt-FABHIuVp7NJslU_dKEIJF5FcFrx94piD7jJmvO0BQ5CbQ7Bt7A8HnFdAk6oAlDAcYfjXKmtMnv-BXXfU3U-XCb-JPCsVM7eW5LTYL26l7em64jqicWE180zcdXki4UucsR8",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q4T7qYis5HChGubFipCTVTParNr2WoUMzW_E03L2oW2j47V2yUngn6r1H0ehGcqKtdkir2gJTF-E4_5Y7S53cK-kiYxlAXvR-lXbOIPPkzkwtlGUeakKgoyecJhEPwRaghgqaQDzegrTmEgPFj9WNAIZFwALgo2ARkm",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -9652,7 +4774,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_CstY4IuXDViv3PqeNWJIb0lFD1Q016XgybRH_3Ijl_upKoTXhGEqsfjNx6oYDDa4EEFLfbTZlk4fDKL8NHI3S5qneUB6x1q4VYY17v3cdL9zd3BvbBijeN_qsS9GuRGXY4b3soz-4pUa9fFeANU4IVBpPFrjwAm9NH4",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q6HX1SKVAJWb-KqkpXrk-HFaza6XACz92Pi7t9Tfx4LMLDcZwo5FtJ7wDYY9BBsMEeSTeBT0_x3PDhO-sWzmPfONaUlJo52puTO5Qiqx1t4htadXXyKddyRgdrkZPZaq_zsrpFs41lKcGaTspnjThz98x7R0q6TIF1L",
         widthPx: 1600,
         heightPx: 900,
         authorAttributions: [
@@ -9665,7 +4787,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_CuJoDTjeVCQ3ji0eEMuW3HudFOL6k0E5rpim7y65uJ9loVrFwCu9XOikAc_o_llBlcpTKATXLRNAiVl2blYEKGBYpyWkwolJi7eZRKxZM4tyY9Ca6_8_VcML_-W54fVPHYPTWwr6Iu_EXEGUGzJJdtdRb31Bnww_AC-",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q6aJIKae06LRxwntgI8sihmSSkhowfoEJf4yHKP8oUWey2GiZ9yctNktuZtP2jmRB11FyanVR6Bs66Cx-CIg-ZLfrl5lHVUW6hTqvqoOgKJcQBXWm74zHIf8tRW-Ltu5YArQQ4Q38zU0-8NUvfEOOOKZv8hF727VCsW",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -9678,7 +4800,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_Cv47pgXwQSwvgtNVi7mJe0PnrqxQfwL0_xSggP-_GnMX8szjgZbuoKtC4wvtUeuTfNpCHglzvLZMVG3_q7BNAbq1yd396tIpTjfLO8yIORDp5wbvNB4D71uSxpq87Q9yLiQleHlWEALpqoUC2AMvAk7dpyuHwySkkUB",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q6zGhb5_VC5geh9e5DZj-YY_p9XWw8X3OnH5skqrNoeO7E2aytNSXZnxRCxgdZCc_AR5TVxMHG3uJT7rOxHF4y6bPKR6PA60ol_0x6lH762ksBmspRSXzgHVM3yAl8Zc1y_NSmldU87WIHUnrZMt0BDa47l3Lb1T9QX",
         widthPx: 1284,
         heightPx: 1257,
         authorAttributions: [
@@ -9691,7 +4813,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_CuluRBOmasooCW9hf_S5GXhZU0IE6tcAtxyXgPlMugac8AR6VKb-mbHJRpwISkPKM_xjFwkD5S3H9U5ArTqYw74oRwpqThcZC_TEF4JMIM77Dd6x2mJoXYgJ6MxOD00HpbvGsJduUEWDnFaURKKMPqgtU29jORsT8AY",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q7GRwBz5rVNXmgVCOjS_DnlRdaxWm7M_1OcDKLTTZS2Wa1SVgl9OAoarzufGPqkBCTLopseTrm83inwc-NH4hrwLRKsQfTQeBd_0KvMg-x_l8Szjh8-y-0aeQBAoaHZSOJ_nKbmxMyzXmYBeSUbuFL-l4WU1-mbF439",
         widthPx: 502,
         heightPx: 546,
         authorAttributions: [
@@ -9704,7 +4826,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_CuFgZif17tQz-gfSdWX6fTuwVS11BvnC6GA3tcKZzr0QarTNMzD3B493_RgSc7wkXdSSDl0LWNjFeeEW0buTuMPB8LsymhzUil7WUtrnm1M8JiMsT9IGsVrJlxe-pjRmsPIzttR5OKHRhQf3lErN_s4EkwTkeqD9-B-",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q60D6_n3lvoGZYa4c8d5xiVPUzGnm4aLUsT4EHmx5gzoF7XjCxedKr12kDGBf4_oqiBNxXaZuvCBS33X1hMD6iFczlkyD5acTXIFmpt8sn42O0oCYftEI6NlhRmWGADcF6ufii3DDknVgAIWqRxa4X83-RBENZBKeLa",
         widthPx: 732,
         heightPx: 664,
         authorAttributions: [
@@ -9717,7 +4839,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_CsG8Y2yoxjaCHFJDcNlIhm8bYqVZYyHaUphfdhqHL9fvzNKG35PBrq_8OW6v20R1qaIsgg6dcQGB_jfwHnZOc-25HfZlm4FfbSwAQ6pC8YAOaIdHa5SLmh1EfFjU1yfmgcwKqkK98lC8qeM9BvnuFTT2l3zRzJmvA1P",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q47282OcpeFL4wFGHvulHfLd7rILqRAAue_5cv0EcuhCu7f_mKQsVCYN8XjK_DWQADFlZjvfEX4QnbnzG1gES2I6PvMh2akcnccKqMeQT8Pa0zT53oMHN2k74l_zZ2JKa8Ks1meO1QikwbbJFxMi-70gN3DBR1ZRavh",
         widthPx: 640,
         heightPx: 640,
         authorAttributions: [
@@ -9730,7 +4852,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_CuFygo9VWY2gM8qmlLOYpuLSD8Zlj6pcAZgjlcE4qFtNirdgyvtZn61yMLYtPtNIOJljVQ_6U5UePpU2utVOON7lPggdQRMSfI2Kmq_ygijv15ez1FrxmxvJFIeH5f1N7kfvjjaTtHfmP3uif2FnFTJbCa53gKFsBE",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q5Qto3jqClNAMb9i1Wotn01qjO1r5HwzRz-UkniiQZbZ5r5HfaVrztO0xW58pBbquoPFrQbSXCmFAoqtTxS3JgKXNZO8hYgq8PmFbbTw1brQDk6AtTVWwtMRRln75COFWE9mucRqynLQ0UBtAi2q7jvAlBJS8tTReg",
         widthPx: 3480,
         heightPx: 4640,
         authorAttributions: [
@@ -9743,7 +4865,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_CvgPw19-6MbbDsJp62uvUxA7lXuazyuTH7v_0hZ5quXoDRRC4s4Ag9khdsjy81OlciwD37cDFxa1rnvuCAmMBBpmyfvjNCG9tFmwIcukuhptWb7iK-sAdvPYWjJFcWUvrtbCSvtPPWnjcBUP5lartquGTOiAPbOtbiX",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q4OTQPobW7a1jnhvM_qTuoFtI5idt6XC0H0vSr08hC42tMB7vK04jBNEfSeebd8EFaRL8iDj_BJ1j84UKfLqaTNjczRosNOjXsBt6tLpGR5Sb5orTGDS0Ye6RmXkj3sic5e3dgjQ2yF7AGJTBrVVx1s4WCcsItm0iEd",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -9756,7 +4878,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AelY_Cu-F2Xt6pdWdmSQZGymWKm2iYoeJBF-yUYodQrcd4tuN6DG_9hq024WcrALm4bC6FWwPmuFj-p6loed3_qkz32lLldqgyEqqa6C6wOZHTHbx_B8hvybbKz6P347XcsvBnOnJ7saZeO_Dd-NIMfxTZDyNNqOb_cpJuAV",
+        name: "places/ChIJE4lzm8eSwokRiN93djbk0Ig/photos/AXCi2Q6hgzFkpkqPwT7XxqNRtmcXLPdIlYjeWB7vtbsv1Yn_0A025YPSbLyxECdVfwIHBTH7HkHYirGPuUxgC029xtQOPZzX_9DbmhhsvOefYd3zHPMxd2F8uR1QFjwSbkfJLvOVxwrPejE34hyOkc5ze8zlm3lXyXm4-7p2",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -9765,486 +4887,6 @@ let places = [
             uri: "//maps.google.com/maps/contrib/106722867839747949312",
             photoUri:
               "//lh3.googleusercontent.com/a/ACg8ocIzCET56OVNh5snC3sCWtg_PPQkTRub5OV-QsrPaF2xWaQhEA=s100-p-k-no-mo",
-          },
-        ],
-      },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: true,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY",
-    id: "ChIJl4RjnqeTwokRgvrQWgt9EmY",
-    types: [
-      "american_restaurant",
-      "restaurant",
-      "food",
-      "point_of_interest",
-      "establishment",
-    ],
-    formattedAddress: "124 Pondfield Rd, Bronxville, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "124",
-        shortText: "124",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Pondfield Road",
-        shortText: "Pondfield Rd",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.9387247,
-      longitude: -73.8328142,
-    },
-    rating: 4.4,
-    websiteUri: "http://theurbanhamlet.com/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 30,
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 0,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:30 AM – 9:30 PM",
-        "Tuesday: 11:30 AM – 9:30 PM",
-        "Wednesday: 11:30 AM – 9:30 PM",
-        "Thursday: 11:30 AM – 9:30 PM",
-        "Friday: 11:30 AM – 10:00 PM",
-        "Saturday: 11:30 AM – 10:00 PM",
-        "Sunday: 11:30 AM – 9:00 PM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 323,
-    displayName: {
-      text: "The Urban Hamlet",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:30 AM – 9:30 PM",
-        "Tuesday: 11:30 AM – 9:30 PM",
-        "Wednesday: 11:30 AM – 9:30 PM",
-        "Thursday: 11:30 AM – 9:30 PM",
-        "Friday: 11:30 AM – 10:00 PM",
-        "Saturday: 11:30 AM – 10:00 PM",
-        "Sunday: 11:30 AM – 9:00 PM",
-      ],
-    },
-    primaryType: "american_restaurant",
-    shortFormattedAddress: "124 Pondfield Rd, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_Cs-MZpCpUbb5f_yI7gHiQs6QuNzWUnEdeekGPqKA9gG48cdpjj5PmPdn-okWXuWquQqLwdl1rrTU2Wolal8YgD2EOrzjwTHVJOzLWZtX73sDo-QJC8EHGNCq9D8weUVydgRIVyrf6Np7K2nWTPgoOs_yBKHWdWz-p3i",
-        widthPx: 800,
-        heightPx: 800,
-        authorAttributions: [
-          {
-            displayName: "The Urban Hamlet",
-            uri: "//maps.google.com/maps/contrib/101613830390933577682",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjW5-IDr066a-5GEM3dW9iCRAV9TDuGF5XIhxgb2xGo0Qb95lVU=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_Cshx-VFWDTyPYluC01nFpimZc-3ujG54PiwOLKdiBYsQSYr7e97sjJv-jfNPMRzFLieOd18kndh4T-v2Dm2dWszWV1S2JOxpJSq-4-6gf4Y_-7SoADSPyusMCj-_ZleoDjCrwlRFg6m4ooepDoBVzFKYIUfGhH93Juo",
-        widthPx: 800,
-        heightPx: 800,
-        authorAttributions: [
-          {
-            displayName: "The Urban Hamlet",
-            uri: "//maps.google.com/maps/contrib/101613830390933577682",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjW5-IDr066a-5GEM3dW9iCRAV9TDuGF5XIhxgb2xGo0Qb95lVU=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_Cs-aFXWp3P8vy1MJj6Oj9wpN-vlPTxvxN-8zXMNXM8t6kOUZ2sdnjfCVI276fgzm1y8vnx6CQ0f7dQz1iE2cNxx53APPBgQ4pXgPdoJCwxKrH8C9vXBXWJMx60ijacQzadrmvsjufojIH-ln2ezhjBz3YaqogAkDryk",
-        widthPx: 4000,
-        heightPx: 1868,
-        authorAttributions: [
-          {
-            displayName: "Paul Siegel",
-            uri: "//maps.google.com/maps/contrib/111906036776763074121",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXFx_G_udc9DRrl5Jnyz5NWEj0gYqLnjZGpR_W0llKzQiS6NVDw5g=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_CuuHhXXMnpwq5xZNCFU_6gL-O6afN_J_kkzucqGyCoE0YyOhFMtyyyiwrZWBdp-vjoUe_HNvLTn40OGBqnkTGt5MW8J2ay9FKtU42-AYtAp_erxBipC1vVR75H6lIHpW-w3K6oiziGmAXxX5V8XdVuCIrGSiGhUrjy9",
-        widthPx: 800,
-        heightPx: 800,
-        authorAttributions: [
-          {
-            displayName: "The Urban Hamlet",
-            uri: "//maps.google.com/maps/contrib/101613830390933577682",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjW5-IDr066a-5GEM3dW9iCRAV9TDuGF5XIhxgb2xGo0Qb95lVU=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_CutN6BOidhTYkCw_CTC0jDjER7HgdRDSv8TADKUXfyL0bYrFD_MAQXtVTFIKs-SGbArYykIOKA25cmk2qUCNuzCBfLpM_0KKo9JjTwYNQKlzZZqCkcf196xKjkKESnGyP1scNXyfC_NFyeTf8WY_y0390eZOEiRPHIk",
-        widthPx: 800,
-        heightPx: 800,
-        authorAttributions: [
-          {
-            displayName: "The Urban Hamlet",
-            uri: "//maps.google.com/maps/contrib/101613830390933577682",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjW5-IDr066a-5GEM3dW9iCRAV9TDuGF5XIhxgb2xGo0Qb95lVU=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_CvOkfmNz-dRWnWOr022BMFs0L5l5ZFEW0cpPhlEj6wLA8O_7kNwgwpOcC81HoydSeo_1ekH0VJ_L1VsjCZuDgjuxnbArtIzm5375vE7ZxI6X6seVy5AVCfKt8VzWFdqzTNrEVgf4tIYP2VmVliGarPBNJK9kgRXw-6H",
-        widthPx: 800,
-        heightPx: 800,
-        authorAttributions: [
-          {
-            displayName: "The Urban Hamlet",
-            uri: "//maps.google.com/maps/contrib/101613830390933577682",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjW5-IDr066a-5GEM3dW9iCRAV9TDuGF5XIhxgb2xGo0Qb95lVU=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_CtAAMwmNsGPoJIdPpxWOcILfzSqJy4vXFg0imILCPghCvTA2bcnKv4JzZOGh0jT6amgnpnhEmW7MRCGz9udxbkyrGUz8-_yB-fxAiBvjvMnVq0uBcHrdnMrscB31riNICwuo747nVvVvFlGD8wFSWQjEw0M4qigsgOX",
-        widthPx: 800,
-        heightPx: 800,
-        authorAttributions: [
-          {
-            displayName: "The Urban Hamlet",
-            uri: "//maps.google.com/maps/contrib/101613830390933577682",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjW5-IDr066a-5GEM3dW9iCRAV9TDuGF5XIhxgb2xGo0Qb95lVU=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_Cvg-gxk1l2mwIddMEdHlxUo7fKFxIG0rgh5Mcv4208vE-UwNtzfRFwsZ8IHW2oNKVOzFHGuqzVjAPEGrsjM_PYjDPzycqkmwZsw4gFdciuQo1v8apsl8WIGdArBy9XHjEK4Bp8FI5mF__x-PWaZe8BBxPVGNlxtDgip",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Samreth Kagnoeung",
-            uri: "//maps.google.com/maps/contrib/115464909674303705007",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjU_GoSc_IS54vdmof_impNrPuSl19VMHpG6IF1l4z2Etfm2ymdRRQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_CsQxSxvUQaiHuoR_Yv3xiypACwhmTbHID87L1k62FmaUhKpB6PRYHbrtqE624z1L0cYK9XDmhluhddKw2VnVqSm6kLlbUN6657GtESqiBHmVac-vnQBVMkYJ-A-whvq3-6blEGht9z_nLZBJw8M_cXZPZ-wa3MT5wWU",
-        widthPx: 800,
-        heightPx: 800,
-        authorAttributions: [
-          {
-            displayName: "The Urban Hamlet",
-            uri: "//maps.google.com/maps/contrib/101613830390933577682",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjW5-IDr066a-5GEM3dW9iCRAV9TDuGF5XIhxgb2xGo0Qb95lVU=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJl4RjnqeTwokRgvrQWgt9EmY/photos/AelY_CtS2xV43-LaYYkVIAdSvR8Rz1PueuXC2T95cgCyQCzGaW8rZNY7p6902LUAEzyLrEN2OU4Ked_v2jylwUUwYmh7c7ABu6ULRuXVn-DiifO5hxMdIvTgLlDKqX3tOgezpVB4DYkSNC3ZpI7QIxvVvbDgAWn3RZn1fHX6",
-        widthPx: 3000,
-        heightPx: 4000,
-        authorAttributions: [
-          {
-            displayName: "Frank Lucus",
-            uri: "//maps.google.com/maps/contrib/101828356860680569955",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUB3a7uUY7mWsjReQhN0LMu4oylhrV5S2rTSwa_JhPNjuOPKtMy=s100-p-k-no-mo",
           },
         ],
       },
@@ -10268,56 +4910,6 @@ let places = [
       "establishment",
     ],
     formattedAddress: "8 Columbus Ave, Tuckahoe, NY 10707, USA",
-    addressComponents: [
-      {
-        longText: "8",
-        shortText: "8",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Columbus Avenue",
-        shortText: "Columbus Ave",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Tuckahoe",
-        shortText: "Tuckahoe",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10707",
-        shortText: "10707",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
     location: {
       latitude: 40.950565300000008,
       longitude: -73.8271834,
@@ -10512,976 +5104,6 @@ let places = [
       text: "Spice Village",
       languageCode: "en",
     },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 14,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 0,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 14,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 14,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 14,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 14,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 14,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 14,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 17,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 21,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-        "Tuesday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-        "Wednesday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-        "Thursday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-        "Friday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-        "Saturday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-        "Sunday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-      ],
-    },
-    currentSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 0,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Tuesday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Wednesday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Thursday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Friday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Saturday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Sunday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-        ],
-        secondaryHoursType: "DELIVERY",
-      },
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 0,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 12,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 14,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 17,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 21,
-              minute: 30,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Tuesday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Wednesday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Thursday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Friday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Saturday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-          "Sunday: 12:00 – 2:30 PM, 5:00 – 9:30 PM",
-        ],
-        secondaryHoursType: "TAKEOUT",
-      },
-    ],
     regularSecondaryOpeningHours: [
       {
         openNow: true,
@@ -11854,7 +5476,7 @@ let places = [
     shortFormattedAddress: "8 Columbus Ave, Tuckahoe",
     photos: [
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_CtHedx3bk2E8rJIJ63om9kqR93u7_ImdAC6Ew9LwP5pHWDJFJUbPVeRp_mOjnpcK5HbUdvYjIzZnCOuYfFcIvPXKXt38HYGHzFhjkYdR9UWUAk4gjmUNS-UhYwW_ADLtGolWqGvaraXTx4zEoPBUCig6ucWlueVBa0t",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q5hun7R2URRKUI3pe30iv8a_MsBVAWB7lyfn0XOxerqzUpr7j6-sTh2nFP0MVkOSsN8jbHizGAWMAQb9hcBidQaSF7Zgxip6gt52wBSEn5sTlh2OntqNjhr8P2CazEe8ZOTqHTfVWINgUz5Qt5hcIMDwL2dQ_qkdHFQ",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -11867,7 +5489,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_CtBK5L7aa1mNSud4zLfZnSECY_2pn8GEJFRFdf6gUjQtDEdp1qOCljlKuxSa24m30rHareFeKGM-VIWlFvtd8qamSYDiwdESxgz2tC31igdHK7ssW7P8FGgaLYN1WSE0ylKwouRKC_j4otgqAjhKaAZ7QZdSrlfpe6E",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q7509ck7v-SLg_VlurB1Z26PqAKXPz59GHH-P_9DXEGj0cWdiaIMpisZbltHb_UkuHMqYYSaKMvb3l_BZ8683-qPrXvINkVgvUl6buHAemBXs5OJYHozIKsfDQc21qCb3KEA5i89Sl632mYZVeg1zG6YbXeJoKNaIUQ",
         widthPx: 2163,
         heightPx: 2759,
         authorAttributions: [
@@ -11880,7 +5502,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_CstjWZkzStXQX6KwtDrK5oNysG_2LyPHH4lbYjsVjfoilEjTWWPWShALcEDJ58N23k5DV3BQ1guJWO6rDP7LC-VtHJTE3E9HvvP2R1UQ9kjdC37_Vkula0K4ebB2jcmv_of910m9Nk5_76MCmuIwayoleOU-o7144jh",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q6RZZqy7rVISdZ2Lm_9KlbCm654kkDOiGV9Li2UyzLojAcBFPK_eqzQfv1RKmSyQVTrNCePfSF-NodBhwnFTiTMAeTxPgH9SQXwyvFan09OOKrGwVKAXcY6iKaCACtUAO7y5evYR6llFGUElIo6D9dhULnK7WA8CQsR",
         widthPx: 3024,
         heightPx: 3301,
         authorAttributions: [
@@ -11893,7 +5515,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_CunlNsG_ICw6BsMhDZ5JnHatxWC_bg6blKA2IRZRZur4ReNkRH-7nDcEBThUc-bSp0sd7oZmwl8tN996rfysu4y3M0BJX6HHnAQgBjnSRkbdBPR2sUQbNOpnNjTXhM-l64X4L5SAsK0utuW3e2TnJx3h20uAm9ANTxb",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q7QeD6kaaIMdEnQGuK89NFZ-_FZ0Iu8iX8G1gM_7JePWpgCsFrlZv4ger7vKN54cWdAB71w993MV7DotEDWtwq35OMaEk2lPEXpM5LZjYJGQprvNKWvKGkUHkDWxdyytcCdU9r5Px2U_NpF0NTIypdYD6K3m2GohUom",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -11906,20 +5528,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_Ctmwi98nCrn8CmzeOLFxgIKAPMq03bsMn5QyCZeYKKqvFCF1J4sRPXvAqO6ho13ji_QOSI6DWjDCxYCq8kWkXwH2em7BRNc30g_VOtk9ksee3YcBWUe568aWPzQ4RVIJ2Ntwz0_x69jJAJAnpD5CiOvP1qF6Ozvr67o",
-        widthPx: 2900,
-        heightPx: 3440,
-        authorAttributions: [
-          {
-            displayName: "Olga Kovalenko",
-            uri: "//maps.google.com/maps/contrib/101251715473489422681",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWANLqw-tn4AVVzclM_qtdzNvNPTpHfGdY_wNnr5HHC25p1g4OfWQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_Cstmu6wKYsfcOUrtWTqWROT3WvXAhFSKj-aQqhhin2cRRfJRPOk0DfEGltcAAt329QI3XRUgUl-jtVWSWxvrsEEqG9ja0DewK6YyYayCEF-yWs8F5B11wx2JtFf9ObgVMHQ6Nucf7NKInBflsVSUKUv_EAGNfiKq2ov",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q6L6cy-N8s-OBM6psydNcYLXOe9S6X94_iSp8zo_Wqg3wqljvQTq9by75a8IBz5KxR3XWuKEQY2dbqnZDeFwucHscG1PCN_P_dLnofN5YCAFnyD4dgoXFPFjklopMWtWlkNdNQxqiLafqSy60kEanBD5CVImbGX9muA",
         widthPx: 3000,
         heightPx: 4000,
         authorAttributions: [
@@ -11932,7 +5541,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_Ct0hCWTrGVFdBtEyehYejozZrxS1eEWWyyokX2Uw-liOy2pK0xhOSV8czTXaOIQL0xuOHhjzw68ySRBpjcsgQWYRYLqg-Sib6iEDQOj7JNRZZOf9K3S2ALBgXoq_1lkBpd5awqyT2OEzGcp2O1N-rA8j63DeAWKDCSj",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q7N5YTzLeTA54IX44dmzpd-v4TfFu58BAxmUa_CZyYiSMT0pltHPMujVyyNBLN7e8h2kzUx80PpmRvMikLoKN6c9Ta0F-S_kF3cXhwgoIlWGmTS74YS48KMQ_WYAjLX37dDVtGjIPqoNdacwShAotwhANqsftTbQwQi",
         widthPx: 3000,
         heightPx: 4000,
         authorAttributions: [
@@ -11945,7 +5554,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_Cvn_NbI692J8yhYdo6YamiGRGMnIOpUs7pQQDH8caWlwww-idJNU34IVR-jN7uXsujc0vB8FJajKr6yeoCXmqK0TU8QdVsV2GLOq6h1Pe5xhjeqJSdGy6GQcp9CjlbSLFentfA-c7S2cGpp2VCs4TyAuC6U9bMiuAkY",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q4QhFo7yKHr5GLjR3G9D2SGHjGqmk9BFZMzcewMkGT-BgVUiP74omkd1_6hq9k-0gLtwpHwiY9isId-ExI75i_svLHDnPll1h9HNxN8kkZ1EAbLxQNqUuwb-Vbyk-AXk85aJeUibSHu6nswdyPyHXiobq40yJKaZg3u",
         widthPx: 3264,
         heightPx: 2448,
         authorAttributions: [
@@ -11958,7 +5567,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_CuXkyJkjgx7lbuncqQPtf1RsMkEwsxuskfYYwR9Kkgu6OgGY0W9K4a9mqnBiB84BCyMXW3mQ9QxFijYzBert69q1VAoxzKo-MNa4BaWS8BT9pbsMxrgwO6Kq5bP2P5uvwJLqZHByZnrARpCQ__zQWx74cE2YD5kKOeI",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q5xo_q-oukYO9hMTwpl_Lnmt-Zf4loyYJdwOI6jnKTbOyhiPyT0HA-jvX2vip_Dp8WhHqsGI28c_6FM00OFoKV8Zzfo15dWE3fpbr0w3sVcQCNVK3XlrZJHtfAupS9mutu61_3gvQS1aqJNdCgU6szO7RmAaI9fM61M",
         widthPx: 4032,
         heightPx: 3024,
         authorAttributions: [
@@ -11971,7 +5580,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AelY_Cs2EjdmQ8WHfR5Su_e3djtypP1H-Qhw_7GpG3MrM_6XIVncZQuxeC_7sB8Gp1onL11Ba1Wdii37N02-clzrzd6SAEPLZi1EAhUKUV4fqHxA5xnyyQ8ylNV0xVPm6qmtZ1qVWQAjUkZJipzjTPTYVJB46pRAUeM_1Pk6",
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q5ZDwsvWl70z1wMOwE0MDOC8tYQMQkPUQpOEo1_btWJy705uQSaKeqewDDUXozS4xCDU_ZbBXJQFa4E8k5ywrHkrzgKM-Yj-flBxFJ4IlgMXYGTgXL32lU0DUpwbpD3JnYEUnNSoxLQ-MmCP3TViHdrTM4Jnu47sokT",
         widthPx: 3000,
         heightPx: 4000,
         authorAttributions: [
@@ -11980,6 +5589,19 @@ let places = [
             uri: "//maps.google.com/maps/contrib/103146103390158678170",
             photoUri:
               "//lh3.googleusercontent.com/a-/ALV-UjWJgcmIVfkVnIxCUNiL6WDOIG9Or0F0yi9E8mNcr5TF7TQMyiAmZw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN78jnMeSwokRpT5Sq_QGD58/photos/AXCi2Q6whwA3FEJwquReKLlGoY3LnHF8foVElYbqa-95aq09hmd5THkrQ17wiMgAXQ0xHfB8oB-_TgJI7zcUsaikNxmlFicJ-8TxbQ9-CcaV6XOk6O2EaI6cFNg2W0A-3nZe7hnvKq3L8pJVmHl9DOQ_ATgHnA9X9kDMriDC",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Alan Varghese",
+            uri: "//maps.google.com/maps/contrib/110620966140771264252",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVCGE23ha28yxtQcoEbnccStYuWXH17KYLKkIiAwqpw-oQUSd3w=s100-p-k-no-mo",
           },
         ],
       },
@@ -12002,62 +5624,6 @@ let places = [
       "establishment",
     ],
     formattedAddress: "97 Lake Ave, Tuckahoe, NY 10707, USA",
-    addressComponents: [
-      {
-        longText: "97",
-        shortText: "97",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Lake Avenue",
-        shortText: "Lake Ave",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Tuckahoe",
-        shortText: "Tuckahoe",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10707",
-        shortText: "10707",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "3927",
-        shortText: "3927",
-        types: ["postal_code_suffix"],
-        languageCode: "en-US",
-      },
-    ],
     location: {
       latitude: 40.950946599999995,
       longitude: -73.8292244,
@@ -12156,157 +5722,11 @@ let places = [
       text: "Angelina's",
       languageCode: "en",
     },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: Closed",
-        "Tuesday: 12:00 – 10:00 PM",
-        "Wednesday: 12:00 – 10:00 PM",
-        "Thursday: 12:00 – 10:00 PM",
-        "Friday: 12:00 – 10:00 PM",
-        "Saturday: 12:00 – 10:00 PM",
-        "Sunday: 12:00 – 9:00 PM",
-      ],
-    },
     primaryType: "italian_restaurant",
     shortFormattedAddress: "97 Lake Ave, Tuckahoe",
     photos: [
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_CsU-YYpw7Fh1axizuaoBsU6f2sGgKhB0kotY37ouN1-P3nb0mw6ILT2f4NDi_32hZa1GhSqoQgYIIebZU24VJcox-L9kjQVHw_zj3-bh9HwCZuGoZ0zi1Vbn8Obpq0dphB0-_9bmmIPhbmxlwhp6GdtjAoflsdYpxuU",
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q76ClbKx9dfP2N1T-12SQuUPh8IvKNR_Jxq4ldfBBN9xQrGccIa39qa63zcPv8O1Vgd6aAgkn9VW1cN1mi8DJfcg62XFEkSmTn2qGdvEJA3mRcaCYQi1FPOLVPAwPl0xgXaSHZp070PsT8cj9XXWIarRvAiFS7Xk6Vd",
         widthPx: 2721,
         heightPx: 2001,
         authorAttributions: [
@@ -12319,7 +5739,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_CumCuer96WARVqnjnReyss-mDga1nVdGtV6h2yoGM3gMHzT2YmEmmd4G-1WreQ5bP-_HAQCtQI5p4pvjF6L_uCO2bd1qLe_g1HjXnMkGAVpNigy8Fc3SAXoNlat0fLzftQrDr1IQ7_JlknPdf6KMrMviyZpmyYEiO2D",
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q5qdlQUKOXirI6QRjrw6NhsYD7hWGecrclKrW0jYO6NdxnailCyW08NNmrADR1lbclQbM5WA7666jTqJ0Bdfq47wZse0GE4FtsJRqcV5Ce_s3acmSSQKuFdXwZmuykgUj2uvkboyBQawrMKW7ZQqj5D8yC3oemwsB0S",
         widthPx: 4800,
         heightPx: 3200,
         authorAttributions: [
@@ -12332,7 +5752,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_Cvco5prVjO54H07a_OsAe6AhbHy0mL3cUlUpQlG_dWfcga_1ls__4pYpuaxNs2ReBjIEg-n3kIjMxDvJi0ntxRVcVRJl796P911JVGWHC9RX0-BBmmLysq6wWduw-NfepMGGelgYURSv-Sg9vr0yUyj9oBXvAYY3cb4",
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q4_Hs8T-1ekyJkDd680h40BW1Vn8h7u8ZKFkHjL82zOCvGGXOdn5ePYunMizKABqBgDopb-1vBw3Fp81tKNkG5y-8YF9NipofmockCkzmseV4_c6iCNj2ZR_5KySL0kafP1_86NpFAnVzsqLvjNh-EmrgK8Ld6Vlo2Y",
         widthPx: 1388,
         heightPx: 457,
         authorAttributions: [
@@ -12345,7 +5765,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_Csvj649x06qsVxoeomhaPWkUcJTjpKDP-qdyPTyN8Sn9a6bGUWQaVVs70awxdT5JC0GbxD90jQR4eqJXd_dAv7mxlOK9mI48y8i2Pv6Pjairzw0Ly0g_NWCJ5pIMOOe4DekXoSH-1Dw9Fho9aREPt9hL_jFsnRF-11y",
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q5Ksb1FmRJ9yCAMUroGX17GMF0zD6oNzWCoREnU8V4dro-8HpazMAYeHwTvgQOXVLbUVGN2-mBbCSO1sa7xsb4XHXgB7ti3qZSUoXmin1r9KHNJf2Vbl4voUYehNlc3htmxP8wL97C8NMz2CKapKfJY9SpFuLx0V1eg",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -12358,7 +5778,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_CtaNKXLWIIV0kk-0UDhw2XRaz48HFxDhgWCbPJCG7kjHE4SEkbsD67TrdwosDoq9acRuqnaLvt_7FJW6nD8ijR0HuO9vze1WR2ntFs5WtnSWKsVDFyCBbdJdPtbHMz8SXDoFs9YfgSq3wCGMoijzrkuQf9GamoAaC9G",
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q5CBHz6jv6HvGbuSp-uL3olaWrYsg9qtfm8KH8cq2taKd9ckiP1ealjU3Rhd3zS1i9wT5B-CcCwF7_YMWdkYZxHeh_DZLas7tYl2kVt9byfrfqHn4DyjuiuBl0ZgX6kAcewyez8x9NMNEvb6uwou6IRLPcICShIzapQ",
         widthPx: 4800,
         heightPx: 3200,
         authorAttributions: [
@@ -12371,7 +5791,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_CuI3NcGKWPx2A6JJT-Ds0rKW0vU_R2od1hatl_mwoPM979tFHxKO1AxSZBLWnZDrvu97_fucftMeESp7Nac-SNWFfAU5DYQFWevmNqnr0cqMFK_QZkqlKwHOgpNukHsmoCKMHTFDW4gGRazbZJQFgNsvZVxo60A3UDa",
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q7B2b_ssh7Fll8gaeFbOr0zabwKeCQbpc1S2mpvkogGqDnAJg__TCXEgQwbe0Uq9Z-A42tc5tAQQZcC-CKaNY2TA5TOQOxZKLzCkd6Ju3NICt5V3Mf72w4lUs0kp187l_Vdv6EfkN0NsmwquQyiNHANxDUk-SXzZN_L",
         widthPx: 4032,
         heightPx: 2268,
         authorAttributions: [
@@ -12384,20 +5804,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_CvG_YNfqvX7snMxoGJE3yGBUNflK5qOfSCSkaenShZ2ENYoQjqzRr-r4HBusUB4kM2p-XhF3QySG3gwQUB2zPJnhh5nm2wKnd502wWE3VkirOYGQUALSCuXpNSxfS-WfbzrvtJRmupcZKTagZt6MWmbmvFUwoqXXzdd",
-        widthPx: 4032,
-        heightPx: 2268,
-        authorAttributions: [
-          {
-            displayName: "Gene Gaffney",
-            uri: "//maps.google.com/maps/contrib/116609663123164895462",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXr0C54z1M1-DBGLX0lKp41tfI2geceR7P8glBnpnYmCkhH1l_n=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_Ct_vRjO0zq_P6DOYfi1CdLaMkSyBIabo7m1NRP69-Hoy5BtMM8Sc8EJnWHX2qv18FMuRAqzKmNI3s0aF3X0_3JaKsvpFsJilmQToCjC_Zf27LTugO_z3JfxyOYRzlOweJU0hsQF9kagiyxEVPigexQCAzyOH1mFGzLJ",
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q4in1qTfwH-gYt8UQ0EnGSUoEIpN9t38N--IYRc87KA8VwORNVn2AREy0k47tb__7eP6JdNW0aKuDGsaLzhnX0QcUrD0YCR-9oRu_8DrzCNzO6FVjepTQktL27msrP3zQrS5zAYBhiyCFeud_q7fRAEyhEdHqiFgBU5",
         widthPx: 3042,
         heightPx: 1848,
         authorAttributions: [
@@ -12410,7 +5817,7 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_CteHsBbr8GeFEq-AfiNcLhGrEP18lw34u1HVd1BSWwdbzFNZsC95BDco-1mb8KD5ZsO2HIzFDboRTvGjjJWgf1dCMymmnUAhKto3TtNxwr7zPhJ8CGo0up6EywWpAV29wx9QufmG7r82Cx5ydw_EPPazshe_suvN9AO",
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q5qnNzb9XwTZaBz_wsuDybyBeOkNtIrzt_A-QNOfiMfPJdizu3K2r7odhXSwEvbgDhHy07zciAj7yAyUbLD9E42YB4A5X6IqVpGnYmQXvPXA4HQyUbLwOTqMUAQcva77E_t7pqlh1XcFDtAo7I4ACnu3kRi1lC7z6_x",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
@@ -12423,15 +5830,28 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AelY_Ct9I8tVPBiqEbrXJ-EHXxejxj1SkBARsmNnTq18ZJiNsyxIx48IxkRCL4EVbTaEDsQeCxn4rcEn8rEKNVCbrqi_COB6dOipoQ0EXgp9vNohZECilGRYeMGJM5vGdvonC86Zny_P0ZF_y82JTXdWaV1DcnCQ7pA-oGwF",
-        widthPx: 4800,
-        heightPx: 4215,
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q4tknHmFiLP97phqH_q5ZLfnV-SP4wPRd8Doq7vIhUSEyUhPP1ItSDVOeM768BY2_V-qRNaM2RlnW9EUg3hOd_316XWhW_jmfVBWhwVDsU9WdtQ9fZC36OqXal1P_VEunNpU_Enrxx6pBMc7RVVTdoXBLnWfo2rnT4G",
+        widthPx: 2992,
+        heightPx: 2992,
         authorAttributions: [
           {
-            displayName: "Angelina's",
-            uri: "//maps.google.com/maps/contrib/111961368510838484053",
+            displayName: "Steve McCoy",
+            uri: "//maps.google.com/maps/contrib/109465633195625529607",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUNXhFPQMQLRMqOiI_Vhp25h30ef8pDGGFVFiWqaecDL0yaVm4=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjVXSLuF2mq_dwVHMMTsgYoXZozafebHOci3qJAsJWquT9O5pY6UEg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJqyTM-MeSwokRwtBPDSglPUg/photos/AXCi2Q7FkySirCFqo_Q_tBd0RbZwOc5vvGud67Xet9AcRhViVjMc5WvS5zv2049uGeJwZntGtKBONomyvCDQZC7jE-sZUuJ0ehoaAf1PbwtobIbJoWQrfYE4acODANp3wwIAop7AoQS49STYrRpFTx1eCcrUC3Ti523LOCJN",
+        widthPx: 4032,
+        heightPx: 2268,
+        authorAttributions: [
+          {
+            displayName: "Gene Gaffney",
+            uri: "//maps.google.com/maps/contrib/116609663123164895462",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXr0C54z1M1-DBGLX0lKp41tfI2geceR7P8glBnpnYmCkhH1l_n=s100-p-k-no-mo",
           },
         ],
       },
@@ -12444,80 +5864,294 @@ let places = [
     },
   },
   {
-    name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs",
-    id: "ChIJiUIlT3mTwokRrJDV5pZnTMs",
+    name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4",
+    id: "ChIJW-Hq2ByTwokRL4y1jAbdAw4",
     types: [
-      "pizza_restaurant",
-      "fast_food_restaurant",
+      "coffee_shop",
+      "breakfast_restaurant",
+      "cafe",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "store",
+      "establishment",
+    ],
+    formattedAddress: "684 White Plains Rd, Scarsdale, NY 10583, USA",
+    location: {
+      latitude: 40.969569,
+      longitude: -73.806473,
+    },
+    rating: 3.9,
+    websiteUri: "https://www.starbucks.com/store-locator/store/15039/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 5,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 20,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 5,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 20,
+            minute: 30,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 5:00 AM – 9:00 PM",
+        "Tuesday: 5:00 AM – 9:00 PM",
+        "Wednesday: 5:00 AM – 9:00 PM",
+        "Thursday: 5:00 AM – 9:00 PM",
+        "Friday: 5:00 AM – 9:00 PM",
+        "Saturday: 5:30 AM – 8:30 PM",
+        "Sunday: 5:30 AM – 8:30 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 281,
+    displayName: {
+      text: "Starbucks",
+      languageCode: "en",
+    },
+    primaryType: "coffee_shop",
+    shortFormattedAddress: "684 White Plains Rd, Scarsdale",
+    photos: [
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q421ihcR8zJkHhinzNz4jzxFzXqXaTbXhRnQ-Grgtl5mtOrnMz5FA_5qI4rDXHjcSSf8qxHPBYjEIUhZGNpy1ygdV2OdCTp3YbCtO7TokAKt28cYxfaoxzqEBhcmOD0LzuINAoROfUHU-_cCigwLtSJLSEx7mPWxdAb",
+        widthPx: 3072,
+        heightPx: 4080,
+        authorAttributions: [
+          {
+            displayName: "Noah Snavely",
+            uri: "//maps.google.com/maps/contrib/116632334637894969561",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWNXxpVXzabgNRTLciuRod3VZjFd1jsuG0gHIr3Y0H155Lo7bBSFQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q6vHntA5G9prPbUnzwC9CwM5UuN8v2HHg48vTDFkm2-RFHcKF_5TsRuCEkuMMcqzPw3jfyCb_FTAzVAnr1NTet31kEPl_A6XhtkrUbu8SWWBiHFH0xyB2xLRkQxrjdI8CFADJ-EakSTcqFW-kR45J_j61owyKlh1CLS",
+        widthPx: 1600,
+        heightPx: 900,
+        authorAttributions: [
+          {
+            displayName: "Starbucks",
+            uri: "//maps.google.com/maps/contrib/112227315764648850647",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVl6HbqOA9RErl6kKAPkN5-5C_aKneOPJh2ajMpYnj9k2Ze268=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q7eiwrKK61afwL35JZanAxLfMC9Xv4BEEjW47rqQjv_FrvtccGhgR_ABUeVQkCUHM8OLYuWGwrzcfWidYvPHVmXzBOyASLBsDzw7AgTc-zSmZOezttYhg62vO4mVfNJB22Q5v3zSlzTHh5TwKTTfLh67TuJEtwoh626",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Steven Buchbinder",
+            uri: "//maps.google.com/maps/contrib/113816940528446301194",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWSTQELSTwqJ-LFceSc_klY7VYQUZti16_bdUyxLppLwqC40L68=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q5t86DFzL7nbSjZBWtOs5VxodsfsEI2gbAJxm3h0TuuHN7OfjCQVsTUSwaXqD_-TEKZgmaVbjj82tjsEPrnKuXUZBivPtItCC9MUlX8NHp8Ufx62q6Kepq2ey74yOiESuFnA3jbmLG1nUeWkMR9tvJnOQpEdw3txHL3",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Alan Klayman",
+            uri: "//maps.google.com/maps/contrib/115483301734295559069",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUycxPWqIhB93lLVC_UWWWcZiKLTk08oAJ4iaVsSxGafW8GOGeI=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q5Riw4haI9XwwkiuB9hpRjvioROCH7TT9v-n0xv5vGMsAXpyfbG6470F-fN4fq-_nCRRas4iZplDHnWGsnqyXX3aJrFFxGU2bodG0pYPph94weYJI0HjoWyXmMjjKYlYYZOOS2UnoyVQ799mINGfr-fZkgkqVDSl_7E",
+        widthPx: 1600,
+        heightPx: 1200,
+        authorAttributions: [
+          {
+            displayName: "Jeff Daza",
+            uri: "//maps.google.com/maps/contrib/117302891142381239827",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX3P2WSf8cyWx4I0bv1_FiZSJUnPzZiwDT11TkyJuLXTOY6TEbGUw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q7MDx-FsrI_PGWUwUgasMMpOfQzfos0wUqlQQ33EXnXeLjjJQ8TmZzdh0A0GiiCji387VKWj90_-VqVyEuJrAZ0dldH_KAs0Gu_BAP38uIABsHrLEtm8qYOSvdP3LalcoHhkf_LuG-A2QLTaDIrIropazYWGt389pKq",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Jeff Daza",
+            uri: "//maps.google.com/maps/contrib/117302891142381239827",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX3P2WSf8cyWx4I0bv1_FiZSJUnPzZiwDT11TkyJuLXTOY6TEbGUw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q6V_n4IYPS6x5gfOGgr4xtI8l37Xj3FSenvcimfbVWRBQZeAZap6KsleFw2Re-PlFJQZ4r199j5Mok-M5uSb7VGnJULX3SHpfrpSGehpSSOss_gq_Gx3UQEK-xkn2R0HmUWs7cGe3Zty4Q6srWvnJIEewnHleZ_GheQ",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Alberto Modolo",
+            uri: "//maps.google.com/maps/contrib/102144263703558713743",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUD-XW36QIqwJTAEuNZoDiqoVV5j7ufPYbKH4SusGRtg3xGqcU=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q5TrOMfUmxVuWbXXDMgK0aD53UJBzbYRBat_iXqeIzmUUUxSXmAkkTbYj4_BYSqCT-ueY2fvTzqFqUaecyzE7s4LpzPTEH7MH26UlsDzkEnJSqScxDHZR8ief5isMGnC1-YZPhl5Ti3-IHkt6vDIqxrzhHWSMTwlxyA",
+        widthPx: 502,
+        heightPx: 546,
+        authorAttributions: [
+          {
+            displayName: "Starbucks",
+            uri: "//maps.google.com/maps/contrib/112227315764648850647",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVl6HbqOA9RErl6kKAPkN5-5C_aKneOPJh2ajMpYnj9k2Ze268=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q5ElBtFyi1pDLeSVE_aG3E17ToMH-Baqwvt9XLqflDw3I6kEU6edry2pnTkM9x0K49LJjkDoPdjEWRm_6RxeOL_j-Nc27z8qR8Y7RGyTSeEh5L87dqZMPW25Yd64VVgACLvdA8S8aP12zTMUbxraVDDx84SLu9m1xrh",
+        widthPx: 732,
+        heightPx: 664,
+        authorAttributions: [
+          {
+            displayName: "Starbucks",
+            uri: "//maps.google.com/maps/contrib/112227315764648850647",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVl6HbqOA9RErl6kKAPkN5-5C_aKneOPJh2ajMpYnj9k2Ze268=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJW-Hq2ByTwokRL4y1jAbdAw4/photos/AXCi2Q5Fntnzxofa1SzmbbPsAOwGPUq8eWGC3SEVfvDIOOYrgOreQQDrsRosncezNWgymjSVa4mdV24ArmZsN52_9bJN7mkOQB2mJ0XnTDzhbHo5IxOnyEd4_PHHjWoqsO8SHneeRW_8OVlIV4V4ZpAnGBfAdtQHT5Z8i2eQ",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Jeff Daza",
+            uri: "//maps.google.com/maps/contrib/117302891142381239827",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX3P2WSf8cyWx4I0bv1_FiZSJUnPzZiwDT11TkyJuLXTOY6TEbGUw=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4",
+    id: "ChIJ466AQ6aTwokRsYGb5D8a3s4",
+    types: [
+      "spanish_restaurant",
       "restaurant",
       "food",
       "point_of_interest",
       "establishment",
     ],
-    formattedAddress: "50 Pondfield Rd W, Yonkers, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "50",
-        shortText: "50",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Pondfield Road West",
-        shortText: "Pondfield Rd W",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Cedar Knolls",
-        shortText: "Cedar Knolls",
-        types: ["neighborhood", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Yonkers",
-        shortText: "Yonkers",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
+    formattedAddress: "106 Main St, Tuckahoe, NY 10707, USA",
     location: {
-      latitude: 40.9440573,
-      longitude: -73.8399147,
+      latitude: 40.9492877,
+      longitude: -73.8251183,
     },
-    rating: 4.4,
-    websiteUri: "http://ginosofbronxville.com/",
+    rating: 4.6,
+    websiteUri: "http://buleriatapas.com/",
     regularOpeningHours: {
-      openNow: true,
+      openNow: false,
       periods: [
         {
           open: {
             day: 0,
-            hour: 10,
+            hour: 16,
             minute: 0,
           },
           close: {
@@ -12529,55 +6163,55 @@ let places = [
         {
           open: {
             day: 1,
-            hour: 10,
+            hour: 16,
             minute: 0,
           },
           close: {
             day: 1,
-            hour: 21,
+            hour: 22,
             minute: 0,
           },
         },
         {
           open: {
             day: 2,
-            hour: 10,
+            hour: 16,
             minute: 0,
           },
           close: {
             day: 2,
-            hour: 21,
+            hour: 22,
             minute: 0,
           },
         },
         {
           open: {
             day: 3,
-            hour: 10,
+            hour: 16,
             minute: 0,
           },
           close: {
             day: 3,
-            hour: 21,
+            hour: 22,
             minute: 0,
           },
         },
         {
           open: {
             day: 4,
-            hour: 10,
+            hour: 16,
             minute: 0,
           },
           close: {
             day: 4,
-            hour: 21,
+            hour: 22,
             minute: 0,
           },
         },
         {
           open: {
             day: 5,
-            hour: 10,
+            hour: 16,
             minute: 0,
           },
           close: {
@@ -12589,7 +6223,7 @@ let places = [
         {
           open: {
             day: 6,
-            hour: 10,
+            hour: 16,
             minute: 0,
           },
           close: {
@@ -12600,983 +6234,103 @@ let places = [
         },
       ],
       weekdayDescriptions: [
-        "Monday: 10:00 AM – 9:00 PM",
-        "Tuesday: 10:00 AM – 9:00 PM",
-        "Wednesday: 10:00 AM – 9:00 PM",
-        "Thursday: 10:00 AM – 9:00 PM",
-        "Friday: 10:00 AM – 10:00 PM",
-        "Saturday: 10:00 AM – 10:00 PM",
-        "Sunday: 10:00 AM – 9:00 PM",
+        "Monday: 4:00 – 10:00 PM",
+        "Tuesday: 4:00 – 10:00 PM",
+        "Wednesday: 4:00 – 10:00 PM",
+        "Thursday: 4:00 – 10:00 PM",
+        "Friday: 4:00 – 10:00 PM",
+        "Saturday: 4:00 – 10:00 PM",
+        "Sunday: 4:00 – 9:00 PM",
       ],
     },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 272,
+    userRatingCount: 166,
     displayName: {
-      text: "Gino’s Pizza",
+      text: "Buleria Tapas & Wine Bar",
       languageCode: "en",
     },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 10,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 10,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 10,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 10,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 10,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 21,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 10,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 10,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 22,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 10:00 AM – 9:00 PM",
-        "Tuesday: 10:00 AM – 9:00 PM",
-        "Wednesday: 10:00 AM – 9:00 PM",
-        "Thursday: 10:00 AM – 9:00 PM",
-        "Friday: 10:00 AM – 10:00 PM",
-        "Saturday: 10:00 AM – 10:00 PM",
-        "Sunday: 10:00 AM – 9:00 PM",
-      ],
-    },
-    primaryType: "pizza_restaurant",
-    shortFormattedAddress: "50 Pondfield Rd W, Yonkers",
+    primaryType: "spanish_restaurant",
+    shortFormattedAddress: "106 Main St, Tuckahoe",
     photos: [
       {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_Cub6bP0F0iBymV8DgP6_ywFRgwFF8t9N-1OEXrifz4gp2i1-B7aFNiyl74F2mvwTxqWUrfknAzbAZ6UJgL3ukCyWT991bf9_DCWUiHjQoGpQHoyAu9nScYVI-CuwGFX2WahNhNpZTiajXEf1ScQE24SrGyrJosTZ8GF",
-        widthPx: 3912,
-        heightPx: 2202,
-        authorAttributions: [
-          {
-            displayName: "Gino’s Pizza",
-            uri: "//maps.google.com/maps/contrib/114453206485464619051",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWe5FiSPFl0G0AF6wwDDVqkyYpkrjXH6Tjv-jpK-RMtAPWmztbj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_CuUGkClZ9wPTyiG9EVtWuh5XUxz8LfvmjyiK4v6-HGqEGL-T_ejkcnPWn3xxzjw-Te3FhfB60Va3wYEQ_d0T-L7sPOqi3b9vOK6ya0ivXZ170WGdrXX63CQAyxlU_g7FX-_r0ZjDByvxPInk12D0byjK6gM7_3D67bA",
-        widthPx: 1804,
-        heightPx: 1015,
-        authorAttributions: [
-          {
-            displayName: "Gino’s Pizza",
-            uri: "//maps.google.com/maps/contrib/114453206485464619051",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWe5FiSPFl0G0AF6wwDDVqkyYpkrjXH6Tjv-jpK-RMtAPWmztbj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_CvKkclO3dCk7bq3Y1toHjCLlZ3xzCp3vqGwA1MzLuNJN6pFUYEso1B1mcx61oXSgr1doKPGwyrDfNwqmPqTJmOM-yefxhcoraMffd0se44JA81VzDydHo1hzIkngVPb-KJK4n7Of0A2aYo3DBLU7gLpWwDnANeIVGEO",
-        widthPx: 4192,
-        heightPx: 2359,
-        authorAttributions: [
-          {
-            displayName: "Gino’s Pizza",
-            uri: "//maps.google.com/maps/contrib/114453206485464619051",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWe5FiSPFl0G0AF6wwDDVqkyYpkrjXH6Tjv-jpK-RMtAPWmztbj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_CvYFe3Ubvwy31Twk85sP2PEpoVaJUKjbs0lI5T8k2UTOCk74vsvB4F5cUC5G2Bj7nDPLNO7l1p_xa3-ccp66hNH2-CY4UqFv5IFwjZVD-nwoNgs_4E2F1W2JHHmfEV9xBCZnM1LjCgvLeqS_plIv6gKUUnH-mks8gQb",
-        widthPx: 3000,
-        heightPx: 4000,
-        authorAttributions: [
-          {
-            displayName: "Drea Molina",
-            uri: "//maps.google.com/maps/contrib/116032394472967696454",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWpc6Hey4GN_4qUSeY-qv9AVW4-uRmskACkRY2e-y9R9qFCvamaCw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_CvwuHkgVPRbeqZ0ra9p0aUitWY41TIGGeWOfRh2Kw2cQYzNPD_TQaduydp2Hj81OqD3A778HcjqnF_iygu7-BDGmG5iqvtEiS41eHlhSLNea0vi51YiOv4arbOhnUHa-VuucHe7htf6rBZZm04TGKQuM3Hxkd2SDnE4",
-        widthPx: 3000,
-        heightPx: 4000,
-        authorAttributions: [
-          {
-            displayName: "Space Dandy",
-            uri: "//maps.google.com/maps/contrib/100563658592719678557",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUpsyu8vW2oXbHTCKLwcc5cH-Jvk0s4MCCm5AZoYHbnHtDP22X9=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_CumU3VyB9MgKmNlGgf87HZh3yz7lkdtxd7TEvDuYGQ45OGAf-K8mLKJmcJHU-WktaIQ4NGF8B3W4tcYA96zBMa2jw_mkKrj-qr8Z3lwPa3GVjyk_PK90JVGDZw4UP8JoNzIZgt1wz7Lk2Ispu8fMP5LC112ViDrgIR8",
-        widthPx: 743,
-        heightPx: 743,
-        authorAttributions: [
-          {
-            displayName: "Gino’s Pizza",
-            uri: "//maps.google.com/maps/contrib/114453206485464619051",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWe5FiSPFl0G0AF6wwDDVqkyYpkrjXH6Tjv-jpK-RMtAPWmztbj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_CvzU1WGxIbDjzI9kWDMjItIt6VUk3HL4Nb1BB1MTRSzEm8ViAoaPkP3O_dBgI6Of0_dzqWzoINYyC4djbAfgLma7PPuRHHwJ0Y6z1Mnu2TQ16HDGznmoIPbuO8hbt_HMtjaZun5fYJeuicHWXDHaYIOQwm9dIY6TJ1F",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Gino’s Pizza",
-            uri: "//maps.google.com/maps/contrib/114453206485464619051",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWe5FiSPFl0G0AF6wwDDVqkyYpkrjXH6Tjv-jpK-RMtAPWmztbj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_CsCSGOleH_uMbpkNRaqubjnlVFvZj65fFP9Ee0zbWD9cDKC8-D2R2QgOXW8RoU_mh4taLXmfj0Jzgl8bUltn1imXXcqBJJYeFI8ZHORJ2BfXt6LOt-UrwcNW9c8cU_6_1UpEO-tOnY7z6nNXbvCArNlZppSbaDoRweT",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Gino’s Pizza",
-            uri: "//maps.google.com/maps/contrib/114453206485464619051",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWe5FiSPFl0G0AF6wwDDVqkyYpkrjXH6Tjv-jpK-RMtAPWmztbj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_Cuof-6dc0M9waVzZTgNx1FVC4pxPBrp32TYcxUbD7_ngYzPxJopX9gLW-OO_1BGCqy9RWDq9h3fKz2xq2QJsvH50wHt7gQ2QgBn6GMg3GWaTzIWUWoWc6jWF8sTPiPeT5SSfHzrpmiOHd0nCajI9gSXX-NC6q0Fw4md",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Gino’s Pizza",
-            uri: "//maps.google.com/maps/contrib/114453206485464619051",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWe5FiSPFl0G0AF6wwDDVqkyYpkrjXH6Tjv-jpK-RMtAPWmztbj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJiUIlT3mTwokRrJDV5pZnTMs/photos/AelY_CsEM4SxTBMZ4g9xSYj3MeXi1GPxVqmefmt8-r9fLW2T4AVdqts_9SexpUwiiEzng9tME1LiVaMtaGheKJlrZq4-amjyL5PDvZUPEU3hwME3kbBLFVk7JPDbTK_SPmw0m4s58PkfSe5Z0NlikNIgZaRRpvTWEDTjvYqD",
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q4BPf-Nv_DBZAeD5wmz0aymMwMXuXzgftYWZ2YHEuce-_Qw5GRiA87QfChwr2lIqDU3z4mMKlufpHUeyMfH5zdzp2nf6iU9eTOaN_lwYI34OexbfaVcVNoGmV3RnpA14Zp-hrRr3XSitPYe4NMTC5FE0UoYChZhDvwe",
         widthPx: 4800,
-        heightPx: 3200,
+        heightPx: 3199,
         authorAttributions: [
           {
-            displayName: "Saeed Mirdavardoost",
-            uri: "//maps.google.com/maps/contrib/111634673481720470751",
+            displayName: "Buleria Tapas & Wine Bar",
+            uri: "//maps.google.com/maps/contrib/102650034883474966912",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUhLG9OyDxQe-jzU6pYaL-JvXCSKB6pu102G6abolklH71Aek45=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a/ACg8ocLiE1j9gcV4X86lv6RzDbx2-C1zcIgmbLI1KS9LT-BjNab6BA=s100-p-k-no-mo",
           },
         ],
       },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: true,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJ0aowaK6SwokRL-HTR_foN38",
-    id: "ChIJ0aowaK6SwokRL-HTR_foN38",
-    types: ["bar", "restaurant", "food", "point_of_interest", "establishment"],
-    formattedAddress: "60 Kraft Ave, Bronxville, NY 10708, USA",
-    addressComponents: [
       {
-        longText: "60",
-        shortText: "60",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Kraft Avenue",
-        shortText: "Kraft Ave",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "4110",
-        shortText: "4110",
-        types: ["postal_code_suffix"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.9392889,
-      longitude: -73.83451389999999,
-    },
-    rating: 4.4,
-    websiteUri: "http://jcfogartys.com/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 1,
-            hour: 1,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 2,
-            hour: 1,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 3,
-            hour: 1,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 4,
-            hour: 1,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 5,
-            hour: 1,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 1,
-            minute: 30,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 1,
-            minute: 30,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:00 AM – 1:30 AM",
-        "Tuesday: 11:00 AM – 1:30 AM",
-        "Wednesday: 11:00 AM – 1:30 AM",
-        "Thursday: 11:00 AM – 1:30 AM",
-        "Friday: 11:00 AM – 1:30 AM",
-        "Saturday: 11:00 AM – 1:30 AM",
-        "Sunday: 11:00 AM – 1:30 AM",
-      ],
-    },
-    priceLevel: "PRICE_LEVEL_MODERATE",
-    userRatingCount: 532,
-    displayName: {
-      text: "J C Fogarty's",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 1,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 23,
-            minute: 59,
-            truncated: true,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 0,
-            minute: 0,
-            truncated: true,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 2,
-            hour: 1,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 1,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 1,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 1,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 1,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 11,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 1,
-            minute: 30,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 11:00 AM – 1:30 AM",
-        "Tuesday: 11:00 AM – 1:30 AM",
-        "Wednesday: 11:00 AM – 1:30 AM",
-        "Thursday: 11:00 AM – 1:30 AM",
-        "Friday: 11:00 AM – 1:30 AM",
-        "Saturday: 11:00 AM – 1:30 AM",
-        "Sunday: 11:00 AM – 1:30 AM",
-      ],
-    },
-    currentSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-            close: {
-              day: 0,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 18,
-              },
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 2,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-            close: {
-              day: 3,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 14,
-              },
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-            close: {
-              day: 4,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 15,
-              },
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-            close: {
-              day: 5,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 16,
-              },
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-            close: {
-              day: 6,
-              hour: 22,
-              minute: 0,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 17,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 11:00 AM – 10:00 PM",
-          "Tuesday: 11:00 AM – 10:00 PM",
-          "Wednesday: 11:00 AM – 10:00 PM",
-          "Thursday: 11:00 AM – 10:00 PM",
-          "Friday: 11:00 AM – 10:00 PM",
-          "Saturday: 11:00 AM – 10:00 PM",
-          "Sunday: 11:00 AM – 10:00 PM",
-        ],
-        secondaryHoursType: "KITCHEN",
-      },
-    ],
-    regularSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 0,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 1,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 1,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 2,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 2,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 3,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 3,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 4,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 4,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 5,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 5,
-              hour: 22,
-              minute: 0,
-            },
-          },
-          {
-            open: {
-              day: 6,
-              hour: 11,
-              minute: 0,
-            },
-            close: {
-              day: 6,
-              hour: 22,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: 11:00 AM – 10:00 PM",
-          "Tuesday: 11:00 AM – 10:00 PM",
-          "Wednesday: 11:00 AM – 10:00 PM",
-          "Thursday: 11:00 AM – 10:00 PM",
-          "Friday: 11:00 AM – 10:00 PM",
-          "Saturday: 11:00 AM – 10:00 PM",
-          "Sunday: 11:00 AM – 10:00 PM",
-        ],
-        secondaryHoursType: "KITCHEN",
-      },
-    ],
-    primaryType: "restaurant",
-    shortFormattedAddress: "60 Kraft Ave, Bronxville",
-    photos: [
-      {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_CtZQOxc_cgVJ7pmmc5ZUaT7AW6kCGO9hM_vTP_3VsaWGtjO63cgEbrJY1gBXFZJl9BwgVGTYBS790TZQfKHReeGGY8klOl3aZX6LR8ZceYwinqtYJTdo06T0D-pS7LpaNAKYqqni-Eq54uKat0uNEmLwS_pyZNGxPXp",
-        widthPx: 2448,
-        heightPx: 3264,
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q4BDB57T4wXr2aXSE-PT8NbHzFNssv-LufwyNvgWnv-fLfMkACaHwwHPPYDWhGLgkSQxd8T885l0Hjhgu0kHEYNzM0BpKwAFkfvVMQS8_nC_lr3s_1QgujWRJ-1-DUflcNgoiM7mc9EXfxWRGid5Ltjr0mmnKaJZ9jX",
+        widthPx: 1080,
+        heightPx: 707,
         authorAttributions: [
           {
-            displayName: "Army G",
-            uri: "//maps.google.com/maps/contrib/110676994141518641408",
+            displayName: "Buleria Tapas & Wine Bar",
+            uri: "//maps.google.com/maps/contrib/102650034883474966912",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUdOw_Tl_j9d9nzOh8uX0sTbp-z0KQQK3UXZHYEw0fKCVezH3cqJg=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a/ACg8ocLiE1j9gcV4X86lv6RzDbx2-C1zcIgmbLI1KS9LT-BjNab6BA=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_CtOqixV-7ZOoK-BYH0ruTa8OZVQeqb9P7OwPMRjpsnbeVCjJUIWH5-wKmVvWoHJINDAxeaUdV6NB2pC-LMgWnEEDjx9sLB2mwgqnyvWZPHDiY9qlBLEPLu0mLZjq74fTaPH2L5ZN2C4u0LOTDxkK_qNnNtZKsRrVsa8",
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q4_fd95hA4wDDG27cdW4TlR7yDazIEIq1Y9xEpzO9UEF-yslU9Ybg7hcDjCFfUtJCJ_8pMLIy5MfrBwftni3RtTldaVUEJ0AHgYSWXF3DB1ayc6OZn-0qrxZ2YVCGdpnuh4dd2LhKLhAOGI-rHqpv2A43hwWvfkgN7v",
+        widthPx: 1080,
+        heightPx: 621,
+        authorAttributions: [
+          {
+            displayName: "Buleria Tapas & Wine Bar",
+            uri: "//maps.google.com/maps/contrib/102650034883474966912",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLiE1j9gcV4X86lv6RzDbx2-C1zcIgmbLI1KS9LT-BjNab6BA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q7MSkIap74MFb-6ZBEOl34KVnS3sXyIBRq2PXXQwPttgb4V5se-ZlqCp9NFzcusbJ4xeT-wvYf1QvYotlshwFgyqV9e-Jg20UVeXeC6o94Js5hk1hwVuLgHKDfQOeelAyIM68HL-yWckeKL5KDhkfwygS_JhIdk3OJq",
+        widthPx: 4000,
+        heightPx: 3000,
+        authorAttributions: [
+          {
+            displayName: "Oscar Velz",
+            uri: "//maps.google.com/maps/contrib/106235349916931311197",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXaAc7k12LH45oy5iXYz8cSQjRNSXrMt_C7wAOSbUh3aBive2v9eA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q70r-8zwaITCz-125xYRm4s9R-fECuTvj-TrQxwhXfNvnzNFJG88LJfrex0UMPllP78jO621W7wAs6qS89i0l1uusI8rqipuMsERka6PF94Z8IgrqoJzDET_r8J2aWgm0XTfO1ZxsQYdZudl3BdrxEbYcezgHvRiwJO",
+        widthPx: 4800,
+        heightPx: 3484,
+        authorAttributions: [
+          {
+            displayName: "Buleria Tapas & Wine Bar",
+            uri: "//maps.google.com/maps/contrib/102650034883474966912",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLiE1j9gcV4X86lv6RzDbx2-C1zcIgmbLI1KS9LT-BjNab6BA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q4x_ZysaB6RwIsXBDEYGDSfsWzTvbzwb-2pqgP8wBRBrVP5UydFncpJErH8xRGaB-_LHGjQWGJSxzx861795676ew-WYj8EEham64LaAnfICTSgf6GODYrS3J5dm4LEEU6jMBjk_G2z1eX3yqkQg1Ts2rSeIQTT7omW",
+        widthPx: 1079,
+        heightPx: 691,
+        authorAttributions: [
+          {
+            displayName: "Buleria Tapas & Wine Bar",
+            uri: "//maps.google.com/maps/contrib/102650034883474966912",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLiE1j9gcV4X86lv6RzDbx2-C1zcIgmbLI1KS9LT-BjNab6BA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q4Vkri0PCq_FVJFrlWwQLpJ62M4N2Vw0rz8lI1wihPspZ1CZgpb8h7N99Mnno4K6dLehyQ2qgtgyqRamhmg6Ri_ZK4RwuiWbBBCs41c97-DMkz306Ya489QIhDF94XZpHp9rQj1YSAw8Mq7nspQwjuoIQcRwAWSVctN",
         widthPx: 3072,
         heightPx: 4080,
         authorAttributions: [
@@ -13589,106 +6343,41 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_CtwIO4MvFKjlyLjojSiW16d_q2vKerKQGRpTVHInjKtQlM7iApTY0YKng5j9sSQH1akL9gO6DkNX6nnUaoNHZLX74zVOW9OVgtGxh1tLmN35WyFpB_ZqC7EB5QhiJhkMVncsDESQ9pfdj3SKInglcs3G5MINoLD9cuk",
-        widthPx: 2609,
-        heightPx: 3713,
-        authorAttributions: [
-          {
-            displayName: "James Hynes",
-            uri: "//maps.google.com/maps/contrib/106509990577861510655",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocIYBVe8_r8aKKBtOjvJixBnNIo0fdmyBouFtoRxf742iZv53Q=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_CuwYvhZMB6SMTZQlG___Oyeoun51DSMFwQU_qPSlxRqflttXci2upsxjx3tvf9gQofBzSHaWQFU5lTUNS-6qcckZZcr9H5gzArWtu72jNEemAjpcuFOxVOOsp9vCeK_J7U_AyT7wOc6ooWBVsNjZPQq4HYVzXBS8eD3",
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q6rvH3kWIzCdhONRyyqmnT3TYiZgUZyW0a_meHnYXi7CwGJhVtwArQyKyx_FAFJE_t7-g_urvpeImsoFLuZaVsQNz-cvjumKdd6-ORESwJRhc5o4mgSZILCx2gRpr3GNE6fvlKvUsxgWUJfQIgplfyTSAdWMGqQvjEx",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
           {
-            displayName: "Tony Shkurtaj",
-            uri: "//maps.google.com/maps/contrib/108063350920350331139",
+            displayName: "Edel Sanchez",
+            uri: "//maps.google.com/maps/contrib/109152514540488957270",
             photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocKJYmO6_MhFxanxxXBc4TWvIA-ARw4aBeCCmNyOSwrii-U0tQ=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjWTDgSgU1sosFEAoVr3mT_vzoVsq2iCOKpWvagga6W1nD0W3x5m=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_Cvr8JCAi4OfaOBnne4awaC3vP0_i4wotinFrFz2XVBqCAqEhgq-OaSUxlOU9AMb3zZIU-VczJsxMb4r-dXFCqKqj5dKIu2_B7F8f-qPDFhSk75EPm2_1asK6sfVmRW5MfOyZW1i66PuR6NWmnlmH3woI5aoZWyo62Kk",
-        widthPx: 4032,
-        heightPx: 2268,
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q5PXz6sQDnUg4UK-3IgbozmyPiZitRHPUOYuIZ4TUgKXLwqCj0-U0Iyd4geTRIMuj7skloYAs_WAeU1oiKZczU09wTCckYSPgdHjRU1SSXg6f2_a0n3ftOfRfI-slodivItNJNNrGNCk90q1x9QscOwHn9gIj29NFBm",
+        widthPx: 3000,
+        heightPx: 4000,
         authorAttributions: [
           {
-            displayName: "soxxpuppet",
-            uri: "//maps.google.com/maps/contrib/113279348064979698475",
+            displayName: "Madhu Philips",
+            uri: "//maps.google.com/maps/contrib/108580525282620779778",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXNBS72pjlA_sFxvr2t1B5nFUqkuqJaxKHKZ9K2hXrMOb_fiDpL=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjVaS_b5GqmRc8ZEoXmidQkHnUWl0X4g1iDf1XGr6vOv8XrJg73sIw=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_CsnfAdzIDE5Bu5r9oMdC57vL16omr2io_by4JxHLVCT5QbvBamxAjEmbspWom96QDRhsgL6Nn5MYe4N2eXHlBRzVGTveXoEqMc8TkS55EG-EAKKn7z5NNF3OIgJ7eQE5U-gRXIo5mQ40FxqXJb-DbRxV7pilc58T5-y",
-        widthPx: 1200,
-        heightPx: 1600,
-        authorAttributions: [
-          {
-            displayName: "Genesis Balloons & Decorations",
-            uri: "//maps.google.com/maps/contrib/107570140054536850403",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUueQRQbJWslvQq02d9sXGy44ZJqTRLlRHn_myvJYUDOUEwLB8=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_Cu-CpBaJHOJXWBNqog2tbSC4xoZsYbBZOiCfqLEWuSHLsV6IwJRCcTdTa69HwJycT07MYSolESlX2VSFR75MCBtjqXF3ars9aBeE8fq0PFx3vZQRB5_N9LpcqEaPYrljDzYl2Vw7e4aitMykGukgrY7aEFN4wWcv6j9",
+        name: "places/ChIJ466AQ6aTwokRsYGb5D8a3s4/photos/AXCi2Q6z-CKPSL7NhZm9n-GMne-qQ2OTliDU1LJDJplyaFbjstEFy-Drv27-v_ziIMXQZcjIcDGoGR8EluHO4y6UfJUc2Bx-xDc1lxHtqu_XRYVCuEEPlJ4Kwk36hAETLgFbmIIYpDzP2uA4jcyqFwypdzDMV8_oWYVOq2zN",
         widthPx: 2268,
-        heightPx: 4032,
+        heightPx: 2750,
         authorAttributions: [
           {
-            displayName: "Illey Graham",
-            uri: "//maps.google.com/maps/contrib/111127826653062456923",
+            displayName: "Vin B",
+            uri: "//maps.google.com/maps/contrib/107091544165091660750",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjU6SlAeXeUW2CRYU8hrcu-4roDUGWDAZCYcro1LGEMjRvfBszAb=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_CtWkcGOgKJIENaUYHcyhwfGc_GQ2BWkObuTHX4_M2_ykAdgQAuTs1k0dRSo0ERrX3EnV1iXXtpk9j1bwbmsyxbi4fCbmtcgibJwsGtvBk1dIJfqydlSHiNLaxUNLtn-U-mNeMnsLK8aTY1kVzlX5RJQEkOop8X0oNWi",
-        widthPx: 4048,
-        heightPx: 3036,
-        authorAttributions: [
-          {
-            displayName: "Jeanne Marie Hoffman",
-            uri: "//maps.google.com/maps/contrib/109375371905095030322",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXhTpfWbNQtyA7jznRtxqquI4VlpxC6pL0Is7rmDezwymXRSCEj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_CvmYCyZbbi76aKkal0ygbCEYStoL-NVwxfy8jIFNGB77FWaEQonL8HDFRNSzIyfAvtK-JAOclBewJ4TOJWxIa8CUGQQZc3omV84knWDfEG0hu7XhJwsbPkrBBxidk_ILf3tRCBJDYPu7VYFrlDIfHmFNfC77saF4QQd",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Jeanne Marie Hoffman",
-            uri: "//maps.google.com/maps/contrib/109375371905095030322",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXhTpfWbNQtyA7jznRtxqquI4VlpxC6pL0Is7rmDezwymXRSCEj=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJ0aowaK6SwokRL-HTR_foN38/photos/AelY_CvPoSLB2ygsHl9p6SOyFr0rqKrlRPbRpKfrPurbvvRWrwNPYG5ZEH1b6E04NP7Pn-JFjoXqi2eWZ1OdwtDMgENQb_VfAq-TOAX_BRDP0luYVvYPreXg1g4bPWDtnAR6ql3zqxQ9eJmoMI_RFBeTOi9kVBZgOm5Dfifv",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "dalrick dandy",
-            uri: "//maps.google.com/maps/contrib/117017372155994499398",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXLHHkutoIvpYAeMkUAWhmqAxXSv-9RtqSTnCz4tC_f6ABEVeQ=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjUcUkqOhqM4R6vE2EPe-rASm820Xkg3-phCl1htg9qltF3kZl2t9Q=s100-p-k-no-mo",
           },
         ],
       },
@@ -13701,708 +6390,203 @@ let places = [
     },
   },
   {
-    name: "places/ChIJH-lolKzywokRCvohk-BdCT0",
-    id: "ChIJH-lolKzywokRCvohk-BdCT0",
-    types: [
-      "coffee_shop",
-      "breakfast_restaurant",
-      "fast_food_restaurant",
-      "bakery",
-      "meal_takeaway",
-      "cafe",
-      "restaurant",
-      "food",
-      "point_of_interest",
-      "store",
-      "establishment",
-    ],
-    formattedAddress: "850 Bronx River Rd, Yonkers, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "850",
-        shortText: "850",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Bronx River Road",
-        shortText: "Bronx River Rd",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Southeast Yonkers",
-        shortText: "Southeast Yonkers",
-        types: ["neighborhood", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Yonkers",
-        shortText: "Yonkers",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
+    name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M",
+    id: "ChIJVV2WwceSwokR4t52AJ6MZ2M",
+    types: ["bar", "restaurant", "food", "point_of_interest", "establishment"],
+    formattedAddress: "90 Yonkers Ave, Tuckahoe, NY 10707, USA",
     location: {
-      latitude: 40.9280231,
-      longitude: -73.841957499999992,
+      latitude: 40.951326400000006,
+      longitude: -73.8289191,
     },
-    rating: 3.8,
-    websiteUri:
-      "https://locations.dunkindonuts.com/en/ny/yonkers/850-bronx-river-rd/332995?utm_source=google&utm_medium=local&utm_campaign=localmaps&utm_content=332995&y_source=1_MTIxMDc0NTktNzE1LWxvY2F0aW9uLndlYnNpdGU%3D",
+    rating: 4.5,
+    websiteUri: "http://tuckedaway90.com/",
     regularOpeningHours: {
       openNow: true,
       periods: [
         {
           open: {
             day: 0,
-            hour: 0,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 1,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 2,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 23,
             minute: 0,
           },
         },
       ],
       weekdayDescriptions: [
-        "Monday: Open 24 hours",
-        "Tuesday: Open 24 hours",
-        "Wednesday: Open 24 hours",
-        "Thursday: Open 24 hours",
-        "Friday: Open 24 hours",
-        "Saturday: Open 24 hours",
-        "Sunday: Open 24 hours",
+        "Monday: 11:30 AM – 10:00 PM",
+        "Tuesday: 11:30 AM – 10:00 PM",
+        "Wednesday: 11:30 AM – 10:00 PM",
+        "Thursday: 11:30 AM – 10:00 PM",
+        "Friday: 11:30 AM – 11:00 PM",
+        "Saturday: 11:30 AM – 11:00 PM",
+        "Sunday: 11:30 AM – 10:00 PM",
       ],
     },
     priceLevel: "PRICE_LEVEL_INEXPENSIVE",
-    userRatingCount: 403,
+    userRatingCount: 400,
     displayName: {
-      text: "Dunkin'",
+      text: "Tuck'd Away Bar and Grill",
       languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 2,
-            hour: 0,
-            minute: 0,
-            truncated: true,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 23,
-            minute: 59,
-            truncated: true,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: Open 24 hours",
-        "Tuesday: Open 24 hours",
-        "Wednesday: Open 24 hours",
-        "Thursday: Open 24 hours",
-        "Friday: Open 24 hours",
-        "Saturday: Open 24 hours",
-        "Sunday: Open 24 hours",
-      ],
-    },
-    currentSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 2,
-              hour: 0,
-              minute: 0,
-              truncated: true,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 13,
-              },
-            },
-            close: {
-              day: 1,
-              hour: 23,
-              minute: 59,
-              truncated: true,
-              date: {
-                year: 2024,
-                month: 8,
-                day: 19,
-              },
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Open 24 hours",
-          "Tuesday: Open 24 hours",
-          "Wednesday: Open 24 hours",
-          "Thursday: Open 24 hours",
-          "Friday: Open 24 hours",
-          "Saturday: Open 24 hours",
-          "Sunday: Open 24 hours",
-        ],
-        secondaryHoursType: "DELIVERY",
-      },
-    ],
-    regularSecondaryOpeningHours: [
-      {
-        openNow: true,
-        periods: [
-          {
-            open: {
-              day: 0,
-              hour: 0,
-              minute: 0,
-            },
-          },
-        ],
-        weekdayDescriptions: [
-          "Monday: Open 24 hours",
-          "Tuesday: Open 24 hours",
-          "Wednesday: Open 24 hours",
-          "Thursday: Open 24 hours",
-          "Friday: Open 24 hours",
-          "Saturday: Open 24 hours",
-          "Sunday: Open 24 hours",
-        ],
-        secondaryHoursType: "DELIVERY",
-      },
-    ],
-    primaryType: "coffee_shop",
-    shortFormattedAddress: "850 Bronx River Rd, Yonkers",
-    photos: [
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CsZk_CHgVgkQ-Lil65j4rfpMdUQRPeKkehZVvj6Rrwxzfk8pNlB4-V6rqgBzdq6HUG22IGbNy9IbEbU131TGpFohdMtpqt-aNpcYhqT4s6o--bhrv6xxaJLKIcL7zVM034z6PbWPnWg52L0Nv8b9Ssjx7h4_iopAhUo",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Ohona Yousha",
-            uri: "//maps.google.com/maps/contrib/115556299338220815481",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWsEWb6XWv12TZL3s-eHsp-wb1oquXjsS4DmnimUiI5lOd8ajos=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CuzLIfA2EyxUh2PCmWpVb5bXvQPUPWxuRY26sxVoaCooXYIGAcgwPEzzzqIyJOasK_LSgP2k5MGXiDzoJetynEO4U8ZzSiVxSYimKDychGUzJNqPrivi1QLOPUQWyNmJfqyYq_p7l5WkvOFrOq9CUwp4evqN9SDektI",
-        widthPx: 480,
-        heightPx: 270,
-        authorAttributions: [
-          {
-            displayName: "Dunkin'",
-            uri: "//maps.google.com/maps/contrib/105877729310124761177",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXxfRhVIGq6GVpkgODA1hU3ua-UwGjPItvXz_06K7ER-Q3JdhuE=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CsrI4Nyihdrv5ThV5-e_HwVQCACyBAaKXn2GiGE4gBD6PkV_43jhT8POuGXsJFTsnGN3GYSeZO4lz27EUv0X9DTh1_Tt6xhc6UTX4XXHxHZlm1n6-byeAev-6Ayw_u7z25hVgEVTZc1Y3yj5S8bxqc96HCEKO7eOgBR",
-        widthPx: 862,
-        heightPx: 1009,
-        authorAttributions: [
-          {
-            displayName: "Dunkin'",
-            uri: "//maps.google.com/maps/contrib/105877729310124761177",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXxfRhVIGq6GVpkgODA1hU3ua-UwGjPItvXz_06K7ER-Q3JdhuE=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CtCX1gW-B7V-9cIpQ1xLc6XQLymJn_FMdqbBDsvZxBX8r2lAqNtZDBJ-bEU_iELS_e_VGK0NWsH1BZFKOv_WNJGy6aKkfO6gDXAUFf7TMYsEuEHPAztQKNShdac6GA-uq4nOTNp3jF89JshbP2ZRSE7b0Ae_hb9Xx1w",
-        widthPx: 866,
-        heightPx: 793,
-        authorAttributions: [
-          {
-            displayName: "Dunkin'",
-            uri: "//maps.google.com/maps/contrib/105877729310124761177",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXxfRhVIGq6GVpkgODA1hU3ua-UwGjPItvXz_06K7ER-Q3JdhuE=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_Cvb4EngRPbKh1O-pfYlhyNzEudicb1lCP5ssejHkQ7vAmtBCPa0E2q1gQuYwYTDQ17yQlhJT1SotHfG_rqmKN9X1qLcnebkrcoFk7EVLmBHUMdL53stAT5w3WFq4nrK5lC4LsbjoFViXASSf9QrdNBImDRaLjTrgWU0",
-        widthPx: 620,
-        heightPx: 506,
-        authorAttributions: [
-          {
-            displayName: "Dunkin'",
-            uri: "//maps.google.com/maps/contrib/105877729310124761177",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXxfRhVIGq6GVpkgODA1hU3ua-UwGjPItvXz_06K7ER-Q3JdhuE=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CtgBhyd0zXKrqJsreG45e1zOXUpwl9dibEnq_5p35ox0VjKLCtiy1iTiv_IgXpy5H4V6J2sDomLk1_LYi5UA4sO6heML0egVdiuV1xxy-bMOCdPWOMNgSMOFvPxudqT86TBHgQzenerie3Tw8CC03dEbOyh8bt9V7AL",
-        widthPx: 3264,
-        heightPx: 1836,
-        authorAttributions: [
-          {
-            displayName: "Ron Law",
-            uri: "//maps.google.com/maps/contrib/117179274809457721299",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUF9HtU2WArG714Ao07szDa_0yDn-yv7KnwiJXTK9cCCIUzXR2P5A=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CsN_d8Epd1A7VmTJz9Ea8_bgUAm8QPE7vLuWj7dAJlKKWv1ewLP77OdpzMIsZDQ5QEMOM1KU5_5lHieE9JavbvaxP-WtLJdQpybTICXL1kt7Vwx1BMKsi7yzFbsSzcQyMk0BmGPS5b6UcPmh8TnJIiSazExtJh3WfNS",
-        widthPx: 4032,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Patrick travers",
-            uri: "//maps.google.com/maps/contrib/118189597313407092250",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLoDh1Mib0vNxw1ceGDnFr88nY49oykuXk_aV1akNUewgQLsA=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CsiEiL5SAmSePzfHGjin8HEXoHCdYt9R0SuyWA-M3zKGzXCEWrb8qKjV5WvAlbhRY9FviuLC-s7252-vjrRzXfIS8EeGxuh1IE8nFxh7UAHnMHZLjdkrYPDM8qXuQTbTabjZCTsYNZRXXTBpftQsVoHKLQNF_suJcGC",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Hari Nair",
-            uri: "//maps.google.com/maps/contrib/114874217721418603491",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjWUaoPOOdPjFlpF-V2fzRXdR60OU4SAQTPFQj7038jmVVBAqeao5w=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CuwOxTnolUob5OGPvXUXt-Ld9HyDb8RpfnrufClDHPHKo_4gbbdQoPbV72qzY62YnPA_g5cwH3BwZexf0p1fbdboJ-_4YSmjuvAu7KSFeyh9VMIzPi25JzWeIcL1eVxr1ATSvhJvByTPw076l4N5dvkb8BzgMmQfasD",
-        widthPx: 620,
-        heightPx: 506,
-        authorAttributions: [
-          {
-            displayName: "Dunkin'",
-            uri: "//maps.google.com/maps/contrib/105877729310124761177",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXxfRhVIGq6GVpkgODA1hU3ua-UwGjPItvXz_06K7ER-Q3JdhuE=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJH-lolKzywokRCvohk-BdCT0/photos/AelY_CtprhgpnVUkFuimDpz6UOSEg-Rr_dqmiRoGNKgnzD7vUQXye03OvNY6TsVV1KgzydpvG_20za_0JEoAqk1_nrROu2tm2chkSaoXQy-SRAJAwmEB-egRjEuZmceQQbQuepAivx3HDZd78RFreGGfq2Xr4MhR9zvETyoN",
-        widthPx: 620,
-        heightPx: 506,
-        authorAttributions: [
-          {
-            displayName: "Dunkin'",
-            uri: "//maps.google.com/maps/contrib/105877729310124761177",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXxfRhVIGq6GVpkgODA1hU3ua-UwGjPItvXz_06K7ER-Q3JdhuE=s100-p-k-no-mo",
-          },
-        ],
-      },
-    ],
-    accessibilityOptions: {
-      wheelchairAccessibleParking: true,
-      wheelchairAccessibleEntrance: true,
-      wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
-    },
-  },
-  {
-    name: "places/ChIJZReJaq6SwokRbZGfHBROUZU",
-    id: "ChIJZReJaq6SwokRbZGfHBROUZU",
-    types: [
-      "american_restaurant",
-      "bar",
-      "restaurant",
-      "food",
-      "point_of_interest",
-      "establishment",
-    ],
-    formattedAddress: "18-20 Park Pl, Bronxville, NY 10708, USA",
-    addressComponents: [
-      {
-        longText: "18-20",
-        shortText: "18-20",
-        types: ["street_number"],
-        languageCode: "en-US",
-      },
-      {
-        longText: "Park Place",
-        shortText: "Park Pl",
-        types: ["route"],
-        languageCode: "en",
-      },
-      {
-        longText: "Bronxville",
-        shortText: "Bronxville",
-        types: ["locality", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Eastchester",
-        shortText: "Eastchester",
-        types: ["administrative_area_level_3", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "Westchester County",
-        shortText: "Westchester County",
-        types: ["administrative_area_level_2", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "New York",
-        shortText: "NY",
-        types: ["administrative_area_level_1", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "United States",
-        shortText: "US",
-        types: ["country", "political"],
-        languageCode: "en",
-      },
-      {
-        longText: "10708",
-        shortText: "10708",
-        types: ["postal_code"],
-        languageCode: "en-US",
-      },
-    ],
-    location: {
-      latitude: 40.939835699999996,
-      longitude: -73.834142500000013,
-    },
-    rating: 4.2,
-    websiteUri: "http://www.petesofbronxville.com/",
-    regularOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 1,
-            hour: 0,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 2,
-            hour: 0,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 3,
-            hour: 0,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 4,
-            hour: 0,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 5,
-            hour: 0,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 6,
-            hour: 1,
-            minute: 0,
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-          },
-          close: {
-            day: 0,
-            hour: 4,
-            minute: 0,
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 12:00 PM – 12:00 AM",
-        "Tuesday: 12:00 PM – 12:00 AM",
-        "Wednesday: 12:00 PM – 12:00 AM",
-        "Thursday: 12:00 PM – 12:00 AM",
-        "Friday: 12:00 PM – 1:00 AM",
-        "Saturday: 12:00 PM – 4:00 AM",
-        "Sunday: 12:00 PM – 12:00 AM",
-      ],
-    },
-    userRatingCount: 424,
-    displayName: {
-      text: "Pete's Park Place Tavern",
-      languageCode: "en",
-    },
-    currentOpeningHours: {
-      openNow: true,
-      periods: [
-        {
-          open: {
-            day: 0,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 0,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 1,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-          close: {
-            day: 1,
-            hour: 23,
-            minute: 59,
-            truncated: true,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 19,
-            },
-          },
-        },
-        {
-          open: {
-            day: 2,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 13,
-            },
-          },
-          close: {
-            day: 3,
-            hour: 0,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-        },
-        {
-          open: {
-            day: 3,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 14,
-            },
-          },
-          close: {
-            day: 4,
-            hour: 0,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-        },
-        {
-          open: {
-            day: 4,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 15,
-            },
-          },
-          close: {
-            day: 5,
-            hour: 0,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-        },
-        {
-          open: {
-            day: 5,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 16,
-            },
-          },
-          close: {
-            day: 6,
-            hour: 1,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-        },
-        {
-          open: {
-            day: 6,
-            hour: 12,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 17,
-            },
-          },
-          close: {
-            day: 0,
-            hour: 4,
-            minute: 0,
-            date: {
-              year: 2024,
-              month: 8,
-              day: 18,
-            },
-          },
-        },
-      ],
-      weekdayDescriptions: [
-        "Monday: 12:00 PM – 12:00 AM",
-        "Tuesday: 12:00 PM – 12:00 AM",
-        "Wednesday: 12:00 PM – 12:00 AM",
-        "Thursday: 12:00 PM – 12:00 AM",
-        "Friday: 12:00 PM – 1:00 AM",
-        "Saturday: 12:00 PM – 4:00 AM",
-        "Sunday: 12:00 PM – 12:00 AM",
-      ],
     },
     primaryType: "bar",
-    shortFormattedAddress: "18-20 Park Pl, Bronxville",
+    shortFormattedAddress: "90 Yonkers Ave, Tuckahoe",
     photos: [
       {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_CuXI4KSq_2rleqHAjkF_3LaZH1UmgoTsGvjKpk_qB18penTdGiNvGxKbCcMRQG8D4d3uxWm96CaYtNiqukditHM9Dhm0tkanwCCSAr_Ihs9lq74KrCWE1MEv3Jmv7Ox32pmv82LsaFm3UvccZSbtIBMUnnjsBmZ3vwr",
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q4XM2c90qIiesaxxH7Prx2TC_n4UGdzoqS8W4cuXUcYV7WDBLIBk-ryiGlOCUHHMCbDyLNm_PJbA4rXAGVLbgib58K4I1HwLXwDyCFX82pcVJ3M3idkvcZTXbqMjep13uuhhxDCeRP3o27spToEIlZALk0hE7l7GXwK",
         widthPx: 3024,
         heightPx: 4032,
         authorAttributions: [
           {
-            displayName: "Christine Devoy",
-            uri: "//maps.google.com/maps/contrib/107286623939460137515",
+            displayName: "Tuck'd Away Bar and Grill",
+            uri: "//maps.google.com/maps/contrib/117004170607535197001",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVbvF2ymxT1o_WMKE7OoX-0JMUEBoliTJnZIGF0duzkFKs8uUKB=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjXKcrSr-GpQTBoL60I18yw2ORb276RxqEzgtGfj_F9wkhrAuYU=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_CucqhFq1ToSZ-A-_6B1X9PiA6jTLz9Cr2c5TM6fCocsa-R2m8E7Xn2OfszmdFPGavQJyXQqKVj9XN6gG6sHUjuzSUb_tPIleSBopZTXZbxekaB-7mAJ7WETXab6yav8B3hGT1F9vCq_Ii4MLYWmiiWLIYVIdBj5bYm2",
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q6cUMjnz9laSjwWut1MX1AyC3Xswu6tkk0zRFOzZs1QXFgABSXZYiKPXyNR-MBPYmrPRNskawGk_pxI92qelkw9o1NmATBQFS8dujfknOYuRY5pzmnjBcdw2estqPsy-FcnxVqiUu2MZwLPVi6Ewow-h2dBTsmtDdFq",
+        widthPx: 453,
+        heightPx: 302,
+        authorAttributions: [
+          {
+            displayName: "Tuck'd Away Bar and Grill",
+            uri: "//maps.google.com/maps/contrib/117004170607535197001",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXKcrSr-GpQTBoL60I18yw2ORb276RxqEzgtGfj_F9wkhrAuYU=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q4ZAFGn7Wcc5DAUuYsztj6UXwzdWdYrdl6CGVpsAQcVwoC3haCAemzC0sUVtafXoSqIIH3nDGQKHDAt7yfdP3cylxcf08oMyzyR3t313yxq8kRrtVQdS4QoPT8-0Ta_XqHsECNYyW8nyn9CFvdH9EdIGYtXo3gCOCdO",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Gerard Visser",
+            uri: "//maps.google.com/maps/contrib/117835854773569504294",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVIo-uGyIVfdSS9OnqrsUw79rnAplzsVIMjxz1BCLhstSO480Fjnw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q4EDFMuuuHzMCaZlqm48LJABbxz6SsDNnKjDb0mMg8xgHm7gbaG--YrjbI8nxF1X8Ys7Z-LS8utebYyrf_iXc9OEVCMLH63rBA7J4vAiUH4h0mO1r09aaV7IFBUPkVzqNXfdMDsvplDNh-xFD_cgDKAzB_A4IXu8Ggd",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Tuck'd Away Bar and Grill",
+            uri: "//maps.google.com/maps/contrib/117004170607535197001",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXKcrSr-GpQTBoL60I18yw2ORb276RxqEzgtGfj_F9wkhrAuYU=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q44nqZcjYcFjJ2pCHN8lxIlEYDnkwplHZ66uIrejA-BQquWg1FLZ-AtuB5TkLunS-HA8FC5saRkq0CQZ22wiAPz305H17RlhVvwHYQaYMGdc0qk67xo7Lr8JL4Or3XWiUM7XrDaQkZwkVypCgBYKbfdwgzY8p5jGeAW",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Oscar Filipe",
+            uri: "//maps.google.com/maps/contrib/112538865213364934261",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWvJrV92PMP5FoNS3BXDFmNfcTarboSZuNlBFCzAPRGC9K53ya8jw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q4qReMx_teGQ59S__WhDyAdCtjQTtvEN7IpkOsFlNQe_LStfUmi9pOCN5WDXAYHUPs3I3dcodY_Oe0O66egWvTy1n7X1AE_wDop4V4yIdLUC0DxQ3kJLcXaMHp9E1QKfQQhIohhCNUe25Zp7sacZLcimphqG-m5pAZm",
+        widthPx: 454,
+        heightPx: 303,
+        authorAttributions: [
+          {
+            displayName: "Tuck'd Away Bar and Grill",
+            uri: "//maps.google.com/maps/contrib/117004170607535197001",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXKcrSr-GpQTBoL60I18yw2ORb276RxqEzgtGfj_F9wkhrAuYU=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q7vRCyz1YbIlGakK5MFGQ6Et8oqABs_uzCyuOMayB4SR3iNZbce93m5FwQEv3bw6Z9P8vg5xCE4vZu_GhAa3epqtNyjkl-q4H1lEri3XhygyzsLOL0MN01ZYl3he09aBSfN-ciAAJQJu8R-2YJSv5Y4_shnGiTAvOyw",
         widthPx: 4000,
         heightPx: 3000,
         authorAttributions: [
@@ -14415,156 +6599,95 @@ let places = [
         ],
       },
       {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_CvOvRK7Tif84JC2eAwPUc9iESEw_fvjrXIggkWAsP1GZpc2ayqOSJMji5YG2to1mUzoV2N9YSzZWdEvCP9srLqc8e9nM1AoHWI0fVcvbUDtzYrKlnFxX4qwMT1-d3pW3LAMMM-ekhIyz4q1UZtoZIHbbCfJnigT_KTD",
-        widthPx: 3615,
-        heightPx: 2643,
-        authorAttributions: [
-          {
-            displayName: "Space Dandy",
-            uri: "//maps.google.com/maps/contrib/100563658592719678557",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUpsyu8vW2oXbHTCKLwcc5cH-Jvk0s4MCCm5AZoYHbnHtDP22X9=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_Ct8Z6GCm0NO7fT5a3J-F2gcE5NZ9Kbm5xhXImsC5xmnc7nswyHx3PTkrFZfO5vubNTVEej3gRWNAZ5fq5_4psW1jRsaAMF_eXqjTnY7mFkMVO3Ai1wKx5HLSCXx5dfQbRoHzo4AKWDEFMxzdcCAD6LrRFUaEF3_3-DO",
-        widthPx: 3024,
-        heightPx: 3024,
-        authorAttributions: [
-          {
-            displayName: "Amelina Castillo",
-            uri: "//maps.google.com/maps/contrib/117114678707981705303",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocLPNfmtVCIrjD29Whvap-nF9C2HT6yjPNe2ihawcnvuhOXhuQ=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_Cs55TVy5dLj-XeebdpjTmuskkoq1ml7jx-uUkBnVmxZ8hhdeKVpLp2r12c1Rz8yTqw42g7jYHjjsOKbF-A8F59FVHAjB1Dnrx0n4EHWtlmzIZRzSl_w-Wd_CXxOvaSS5_fkRyNSkqmD6s5V4l7A84eW4Ninpk8lMLFp",
-        widthPx: 3078,
-        heightPx: 1866,
-        authorAttributions: [
-          {
-            displayName: "regina osullivan",
-            uri: "//maps.google.com/maps/contrib/100228429572626059363",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjXJOqDn0kKdrqEmX1wklSCTCG-9TUVwHhd1gJiOgdl8BL_7SV0Ozg=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_Cub3uYC9PXfV4d2UHNrVua2Kd9atSxg7rfHqNzGQiktVdPLox2qouPAGYteVl2KSgkC-Lrt1rmMJWszPNNQ68u8mHvQIomOhAJLmNO87nIqpWG6jPay_-RbNF2lJMtnJGzqgsAoWeM142c7b1FI5m_cspxGj667RVmV",
-        widthPx: 4000,
-        heightPx: 2252,
-        authorAttributions: [
-          {
-            displayName: "cory hartman",
-            uri: "//maps.google.com/maps/contrib/117113678754225878848",
-            photoUri:
-              "//lh3.googleusercontent.com/a/ACg8ocJ2ZH3sAUp_WC4WVZdxYOSiTuKSHGBrqyp9xACvH7R8dMOtbw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_Cuw2nnXZNi9SJWNyZlR-_KDP7CkxtJWRy2fhFhQc31a2VivgA6OvfJ0B2BQYaiF5i9uaKjCNlxKNfEYS20Qud6So8-k1dz18CU1cIle82DbsrVljjQ6I6ijYmkSPdc2itx3SrO8KmITtEGB4B9xTg-yUzlauRi3U4Ty",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "William Freer",
-            uri: "//maps.google.com/maps/contrib/113793213493976468070",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUmXe48e6SfEQXbQbzj6fg4nxnqS9omsRz-rOSOGkd_NfWDsRGOuw=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_CtO9bk3Utu1OGUNlWEeK5gxjF6PSCe9gSHkMIbuRBCqf8eC7ZXIwsmEsaRb8tNkawPSbjBqkFV5cKUgKebLASpyuc4blO3MlQqNwFel2UzuTtqOJmVVEJYpNF0IyFlPiRVVwEd5eUuqj5wiLL3zDwfPG5AhE9uqKbdk",
-        widthPx: 3024,
-        heightPx: 4032,
-        authorAttributions: [
-          {
-            displayName: "Christine Devoy",
-            uri: "//maps.google.com/maps/contrib/107286623939460137515",
-            photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjVbvF2ymxT1o_WMKE7OoX-0JMUEBoliTJnZIGF0duzkFKs8uUKB=s100-p-k-no-mo",
-          },
-        ],
-      },
-      {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_CsiXYJgN41FwL8zHLgFEil6noZunq8LE5793pwff8ex6zdiGGI7_Fd-ONY7qulhfK0H37pNFOJV-j-LpYANLIfV9FU_zYd835UvSoVcFoKO4-4bN40u2u6ZXKIiUh-13tBs8-N7uP2QnrzopwT5MHpDAgkvwpNl6bTf",
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q4fksC630lxTZBTBjCXiSaCoPDuLa9qrp0PrleyUvw079bDk5uUGGEkOGzFv8znmRjNFj2IJNxQH6v0GmelBsmHrlRWaaylP5NoZImMRI1NnNJdEYXxoArxalKyY1TU5gmRMbDM9Yanoi5f1sjt4zauUcJw_1cn-HT2",
         widthPx: 3264,
-        heightPx: 2448,
+        heightPx: 1836,
         authorAttributions: [
           {
-            displayName: "Army G",
-            uri: "//maps.google.com/maps/contrib/110676994141518641408",
+            displayName: "Joe Munoz- adspinmedia",
+            uri: "//maps.google.com/maps/contrib/110498938233204946619",
             photoUri:
-              "//lh3.googleusercontent.com/a-/ALV-UjUdOw_Tl_j9d9nzOh8uX0sTbp-z0KQQK3UXZHYEw0fKCVezH3cqJg=s100-p-k-no-mo",
+              "//lh3.googleusercontent.com/a-/ALV-UjUGNQ11Xd-78cLHEjYZFi_KfeXxWMmQ6Mmv17PNVVJnaEAOn9YTTg=s100-p-k-no-mo",
           },
         ],
       },
       {
-        name: "places/ChIJZReJaq6SwokRbZGfHBROUZU/photos/AelY_CvMxDc5wsIzjxBZtwpC_WGeaEuJZoWfqYFmLVwN_0S6pZ7OtfylQI_IycNQI-YADNebsdJZKllw5yd8GYfKdL-Li2UYEIEn9uAOiiRMdNCzPfyNP73R3e2He2Z-mk02dr4MupC6IWUOFgdFLg3DtW2FgYI8qi6ii6Y-",
-        widthPx: 2933,
-        heightPx: 2264,
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q4DqvdSTd979cFH88Yp0E-TiX9KsPnjU5P3MEZidbMyEH8xZCueZzacWN7ZjE9E0r1CqVkwhsZsZkintixeCTuU6HS2RpOwluHj3L4rSKlvC3lL4YV2gqFg7iMjQIj2PcwU9ir_wS5UPt-HjH5y1AQjT8EGwGqzXyT6",
+        widthPx: 3000,
+        heightPx: 4000,
         authorAttributions: [
           {
             displayName: "Space Dandy",
             uri: "//maps.google.com/maps/contrib/100563658592719678557",
             photoUri:
               "//lh3.googleusercontent.com/a-/ALV-UjUpsyu8vW2oXbHTCKLwcc5cH-Jvk0s4MCCm5AZoYHbnHtDP22X9=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJVV2WwceSwokR4t52AJ6MZ2M/photos/AXCi2Q6gaspyWJ7Q4HPpbv8UPn7tEafTImuW937Ms-cwJ_DowNG4ige8-2zQ66uKocjlxPSRvapdEuCShE45pumPiymxc9hXwDr-yADN9MZZpegGyA0SYNEk0gTsVhgr4bUqPBE3wjPN0LSrN00YWTNqIQ1WY_CjLshH9ilF",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "Marie Pavia",
+            uri: "//maps.google.com/maps/contrib/101579886649390140224",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX5MCxW3B6WlDIXZWGfU49Dgjxs_kfItw_Aj2l7U28oMEf337MHhw=s100-p-k-no-mo",
           },
         ],
       },
     ],
     accessibilityOptions: {
-      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleEntrance: false,
       wheelchairAccessibleRestroom: true,
-      wheelchairAccessibleSeating: true,
     },
   },
 ];
 
 exports.sample_google_data = asyncHandler(async (req, res, next) => {
   //get lat and long and get address info if we don't already have it
-  const { location_id, location_coords, radius } = parse_location_data(
-    req.query
-  );
-
-  const metersRadius = radius * MILES_TO_METERS;
-
-  let locationInfo = {
-    location_id: location_id || "",
-    location_coords: location_coords || [],
-    address: "",
-  };
   try {
-    if (!location_coords.length && location_id) {
+    const { date, budget } = req.query;
+    // need lat, long, and radius
+    const { location_id, location_coords, radius } = parse_location_data(
+      req.query
+    );
+    let locationInfo = {
+      location_id: location_id || "",
+      location_coords: location_coords || [],
+      address: "",
+    };
+
+    console.log(req.decoded.member_id);
+    if (location_id) {
       locationInfo = {
         location_id: "ChIJ-b2RmVlZwokRpb1pwEQjss0",
         location_coords: [40.752714, -73.97722689999999],
         address: "89 E 42nd St, New York, NY 10017, USA",
       };
 
-      //   let key = process.env.PLACES_API_KEY;
-      //   let { data } = await axios.get(
-      //     `https://places.googleapis.com/v1/places/${location_id}`,
-      //     {
-      //       headers: {
-      //         "X-Goog-Api-Key": key,
-      //         "X-Goog-FieldMask": "id,formattedAddress,location",
-      //       },
-      //     }
-      //   );
-      //   locationInfo = {
-      //     location_id: data.id,
-      //     location_coords: [data.location.latitude, data.location.longitude],
-      //     address: data.formattedAddress,
-      //   };
+      // let { data } = await axios.get(
+      //   `https://places.googleapis.com/v1/places/${location_id}`,
+      //   {
+      //     headers: {
+      //       "X-Goog-Api-Key": KEY,
+      //       "X-Goog-FieldMask": "id,shortFormattedAddress,location",
+      //     },
+      //   }
+      // );
+      //
+      // locationInfo = {
+      //   location_id: data.id,
+      //   location_coords: [data.location.latitude, data.location.longitude],
+      //   address: data.shortFormattedAddress,
+      // };
     }
-    // let placeInfo = await axios.post(
+
+    const metersRadius = radius * MILES_TO_METERS;
+
+    // get google data
+    // let { data } = await axios.post(
     //   "https://places.googleapis.com/v1/places:searchNearby",
     //   {
     //     includedTypes: ["restaurant"],
@@ -14581,152 +6704,3393 @@ exports.sample_google_data = asyncHandler(async (req, res, next) => {
     //   },
     //   {
     //     headers: {
-    //       "X-Goog-Api-Key": key,
+    //       "X-Goog-Api-Key": KEY,
     //       "X-Goog-FieldMask":
-    //         "places.accessibilityOptions,places.addressComponents,places.formattedAddress,places.name,places.id,places.shortFormattedAddress,places.displayName,places.location,places.photos,places.types,places.primaryType,places.priceLevel,places.regularOpeningHours,places.currentOpeningHours,places.regularSecondaryOpeningHours,places.currentSecondaryOpeningHours,places.rating,places.userRatingCount,places.websiteUri",
-    //     },
-    //   }
-    // );
-    // console.log(placeInfo);
-    // let places = placeInfo.data.places;
-
-    let { sqlValueString, tag_map, place_ids, places_data } =
-      process_google_data(places);
-
-    const scheduled_at = await meals_model.meal_get_scheduled_time(
-      req.params.mealId
-    );
-
-    // console.log(places_data);
-    const original = `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
-        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
-        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
-        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.2,'{"brunch_restaurant"}'),
-        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","breakfast_restaurant","cafe"}'),
-        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
-        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
-        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
-        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
-        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
-        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.3,'{}'),
-        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
-        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","breakfast_restaurant","cafe"}'),
-        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
-        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
-        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
-        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
-        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
-        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","breakfast_restaurant","fast_food_restaurant","cafe"}'),
-        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"american_restaurant","bar"}')`;
-    const testValue1 = `values('ChIJlZuJwOiSwokRrJNNhf-PrWE', 4.5,'{"pizza_restaurant","italian_restaurant","bar"}'),
-      ('ChIJZ7aROYmTwokRc95v_J8fw6o', 3,'{"vegan_restaurant","vegetarian_restaurant"}'),
-      ('ChIJsdgOWwKTwokRFMerkmAr0cY', 4.5,'{"italian_restaurant","bar"}'),
-      ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
-      ('ChIJ--5iQuiSwokR7jxhtfFChCw', 4.3,'{"italian_restaurant","pizza_restaurant"}'),
-      ('ChIJvd_wzOiSwokRKwzdpR4KUM4', 4.2,'{"japanese_restaurant","sushi_restaurant"}'),
-      ('ChIJdXWPRu-SwokRa_l7nmeaCKk', 4.5,'{"sandwich_shop"}'),
-      ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
-      ('ChIJVQGVOAOTwokRTb7nlptnV4o', 4.1,'{"italian_restaurant","pizza_restaurant","bar"}'),
-      ('ChIJc4PrvuiSwokRB9FSa4E-M2c', 4.5,'{"hamburger_restaurant","american_restaurant"}'),
-      ('ChIJjzQuZOmSwokRJY6Tl0nn3TM', 4.4,'{"american_restaurant"}'),
-      ('ChIJ9-DcCKKTwokRYUxQqy5dQlU', 4.5,'{"mexican_restaurant"}'),
-      ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
-      ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.3,'{}'),
-      ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","breakfast_restaurant","cafe"}'),
-      ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
-      ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
-      ('ChIJW-Hq2ByTwokRL4y1jAbdAw4', 3.9,'{"coffee_shop","breakfast_restaurant","cafe"}'),
-      ('ChIJ466AQ6aTwokRsYGb5D8a3s4', 4.6,'{"spanish_restaurant"}'),
-      ('ChIJVV2WwceSwokR4t52AJ6MZ2M', 4.5,'{"bar"}')`;
-
-    // console.log(sqlValueString);
-    await restaurants_model.add_restaurants(place_ids);
-
-    res.status(200).json({
-      restaurantsMap: places_data,
-      google_sql_string: sqlValueString,
-      tag_map: tag_map,
-      locationInfo: locationInfo,
-    });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ err: err });
-  }
-});
-
-exports.update_google_data = async (req, res, next) => {
-  try {
-    // need lat, long, and radius
-    const { location_id, location_coords, radius } = parse_location_data(
-      req.body
-    );
-    console.log(req.decoded.member_id);
-    if (!location_coords.length && location_id) {
-      locationInfo = {
-        location_id: "ChIJ-b2RmVlZwokRpb1pwEQjss0",
-        location_coords: [40.752714, -73.97722689999999],
-        address: "89 E 42nd St, New York, NY 10017, USA",
-      };
-
-      //   let key = process.env.PLACES_API_KEY;
-      //   let { data } = await axios.get(
-      //     `https://places.googleapis.com/v1/places/${location_id}`,
-      //     {
-      //       headers: {
-      //         "X-Goog-Api-Key": key,
-      //         "X-Goog-FieldMask": "id,formattedAddress,location",
-      //       },
-      //     }
-      //   );
-      //   locationInfo = {
-      //     location_id: data.id,
-      //     location_coords: [data.location.latitude, data.location.longitude],
-      //     address: data.formattedAddress,
-      //   };
-    }
-
-    const metersRadius = radius * MILES_TO_METERS;
-
-    // get google data
-    //let {data} = await axios.post(
-    //   "https://places.googleapis.com/v1/places:searchNearby",
-    //   {
-    //     includedTypes: ["restaurant"],
-    //     maxResultCount: 20,
-    //     locationRestriction: {
-    //       circle: {
-    //         center: {
-    //           latitude: latitude,
-    //           longitude: longitude,
-    //         },
-    //         radius: metersRadius,
-    //       },
-    //     },
-    //   },
-    //   {
-    //     headers: {
-    //       "X-Goog-Api-Key": key,
-    //       "X-Goog-FieldMask":
-    //         "places.accessibilityOptions,places.addressComponents,places.formattedAddress,places.name,places.id,places.shortFormattedAddress,places.displayName,places.location,places.photos,places.types,places.primaryType,places.priceLevel,places.regularOpeningHours,places.currentOpeningHours,places.regularSecondaryOpeningHours,places.currentSecondaryOpeningHours,places.rating,places.userRatingCount,places.websiteUri",
+    //         "places.accessibilityOptions,places.formattedAddress,places.name,places.id,places.shortFormattedAddress,places.displayName,places.location,places.photos,places.types,places.primaryType,places.priceLevel,places.regularOpeningHours,places.regularSecondaryOpeningHours,places.rating,places.userRatingCount,places.websiteUri",
     //     },
     //   }
     // );
     // console.log(data);
     // let places = data.places;
 
-    let { sqlValueString, tag_map, place_ids, places_data } =
-      process_google_data(places);
+    let { tag_map, place_ids, places_data } = this.process_google_data(
+      places,
+      budget,
+      date
+    );
+    await restaurants_model.add_restaurants(place_ids);
 
-    await restaurants_model.update_google_restaurants(
-      req.params.mealId,
-      sqlValueString
+    let db_ids = await restaurants_model.get_restaurants_by_place_ids(
+      place_ids
     );
 
-    await restaurants_model.add_restaurants(place_ids);
+    req.googleData = { tag_map, db_ids, places_data };
+    req.locationInfo = locationInfo;
+    next();
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ err: err });
+  }
+});
+
+const GOOGLE_UPDATE_1 = [
+  {
+    name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw",
+    id: "ChIJ--5iQuiSwokR7jxhtfFChCw",
+    types: [
+      "italian_restaurant",
+      "pizza_restaurant",
+      "restaurant",
+      "point_of_interest",
+      "food",
+      "establishment",
+    ],
+    formattedAddress: "102 Fisher Ave, Eastchester, NY 10709, USA",
+    location: {
+      latitude: 40.956803099999995,
+      longitude: -73.8167425,
+    },
+    rating: 4.3,
+    websiteUri: "https://www.polpettina.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 0,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 20,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 15,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 16,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 22,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: Closed",
+        "Tuesday: 11:00 AM – 3:00 PM, 4:30 – 9:00 PM",
+        "Wednesday: 11:00 AM – 3:00 PM, 4:30 – 9:00 PM",
+        "Thursday: 11:00 AM – 3:00 PM, 4:30 – 9:00 PM",
+        "Friday: 11:00 AM – 3:00 PM, 4:30 – 10:00 PM",
+        "Saturday: 11:00 AM – 3:00 PM, 4:30 – 10:00 PM",
+        "Sunday: 11:00 AM – 3:00 PM, 4:30 – 8:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 427,
+    displayName: {
+      text: "Polpettina",
+      languageCode: "en",
+    },
+    regularSecondaryOpeningHours: [
+      {
+        openNow: false,
+        periods: [
+          {
+            open: {
+              day: 2,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 17,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 17,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 17,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 17,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: 3:00 – 5:00 PM",
+          "Wednesday: 3:00 – 5:00 PM",
+          "Thursday: 3:00 – 5:00 PM",
+          "Friday: 3:00 – 5:00 PM",
+          "Saturday: Closed",
+          "Sunday: Closed",
+        ],
+        secondaryHoursType: "HAPPY_HOUR",
+      },
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 15,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: Closed",
+          "Wednesday: Closed",
+          "Thursday: Closed",
+          "Friday: Closed",
+          "Saturday: Closed",
+          "Sunday: 11:00 AM – 3:00 PM",
+        ],
+        secondaryHoursType: "BRUNCH",
+      },
+    ],
+    primaryType: "italian_restaurant",
+    shortFormattedAddress: "102 Fisher Ave, Eastchester",
+    photos: [
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q6kAY-gFlQkSwaId3jYrmuDBtnoUrwkqngWw3GUnD7M_VISTNKedXm8jk1Zql8kfhdgUGmz5fShXU4XORpZCkEDZD1LS8YSWk7BiGFfONWWyOcNEFHSpgsyfNDZFFeM5BJiCWQzOCKUXinrKjMyKe_ZOLN8mMAgLaK6",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Muffetta's Housekeeping, House Cleaning & Household",
+            uri: "//maps.google.com/maps/contrib/105457051218273602036",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVY1RGxGwIV3WXq5MczEHy8u0se8udfO_8kIv-FGzl1e09aMdI=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q5uJIZILqnkorHwbDonbniP7ZeYjo4eZ8wH3hzvZDQO8VumSKwasFVfrJ2qLmEUKzGIUUdFDg1OOMl8nXewmWPSdNuush0KzsMi73LLH-lQr7dNEC0Td5UOcqCsAZlZRCq236sIAMotJwljc-pTy_XTI2pvf89zyR7q",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "ML Ong",
+            uri: "//maps.google.com/maps/contrib/103876713633083931019",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjW_r50JhgdkBaSLfG3z23ZQfytAyq2FfMaUgSOsRJETzabYpO79=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q7W-eatkIkVaajuUKFCgqhIGAeBdFgFNqZBJdvuNojMX8cU6pdWoZAQsLR-rYjYo2RE8DSJB-Ai9Tulfmi3HnEfczpBwQsBBBOHg_7D_5BjOs5bk-tjYJddQD4Yxk6UxBlg2J9ErMUMsnBHegTp5q3yxrkx4TT-c6E2",
+        widthPx: 4000,
+        heightPx: 2252,
+        authorAttributions: [
+          {
+            displayName: "cory hartman",
+            uri: "//maps.google.com/maps/contrib/117113678754225878848",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ2ZH3sAUp_WC4WVZdxYOSiTuKSHGBrqyp9xACvH7R8dMOtbw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q6P_Tiy_Ntx4yGUNaOcJJaf1WNtE6WPCtHrJOlxgWzwahcxjA4ONnksUB3OZfHuUxViPpe3EfPX3dEzZoQ1RasYEJ1_mqGP2MNmGcjOllAyivIRp6S4E3VWEzfR1Hl693bi7haQXNkqWTdqX8ZglQdEVVkEn4-ONL_d",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "J Lim",
+            uri: "//maps.google.com/maps/contrib/109935156740971751576",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocKYnG11pwVBark64wiserzR8n-rEfTAglboJ7aaEgmmefWHqA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q6jY0wmpP43Whj_NhV719ap955cRrmvr12aXCZhkZzRTIZ6RJgOYLfkXSown4gzrAI0y-eYky8GJz_pVm4TCbh1jJaQj4Zq4RacJNsMEx_rPq4MSEd8Zy8cdFwi1NOpTvKL7P_3MrLt6Df6JpxpEcDHsNT5AiW0C-Zx",
+        widthPx: 3600,
+        heightPx: 4800,
+        authorAttributions: [
+          {
+            displayName: "Gianna Salmas",
+            uri: "//maps.google.com/maps/contrib/112422668535582317523",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUBKPdwD_XhEp9TqzH8cd_YtCpQLtflV-5leBE7QOrQB99KcRvc=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q5lRfxC-I2-PQ9mQzNJipSoj4KiSK4dwtiSLIvUMWM7zEma91Hvi7wI2bgcfREi2tmnqtpZf3VhJpCNXy180Txe6dE341oqu2eL4ckPIK09dT8Pc2VV2QfIUgSEbRKZw3StXUz_Hz2flhgX6AUSB45u9JjiS_G_30YX",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Albert Belegu",
+            uri: "//maps.google.com/maps/contrib/115126213285502150012",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJq7DbD2MZI3SNBz4CqXrjMp1NCo5qfZxu1WI_Mib3NBlcvyQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q6psF7WSOwgtXh_kf3KAeBYbV4giEX9CQPlHzTRvWSU5ZqqWa6iKTWLrYGiwWmXC9xyeXFZ-fLfRWzbMpSxDKofXUqF3BLXVDGN2MG-X-rkhQOp7MXlrD_3dlpXSRuH8DaG-AciGjdwXdtWoY5U-6Udav7uTShvp4Lj",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Maggie H",
+            uri: "//maps.google.com/maps/contrib/105905109091108364011",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUrk_-BPSIyptNscSnvoYDXFqWFkk5I056EVWvtAXBVGbB0aHtt=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q4Gx-Fgw2_BuTsnxXdZlRlSz0CGRLMd0JaeSal8BvocEvOmFhxszj0uqExJpBbbl8imwgP5xnZi4LjscyxNB87vCM1aUTb24shDI9pcIPvwV_WwZG_mYqpPONxY9PE83BLyFd8EBe4ItLsSv9YsAW62qCSNhBjAKegq",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Malia Villafane-Robinson",
+            uri: "//maps.google.com/maps/contrib/111182177539209873837",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVeGUQnN2PT3WDYX0t_b0k_VIIbn8sFYAcUyp4wjBaxd80mz9CN=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q7WY_TKM3pq-Mk1xUAKKZ43BP4BJHba8VqlQzy71nwQ2gk_PWwPQ1UhCV8v2Q5WfsS_mE-ZFqsvlr_yFxr_JQO7GoHoaFi_sU3s68isxmAUJCc6l4TFL42K1Ah7hf6_KETRu7MocBv6Q3hCJt3JJNx7lRE5_POW9wqJ",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "T Claz",
+            uri: "//maps.google.com/maps/contrib/115336123914713811551",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXj7tUwf95VFY3i7Uey2K5F79YNztb8eOznSEWovQLdi-ayYwqA-Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ--5iQuiSwokR7jxhtfFChCw/photos/AXCi2Q65_0tnF-yivEBKFxIBgdpRKYzL95UgfYPB2zMUmYZRkhxjeMo6yBzX22f0b9LDPTS1cMMyiSkeHhQ109mHVM94NfWwOfhMPQzk2ZqYae6G9F8gITTya2ONbAE2936Wq4zoQHwRmn71B5d_mS61nDm9dqDfsmWSOhYN",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "Jay Shin",
+            uri: "//maps.google.com/maps/contrib/116593646974560181054",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocKzKsu0oxd3cRHAHv4Rw0ZSHHi81T8uQMVmqLamHPrGc4T7SRDg=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU",
+    id: "ChIJ9-DcCKKTwokRYUxQqy5dQlU",
+    types: [
+      "mexican_restaurant",
+      "restaurant",
+      "point_of_interest",
+      "food",
+      "establishment",
+    ],
+    formattedAddress: "296 Columbus Ave, Tuckahoe, NY 10707, USA",
+    location: {
+      latitude: 40.9589335,
+      longitude: -73.8201667,
+    },
+    rating: 4.5,
+    websiteUri: "http://riobravotuckahoe.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 23,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 23,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 11:00 AM – 10:00 PM",
+        "Tuesday: 11:00 AM – 10:00 PM",
+        "Wednesday: 11:00 AM – 10:00 PM",
+        "Thursday: 11:00 AM – 10:00 PM",
+        "Friday: 11:00 AM – 11:00 PM",
+        "Saturday: 11:00 AM – 11:00 PM",
+        "Sunday: 11:00 AM – 10:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 558,
+    displayName: {
+      text: "Rio Bravo Tacos & Tequila",
+      languageCode: "en",
+    },
+    primaryType: "mexican_restaurant",
+    shortFormattedAddress: "296 Columbus Ave, Tuckahoe",
+    photos: [
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q4hViS-0I2grKO0_uaxVFqeqL0m9FjIV1KQZTGQ0KVD47E9z8lcIoXTy_7SiixOj94pZw2aQXOgrWXG8vpLADe9N7Qn7BlmYTq8Ax8__Fv9YgfByJLRORzFDK_SZSAzFAOcKiaDULgUplClZn4HU5ciDoB_HeK2iWLz",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "mike blumenthal",
+            uri: "//maps.google.com/maps/contrib/118405393025299785535",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXNBIj4GyrdQx1rW0r7x4SDWQ6ugNoTn3KelLQt_Xf4AUANLYp8dQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q5nB2WnFkY-OEAsJxIySDBfacfLXGj2clTZ_5lFO7EunCh5_BLGUEHhu4b80NevgezsNSgLhlSJ6t6trd5s7MfyGU1MGDcrrtLce0J-Sn-WMFR5dNJnZxfzZWvE8PmHk5-uBS6-lYTIB8-Odg7ti4SbzPnj5G_pfyjQ",
+        widthPx: 3024,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Timothy Smith",
+            uri: "//maps.google.com/maps/contrib/116486913247567213032",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjULTSsQfxgrRP-PtdWaSsCteJGVFCwSELJ0OTd7qbIQcyXy_clpjw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q71Zg1zl1VQ486IpL9QJesmi5WDmDJU08j4OOUM9Y_JQfM2-y79H1U40c2ChEJzYZ9gJqUar-91rm1OF-6I8f5dPMeYS90ksjVjbfElAwrDZGuFzB4h7lcVNJFnEEA75zRAc2ejR1MphdKhh-RlC2wyis3UQD8jJxI5",
+        widthPx: 2992,
+        heightPx: 2992,
+        authorAttributions: [
+          {
+            displayName: "Timothy Smith",
+            uri: "//maps.google.com/maps/contrib/116486913247567213032",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjULTSsQfxgrRP-PtdWaSsCteJGVFCwSELJ0OTd7qbIQcyXy_clpjw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q6HmZJoaRweuUBLsoOTTH8L3D9aLSuzIhIkSE149cGic2cX6kpw0rqzP1Bp6d_xfejB0ANaW5oYkazj43P-z5zEDzRsaHAf-TOURU4XXo3IrwftVtTUk791QF7700Pc1i8mSyWY12zSjA1vfThet03r3RTEsYsYQ2EP",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Trevor John",
+            uri: "//maps.google.com/maps/contrib/112912470598506815753",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV3al8-fZk9sB06rSa08L-43C8pNDGZh_lCqAJEBfTdYHRT5ww=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q68McLsh-4aR-6ANtnqVWZJBzDVuWguWv8tJOydJdOz3da_AsRyBBcl7BGkWKEcZqxle_t5KICnONzejqTF69XHeNrZwyaGk5bJ-KkQr7jO2Oim7t6X-ndbuTeoji80CM-enAAnn9CfZeci1uHDpqQDh78KuOWJXOU2",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "French Mex",
+            uri: "//maps.google.com/maps/contrib/101904452653254582234",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVaxE_sXOwdfU6HzmBYDl9L19C9_mcEgbDuqH3z1Jv1LKqPw9ps=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q6q2EMnKu3WSl-Ttv37Ox-KgeWeRRvsy3v_Pb3ga8iruxTYKeEf5xxmaS0_sET9E2KQ7FpcBvTlPMt8fHvzyVmWQICZJXBukQBdahqQxNi6FdmOk35dTNuP_tj7ZUZwoG7p5eY1-nJF8lKM5iKzYHU9QfTd_ujuUjey",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Dominick Vellucci",
+            uri: "//maps.google.com/maps/contrib/116345219794599247988",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q6Pv2eLbar6huKRzzV2yzmQRR1oUAaOcl0mAEsBb8w4TPV2nYlwzM4e4kCynrsJJAT1RqeKIiVwp4Whr91VWaPlwIqtiuMSAP2BRH3N6B5b2BDAWw56TdUtzPasCEoSYxaeHu5ATqvSjoKfxTTfkYvwFb3lQGrL4azx",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Dominick Vellucci",
+            uri: "//maps.google.com/maps/contrib/116345219794599247988",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q6np6s-fsI-O6n3gBQ8gy36WbFcppzxvG1iXzF-15aXyTssZ1ulSL5iPvpMQ47H4ruNq8cd1xMU3k_R2rFntCYSu9dQX7M2TeJVd4O2ZVPbZhaP9qTiymq7E3mUZBZigCg4z3MMa5xzyEtqs_6KuvOaM5_Pk3oRe_oW",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Trevor John",
+            uri: "//maps.google.com/maps/contrib/112912470598506815753",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV3al8-fZk9sB06rSa08L-43C8pNDGZh_lCqAJEBfTdYHRT5ww=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q5BC9lLr5u8bBD4sPtpeWoMEFzuHJgWnEtwpLQla2qBqCx1IBx2AATOYjp-m6El1bvxZWVldOg2399Jib-plIhg18ejwATCJxex9dADju1-Txj9BacnafCB7SMUj4kcdF_a76mz3RdW32WsMKxZE5C3betGjtwobB3h",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "French Mex",
+            uri: "//maps.google.com/maps/contrib/101904452653254582234",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVaxE_sXOwdfU6HzmBYDl9L19C9_mcEgbDuqH3z1Jv1LKqPw9ps=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ9-DcCKKTwokRYUxQqy5dQlU/photos/AXCi2Q4Si7D4lwyxI_RkZdcCEPsAGb0-z_hIsIavmB9AFsTlHJ6Grtv0fu7lz5UD87sz1zhpm2Giej0SvmqlDtuyPq9k649iF0qTV3LkVzblkENgDh9vJnlM4eCWcacnPJPWxE9C_2Nt_eeTS1wHNgDdUe51JU5ubTaNNSjl",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "French Mex",
+            uri: "//maps.google.com/maps/contrib/101904452653254582234",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVaxE_sXOwdfU6HzmBYDl9L19C9_mcEgbDuqH3z1Jv1LKqPw9ps=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU",
+    id: "ChIJ-zImzcKSwokR7tczKj1jRHU",
+    types: ["bar", "restaurant", "point_of_interest", "food", "establishment"],
+    formattedAddress: "12 Fisher Ave, Tuckahoe, NY 10707, USA",
+    location: {
+      latitude: 40.9585436,
+      longitude: -73.8204252,
+    },
+    rating: 4.5,
+    websiteUri: "https://www.stephensgreenpublichouse.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 1,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 17,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 0,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 2,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 5:00 PM – 12:00 AM",
+        "Tuesday: 12:00 PM – 2:00 AM",
+        "Wednesday: 12:00 PM – 2:00 AM",
+        "Thursday: 12:00 PM – 2:00 AM",
+        "Friday: 12:00 PM – 2:00 AM",
+        "Saturday: 12:00 PM – 2:00 AM",
+        "Sunday: 12:00 PM – 1:00 AM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 221,
+    displayName: {
+      text: "Stephens Green Bar Restaurant",
+      languageCode: "en",
+    },
+    regularSecondaryOpeningHours: [
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 19,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 1,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 1,
+              hour: 20,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 20,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 20,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 20,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 20,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 20,
+              minute: 30,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: 12:00 – 8:30 PM",
+          "Tuesday: 12:00 – 8:30 PM",
+          "Wednesday: 12:00 – 8:30 PM",
+          "Thursday: 12:00 – 8:30 PM",
+          "Friday: 12:00 – 8:30 PM",
+          "Saturday: 12:00 – 8:30 PM",
+          "Sunday: 12:00 – 7:30 PM",
+        ],
+        secondaryHoursType: "TAKEOUT",
+      },
+    ],
+    primaryType: "restaurant",
+    shortFormattedAddress: "12 Fisher Ave, Tuckahoe",
+    photos: [
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q6JYUxv1TJ37qLpiBv-hAnVHn78kJ1q4t8--5ay3yBQ_PSDUGZckPXlESMEY1QQzvOYrf6gyGwKXdMMNG2lxeO3bsaJ3mSIJoKOz1tdUrnhYPhSA4rb5yi0OiPiaEwnu9eHtrTHfCJ8_lvwNfeUdQqpejdb35aRr-Hk",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Stephens Green Bar Restaurant",
+            uri: "//maps.google.com/maps/contrib/116180127258829445153",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUCkN44ppd8xDH-2MRtQ32OOM48JB8vztF_WCmoUGFeq_HVNNc=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q6S8_BGAJ95cIWdgjKkdu3xT6YfLx2qXZFIr7y5xN7RP86cok50KFxnY74KSWvf_zb31k6d9y91U2RV9iTHr1HOcOS5GpcEMTLz-qvtsPPXk9LytfgT8D3A5jf5Bd1Ifqy7IPI8YfcHVKt7Q61u4xa2mEq66qCHqt7j",
+        widthPx: 4800,
+        heightPx: 3599,
+        authorAttributions: [
+          {
+            displayName: "Stephens Green Bar Restaurant",
+            uri: "//maps.google.com/maps/contrib/116180127258829445153",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUCkN44ppd8xDH-2MRtQ32OOM48JB8vztF_WCmoUGFeq_HVNNc=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q7WuGY1Fm6Z74mNw4QMQyawF92vtNaf7hyKOJRw0KUdvAVDmA71SF5OaWSJ2F2S_D6Wr2fs9g6FWLxUnnST4rDg4SncCp5mZpfsLbMoyNQwTEKvXuJ1l4os3BWp6K069LFjbNU4ENE7ogtumIGCSwuSw5578tNOeAbp",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "Chris Gerber",
+            uri: "//maps.google.com/maps/contrib/107448670651566569306",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUGW-rgBfRJzHWXmt3SCLPn2-NV4rTYL2psrhmOBkQoX1gMOg1fNQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q5NPQiwhWWttsSvCBtIj7rbneXOc16V4yNhBuQpCMe7FQwsXdSVRRW6Qhcf8tDNhcNxmusvr8GgMEL3U5pa6uynFQHVheLULSY7zRfwOgDw6ruTkHgDnzHRt4CaBPXRrD07dJ9ktDOceeFnqV3dEYShNoP13ugxr_BM",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Ye Liu",
+            uri: "//maps.google.com/maps/contrib/101152292621667480096",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVjc69Gs1y0tAUCSUGKI8HBhEa38uSw1vY9xkR3XClvGrRFcgsSPQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q44XaEdpJF-ezfwfJsE5BcddgoonUpoietFtXrA1WIUliFLMPFjeqPSVeY8t5m5PFOn4R-JeHVqHfKJ7dYMHrXQsIu2OsqSgl2m03I48q1Pim6C6gq8Ri2o2vH2zrZWZIyKYNORbTLfzJ7h_uPr_cbrOmK0yjLE12xW",
+        widthPx: 3311,
+        heightPx: 2485,
+        authorAttributions: [
+          {
+            displayName: "Ye Liu",
+            uri: "//maps.google.com/maps/contrib/101152292621667480096",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVjc69Gs1y0tAUCSUGKI8HBhEa38uSw1vY9xkR3XClvGrRFcgsSPQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q7t-yir1PvMokVsUcXoOodirkqzO7ANVkVDPjvQHmsNeARQPTCN_WUcMJHv4f9AX_-xQ3SPqStqFBRCcumkVyfiIIus9WuYN7blTyK4cbKRckb5hWak2ULPCPuFeF-dV5i1eNo1JPsOIsfWNPGfCfIuhbw2EChWoY7C",
+        widthPx: 3072,
+        heightPx: 4080,
+        authorAttributions: [
+          {
+            displayName: "cac cac",
+            uri: "//maps.google.com/maps/contrib/110652896303538078160",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocI6vN4shFLyK7qsjttMUqS8nZ_FSOJZW3-W9EIuxFjybwaJVw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q7uCdNuXjP2DKXNJswiq30ZXFDAEcNfS9UxqQ5OHurm2g6XbU44uXlKHU5WTzrqhm5BrjGoxBKJ393EMPYF3QMRZcALlA0Awf12oYXA9BbBHhQJjvHvQ4xwpwstlp7V3taxqOB5jkJ-ol3Qv4xFly7JbX5S3P4igBl9",
+        widthPx: 1960,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Samuel Blakley",
+            uri: "//maps.google.com/maps/contrib/104297796377836110668",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjV5GMfSqea1gFCwf1zTyTdeh48ezbl4JWS5lx2Fn_-4UnfDN56VEg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q6TmY9WfeaUBny814_u_xs9i6yE235TigDglv6qJ4EJHQyUGte1Q9bFVMHeJLVRp6JKoo_KaU7dZXtWrgQtph2ltdy0DktxL46xWGDVWWLcIMHLYKKkSpOPkX90KIORbmKG0I7oqg4tV7G153PmVHHe0K46jylJNWzA",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Stephens Green Bar Restaurant",
+            uri: "//maps.google.com/maps/contrib/116180127258829445153",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUCkN44ppd8xDH-2MRtQ32OOM48JB8vztF_WCmoUGFeq_HVNNc=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q5w3oM_CQavZ7YFCDWrknp3Ddxx5n7VilHVnpLqngmhU_FtY10NC_-zuNGeTkhhmoxy7ZYWw4PCtFIksoLKj0shxaJi3_toTtyCQJb7JjyDECm7ZW43BKVcVVkXhjMi9hGv-ikIDxNnZ7oeiTsly9UMfVNDsJTi4C_3",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Chris Gerber",
+            uri: "//maps.google.com/maps/contrib/107448670651566569306",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUGW-rgBfRJzHWXmt3SCLPn2-NV4rTYL2psrhmOBkQoX1gMOg1fNQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ-zImzcKSwokR7tczKj1jRHU/photos/AXCi2Q6oXU-C2ikr4GTcvWcfpXahpzNeIor5Fvi0iKsaYmDxJp1NBq-UDhaGs9-MQ3BCmf8j0V0uTt_n_Ae8sbC-0O4dYFwFjJIvgZUnwZnfB1mZvUkwVwFhgQc33nADdBpdZiWW1F41zRRizUiFNOKvx1KfYrexplEkxHSr",
+        widthPx: 4800,
+        heightPx: 3599,
+        authorAttributions: [
+          {
+            displayName: "Stephens Green Bar Restaurant",
+            uri: "//maps.google.com/maps/contrib/116180127258829445153",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUCkN44ppd8xDH-2MRtQ32OOM48JB8vztF_WCmoUGFeq_HVNNc=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA",
+    id: "ChIJcZH0TsKSwokRd0dSTOmC6MA",
+    types: [
+      "pizza_restaurant",
+      "meal_delivery",
+      "italian_restaurant",
+      "store",
+      "restaurant",
+      "point_of_interest",
+      "food",
+      "establishment",
+    ],
+    formattedAddress: "286 Columbus Ave, Tuckahoe, NY 10707, USA",
+    location: {
+      latitude: 40.958897199999996,
+      longitude: -73.820378699999992,
+    },
+    rating: 4.6,
+    websiteUri: "http://www.crestwoodpizzeriaandrestaurant.com/",
+    regularOpeningHours: {
+      openNow: false,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 15,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 22,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 11:00 AM – 10:00 PM",
+        "Tuesday: 11:00 AM – 10:00 PM",
+        "Wednesday: 11:00 AM – 10:00 PM",
+        "Thursday: 11:00 AM – 10:00 PM",
+        "Friday: 11:00 AM – 10:00 PM",
+        "Saturday: 11:00 AM – 10:00 PM",
+        "Sunday: 3:00 – 10:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 139,
+    displayName: {
+      text: "Crestwood Pizza",
+      languageCode: "en",
+    },
+    primaryType: "pizza_restaurant",
+    shortFormattedAddress: "286 Columbus Ave, Tuckahoe",
+    photos: [
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q4fmWaHpfGNjhdCpM6SfeRxyAkKfeitpFsnIz4GXVMKXL630y2E8Nb80ztVXMWbWHl3mI4TJbYmM8tYujC81iAqJ8Gdk046KKtrtnLzZBPLrnVQBzh4ejBh-It4_XKkDPIxelsTURqJrlm8O4mIB8uPQJ8vS0jukJRy",
+        widthPx: 1000,
+        heightPx: 750,
+        authorAttributions: [
+          {
+            displayName: "Crestwood Pizza",
+            uri: "//maps.google.com/maps/contrib/106463761947036241792",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIuZOSajZTFyJ0b5VuiZHiVZsHsFloNi5lsqLs05fquyMEqLQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q4qoM8lqMgKwx3i4bfEGKBq3yexxp0ltUThO0fmHsG4sAB_JWHmLT2hjaIeGHWnXfBDHzcz0rXWg6fgP4AqqzcknMcH-ybMqLqMgdn6Jmwqe8mfrtIxrbMk0sHC6mfWY9AwubPNBOgTyBStxvJcaboR6Puh9Xo1c7i9",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Crestwood Pizza",
+            uri: "//maps.google.com/maps/contrib/106463761947036241792",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIuZOSajZTFyJ0b5VuiZHiVZsHsFloNi5lsqLs05fquyMEqLQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q42w87_bHOUpidEVOZg0iZpR8hoUinhAhc3vr7y_hA5OdCjtQlcqcXjKpxvBaQJPX-3g9rCx3UEUnrNC-Oz19_19z6j7OiUK5Oe7mXZJfewM3lFPxaC2M8E09hx2yiKTFYyZM5y-Ve_YRX-LSf8fGmjQMRLDSl5Qoc9",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Crestwood Pizza",
+            uri: "//maps.google.com/maps/contrib/106463761947036241792",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIuZOSajZTFyJ0b5VuiZHiVZsHsFloNi5lsqLs05fquyMEqLQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q7oJiHk51TKWo4t8OzadHghaZGpdU0RVkQqZqsjSXRdsEhJ-Zrs6DJA1lh_X3vjQaoO3MSBfKC29XaaX8eeXFbURPI07xdhcg02m20Xilap6jHbGxpLHbEKuA1bJQNfd6Hi0QB5u5VnWbc_IL7EG89dHr7x5LyFJnMc",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Crestwood Pizza",
+            uri: "//maps.google.com/maps/contrib/106463761947036241792",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIuZOSajZTFyJ0b5VuiZHiVZsHsFloNi5lsqLs05fquyMEqLQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q7K2gM8x3kbJGWbgDCCJlr7mBa7YQLI5IV3kUe8JmZh6-EATBk7XHNLVbLdIjiHunHSRXk63V7NiW2NnxrT2m1FeVyaEXXqzpuMzdF2JzfPxIhkMTGMXUGTZ9Z6qi5iaxc_SIotFR7q7y2WkLiGj6xrRWuiumsqX4dS",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Crestwood Pizza",
+            uri: "//maps.google.com/maps/contrib/106463761947036241792",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIuZOSajZTFyJ0b5VuiZHiVZsHsFloNi5lsqLs05fquyMEqLQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q4GYvCJcHyO32Oots2NgPq19vKJ-M0V3vLtsM-o34ngtg0D55qUhmbFiFasQKlGibhNGc1xviR_EDlx46PQgBV5-m7OBTdrnEflTcjQUwfd6K5Am8ThVbKnJccB8uI0y5If4CmXMGGdtk3EOzNM_7sRTFtEEqLzdQwP",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Crestwood Pizza",
+            uri: "//maps.google.com/maps/contrib/106463761947036241792",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIuZOSajZTFyJ0b5VuiZHiVZsHsFloNi5lsqLs05fquyMEqLQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q7FlKTOU-bGkoSU5yBoIxE8P049L6Iw1x8DaDNyStMgJFZi8Mq6gwjtlRBD4UDZCe7VJiLV7A3U54XYC-uriBmDLHnWr-wLkybXQyfPsUZVhn_gjUUoogRIdKLgGU9JQAvPEtzWQ3eB8QaxXyvcJA2osxhCXyro-Ja4",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Crestwood Pizza",
+            uri: "//maps.google.com/maps/contrib/106463761947036241792",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocIuZOSajZTFyJ0b5VuiZHiVZsHsFloNi5lsqLs05fquyMEqLQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q6edUrNm64-fgxqW7z_b75nxBySNJ03mizPO4XRxp5w_I1JxQSxxdDej2mOL6py0yuKzqntRfLDVDRLC28GZZvdUv3i4MXhUc_Oce2V6Gu40C0d7a0Ykk8efQYtcKWenxNgOx6AELa960geaDdXnLOKDWo6-wsgq4n7",
+        widthPx: 4080,
+        heightPx: 3060,
+        authorAttributions: [
+          {
+            displayName: "John Galluzzi",
+            uri: "//maps.google.com/maps/contrib/100996336935688938713",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjU2zW8oL5nk_WLY-k-F9bObKtBI1dUc0ZJl7ePDEoWCrPGWeVUf=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q6B0hkWVwiI-42mTushKZFW9x3xPXReZC-SikuECmdJyNCf2IdbiOu4nDLT3QpgZhyxeJMBvzEudJPG2Tf2tGh3lISwhXTNPqticEIE7RQDc532ESO1vQXapDKLhH3hln0G8HCSlRyrRslGWSvjDbn0KuTEOCMU-FTj",
+        widthPx: 1960,
+        heightPx: 1400,
+        authorAttributions: [
+          {
+            displayName: "Space Dandy",
+            uri: "//maps.google.com/maps/contrib/100563658592719678557",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUpsyu8vW2oXbHTCKLwcc5cH-Jvk0s4MCCm5AZoYHbnHtDP22X9=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJcZH0TsKSwokRd0dSTOmC6MA/photos/AXCi2Q4XKgByGRdnsDwoiO7UGPeV04Pq5N_Xo-6UAPXt-iOmdpjmE4-7Nnyp0iBP_SW2PpKXQAXLAhFKWcoPyEy2V24abMqAWmK7vQDlBa5tLQAfSM-TzWpBZKRKx0vGcY6_3PPlr9_m9YIy9pp-_5DVf4yrdc02quAUDJ2i",
+        widthPx: 3600,
+        heightPx: 4800,
+        authorAttributions: [
+          {
+            displayName: "Rich LoPresti",
+            uri: "//maps.google.com/maps/contrib/105616908630415566190",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXNVZH4g8di7rLAO-jHn-b5U4gDT6LbDauQFfGk16MELWivBX3kZA=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleSeating: false,
+    },
+  },
+  {
+    name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg",
+    id: "ChIJe8H2Z-WTwokR7GTG1rxwkxg",
+    types: [
+      "chinese_restaurant",
+      "restaurant",
+      "point_of_interest",
+      "food",
+      "establishment",
+    ],
+    formattedAddress: "284 Columbus Ave, Tuckahoe, NY 10707, USA",
+    location: {
+      latitude: 40.9588292,
+      longitude: -73.8204702,
+    },
+    rating: 3.9,
+    websiteUri: "http://happyluckydragon.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 22,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: Closed",
+        "Tuesday: 11:00 AM – 9:00 PM",
+        "Wednesday: 11:00 AM – 9:00 PM",
+        "Thursday: 11:00 AM – 9:00 PM",
+        "Friday: 11:00 AM – 10:00 PM",
+        "Saturday: 11:00 AM – 10:00 PM",
+        "Sunday: 11:00 AM – 9:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_INEXPENSIVE",
+    userRatingCount: 56,
+    displayName: {
+      text: "Happy & Lucky Dragon",
+      languageCode: "en",
+    },
+    primaryType: "chinese_restaurant",
+    shortFormattedAddress: "284 Columbus Ave, Tuckahoe",
+    photos: [
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q6J4GrtSPGQKwlL5AI1gzzql2ufGj9HxY-QcxkIbUXzEV2aq_nJ4lvVwBFYjCU2_f2QBIDvQgR1fNLRz_L2KB7BZ1qHrvFajoNNwCRdfI-z1FnLTvOp8WXnYCFP1Ydam_BBJyp0Rhe1IPrG2N2LXyl_uMdUX_gozkiK",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "刘水",
+            uri: "//maps.google.com/maps/contrib/118414550207630804585",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ5pbRXiaMhqfjFGO1Ybt9n2dN66zmyLDkw8W0NpqhE5p_h7Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q4tELhzZRz-uP7Zhw_6fWHknddGjpHqvawlYNB6YbzohxwjP_I2_QXoe9jlBL6n4BzpCVrwesYLj05f5wLHKuEJEdAZ5-Y3y-pu7FM0ErxAvHLH5oeyE4FhAAalF-3xxsDth5DmpL9mxbMUgq9h4XP3fLemUJVPuHI-",
+        widthPx: 1280,
+        heightPx: 550,
+        authorAttributions: [
+          {
+            displayName: "刘水",
+            uri: "//maps.google.com/maps/contrib/118414550207630804585",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ5pbRXiaMhqfjFGO1Ybt9n2dN66zmyLDkw8W0NpqhE5p_h7Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q4mAI_e7Q51HA-9zpXKDGnk1MGJGUb8BLIbx6Zl0j19gfocnYG_GpASK_WCJHEnh5x4R1AFNZHj2zJ1F_fGg_O2NnD5mVtS9FdRzsd4StehNISrFYY5_EA4Zutxa2WvndHybNupdIe1pQWQEPoLJiNOejGEPzSGPzSy",
+        widthPx: 3865,
+        heightPx: 2576,
+        authorAttributions: [
+          {
+            displayName: "刘水",
+            uri: "//maps.google.com/maps/contrib/118414550207630804585",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ5pbRXiaMhqfjFGO1Ybt9n2dN66zmyLDkw8W0NpqhE5p_h7Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q6zH3eh1xFYMG4xJ4NqFtFPZpMaL0l2Qsovig-E9HsHtSqqUbGNXQruytIlBCFqlXYz8EJTChLVaNf0fEwFPmdY3IA8IO9wWp-3BTIeR0R-1MAf-CfpQ2fwgfoHzMUX7epHf79xylE3eGlmla2_UXk0N12en_1XeqLp",
+        widthPx: 4080,
+        heightPx: 3072,
+        authorAttributions: [
+          {
+            displayName: "John Carbone",
+            uri: "//maps.google.com/maps/contrib/109226104174531680350",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWjifgizlg2YyXeWz_c_P-v1FidmlMtyRI_0MJ4HluUhnXaroweYQ=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q7bl43Ya0k03VgTucgaCkss29nBeMq-90Dd4U1rSQ1un6nmxFMHRoLwDEmGBpjMfY1yO_0lFH4EEB5asjHdh9rUvMLFPGin2HDXnBA35zLYmvTYnpkpuYlgqXKlvuNEOQmtPxmyg4U4nTaTar_3kn7JtWP-BfyTprLp",
+        widthPx: 700,
+        heightPx: 370,
+        authorAttributions: [
+          {
+            displayName: "刘水",
+            uri: "//maps.google.com/maps/contrib/118414550207630804585",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ5pbRXiaMhqfjFGO1Ybt9n2dN66zmyLDkw8W0NpqhE5p_h7Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q5uiZ6BXlHYlvUkE4DBUHA_n_D0_Tq61ty6KwfNqi-HRwAjRf25pfVOSLHhqBfTS5foBzZSMrS5XzB9JBo21Y7mDw5jelKJEYaLITXBWT5-yZ75WJN-cKO9h8kCR8ItQz68iMpxx9Gck9oZAfTXSNXodx9YUXSJHzzZ",
+        widthPx: 500,
+        heightPx: 500,
+        authorAttributions: [
+          {
+            displayName: "刘水",
+            uri: "//maps.google.com/maps/contrib/118414550207630804585",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ5pbRXiaMhqfjFGO1Ybt9n2dN66zmyLDkw8W0NpqhE5p_h7Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q6fj6o6KFUpPvU0OGU4Vidr5oyWXwCBanuuSQGsFJp_31HnU5TDE3u5QuT478JTa4JNmcNywGngdOhTgishfhpaelpCF_zbyQC9nCHX-uvbNvHObAiH_oaMm6Hcpsnh6KrISgd3U21Sxfpm7XH0XCfO4dU9bNp1AWeL",
+        widthPx: 458,
+        heightPx: 458,
+        authorAttributions: [
+          {
+            displayName: "刘水",
+            uri: "//maps.google.com/maps/contrib/118414550207630804585",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ5pbRXiaMhqfjFGO1Ybt9n2dN66zmyLDkw8W0NpqhE5p_h7Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q7kJCNhU2OgKIIuBkIXM3pLk-zm6VLWJrCHBhX1lkYRtA5N3EecsN0PSkm7ADOsYmgC9n7sui_NGQJW6GMUqBU3gK3RkOFLs8TcSS98JTcF2cniG9zMcMCjNRoyICVL7YJhQfNpgP6chmttCtnJ7X5GHcMfxPGihrJ7",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Anthony P",
+            uri: "//maps.google.com/maps/contrib/106436106222742053543",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLP_UrKBbmU9CCETY3pshQDOx3pbwP4ofU_3VPHqRQARCzRhg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q54M7cxoiEDS-gSJ7YgQ2ivba8kHvu__xUbKud1VSJgEzVN9XvPzW5v-ivCsfXCPUDn8R-JIVRrdFPsYKITzHzfxjuhXzq6z3khH25JV8GwaUieLMzY8lSJdf-EkNX4HJO1AtN7a6Et8-LwWU28cuCYbz3r9VknGo-i",
+        widthPx: 700,
+        heightPx: 464,
+        authorAttributions: [
+          {
+            displayName: "刘水",
+            uri: "//maps.google.com/maps/contrib/118414550207630804585",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ5pbRXiaMhqfjFGO1Ybt9n2dN66zmyLDkw8W0NpqhE5p_h7Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJe8H2Z-WTwokR7GTG1rxwkxg/photos/AXCi2Q4I9vQQEgaRfhLEZQCXRbmuGT4XKmTj7wvPxleDUiuF60A38UjsuIbkhwi3s7virwhr8S03Cd3J9Vjj7njHt1jWSqy4UhnIeCck16yaQhEzPLICqfGdH2Ml5V_Q8QCqbRCGCCbvXbUjKjxobMwrN9KLtZJt2M_7spOh",
+        widthPx: 1000,
+        heightPx: 925,
+        authorAttributions: [
+          {
+            displayName: "刘水",
+            uri: "//maps.google.com/maps/contrib/118414550207630804585",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocJ5pbRXiaMhqfjFGO1Ybt9n2dN66zmyLDkw8W0NpqhE5p_h7Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleSeating: false,
+    },
+  },
+];
+
+const GOOGLE_UPDATE_2 = [
+  {
+    name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY",
+    id: "ChIJN3_y5ReVwokRPt4tn3jR4SY",
+    types: [
+      "fast_food_restaurant",
+      "hamburger_restaurant",
+      "american_restaurant",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "91 Saw Mill Road, Elmsford, NY 10523, USA",
+    location: {
+      latitude: 41.0574529,
+      longitude: -73.817605399999991,
+    },
+    rating: 4,
+    websiteUri:
+      "https://locations.wendys.com/united-states/ny/elmsford/91-saw-mill-road?utm_source=Yext&utm_medium=Google_My_Business&utm_campaign=Local_Search&utm_content=EN_US",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 6,
+            minute: 30,
+          },
+          close: {
+            day: 1,
+            hour: 0,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 6,
+            minute: 30,
+          },
+          close: {
+            day: 2,
+            hour: 0,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 6,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 0,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 6,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 0,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 6,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 0,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 6,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 0,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 6,
+            minute: 30,
+          },
+          close: {
+            day: 0,
+            hour: 0,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 6:30 AM – 12:00 AM",
+        "Tuesday: 6:30 AM – 12:00 AM",
+        "Wednesday: 6:30 AM – 12:00 AM",
+        "Thursday: 6:30 AM – 12:00 AM",
+        "Friday: 6:30 AM – 12:00 AM",
+        "Saturday: 6:30 AM – 12:00 AM",
+        "Sunday: 6:30 AM – 12:00 AM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_INEXPENSIVE",
+    userRatingCount: 1856,
+    displayName: {
+      text: "Wendy's",
+      languageCode: "en",
+    },
+    regularSecondaryOpeningHours: [
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 6,
+              minute: 30,
+            },
+            close: {
+              day: 1,
+              hour: 0,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 1,
+              hour: 6,
+              minute: 30,
+            },
+            close: {
+              day: 2,
+              hour: 0,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 6,
+              minute: 30,
+            },
+            close: {
+              day: 3,
+              hour: 0,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 6,
+              minute: 30,
+            },
+            close: {
+              day: 4,
+              hour: 0,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 6,
+              minute: 30,
+            },
+            close: {
+              day: 5,
+              hour: 0,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 6,
+              minute: 30,
+            },
+            close: {
+              day: 6,
+              hour: 0,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 6,
+              minute: 30,
+            },
+            close: {
+              day: 0,
+              hour: 0,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: 6:30 AM – 12:00 AM",
+          "Tuesday: 6:30 AM – 12:00 AM",
+          "Wednesday: 6:30 AM – 12:00 AM",
+          "Thursday: 6:30 AM – 12:00 AM",
+          "Friday: 6:30 AM – 12:00 AM",
+          "Saturday: 6:30 AM – 12:00 AM",
+          "Sunday: 6:30 AM – 12:00 AM",
+        ],
+        secondaryHoursType: "DRIVE_THROUGH",
+      },
+    ],
+    primaryType: "fast_food_restaurant",
+    shortFormattedAddress: "91 Saw Mill Road, Elmsford",
+    photos: [
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q5CdnaakjCYEdZlpzGwPD7iX1wfqUrUjcL1ChLkJkXtf-aQgMVundv1sRBYHyW9j5qIC5S0ISc9tpcP54xDHNORfOBwmuBmDRf_YFcT6jZBlHKGXD6bO1RQrIzoCOf6Gdn2-K6Vxt2O_U6UHuhelc0tZtgklunkyJ4K",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Ed Tatton",
+            uri: "//maps.google.com/maps/contrib/113851382166904335808",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWCFMb2dHWnl4_9kSg9NFz63LzNU30PO6eGUVDsEeB6OD3De7xysA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q5BpU3ocAouus75QxMFcTQ21QjhAfqYKaI7GdBf-HS9wuLV3baUSOUd6KBLILwgqPxnjnGfoImdzM_4QznfCbqaFbhVDgnfod6_Vw7DdHiQ6UlAyMa_WJTzEaEk5dSAqPkVl3o-40hvEN6ipXlrDNC7knx50jhyNTN3",
+        widthPx: 555,
+        heightPx: 504,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q4Xdxq3uDlhAWNMt_eYrq-EMJs8WxFsrCe7U91JrJcY0x0-cZx0qGRtBbrmmOLBADDKdqRUhTbZUoQyBHgiwiHeRu2N8KfvZNn6quHfCiQ5-wl4_T_Y997tO_tAWeYpfMbD6c3HhdYoCh56lCD-fjCw1Uaii36vI7z1",
+        widthPx: 442,
+        heightPx: 478,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q7sp4WmtTrphZxOSPA3AFiBnZjpjCz5yPN8a-V-XlnDfenr-XbtaZzRZhfT1aTKngIVB7ip5OeaS3KjvnzoQ7hBjgQ1I2C26HlKSQjm8q1eCGbzAd7ZFkYXDhub0sQ1uJn_7jcUt-gePQjzjWJTFeyWmR94tRWOiymr",
+        widthPx: 555,
+        heightPx: 555,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q6nwMsGbvRvtM_7SLNFd4AzjfV1lYMBlesCxwUMIEC1c4rFDe8IdWQysIHQmpZEyZWMWZ0CTt-p9Ce_QbIhMCaJurzmBnbJ5sqTS2I5zTi99LMOf_laz9Bl23aizD0axQ-fCumaAMEMyGBmOwcrw7cRtUmTUDHlM3TN",
+        widthPx: 555,
+        heightPx: 555,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q4YQCzdWW_mjFLIeRpXoqaU7fr3g1-CXKXsaswzbBjPLSjcFVSAXTeerOZURh4ETLNzeH88HgmbizSGLK57b451i1RGYHRuO66LKgRKz_dUSAZttQYsssDjZo1N9EEur07zfxdGeTLCrz8m7fhCjAXQ0DiPjGMXklht",
+        widthPx: 512,
+        heightPx: 494,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q6JlBcTLOtrx7zjQtVgSqnpm30azJVeoIMQLzAoahXt9uCi7JIxpz21ovRsWYR7i8d23yfIYmRpf6j975mpEnze6x0qhdFkVZEVo0cVc8lZHmndB1VboqD5yBZmHqkdNi8FPg8UL4r_4kamIlQHoCnxu7y0bbA93AfN",
+        widthPx: 555,
+        heightPx: 555,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q6mO6kTxyZbLbwRbW1c_ykDkZrmrLYu8A-pDIfNboWv_p7kSseCLehN-FEFBwVUuWMfFf5_9z2_fbku4Lu4v6RyRYq4oddmDAGM1w85CV-HajyDktzV_1l4eWfdfOYEycoO1L6xD0SPlsGImGHxQenPIajFNsdy_pVM",
+        widthPx: 555,
+        heightPx: 555,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q7ahADhkfFodfbvpBXlzKtA7WnIUHWEZS5YfUvLyGwOByJFawgNP99fIHX3Dc8fRr9gGMyJzLsQnMtC-R_VKOhyWoWrpIPZhkbOjwgsRVYL8b2ZgLYNZugXDIKiNiZyx8KpNNHM5kdq6OezniiCXbAPLLfU3JQbB1-w",
+        widthPx: 555,
+        heightPx: 555,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJN3_y5ReVwokRPt4tn3jR4SY/photos/AXCi2Q6M1A8T2HcBCpHpHG-sscdZp96prunu675piuX9p2wRF6lhNYTl83pVEwXdQmz1wnnJ1y5HIGobQPiAiUZcrTH_tlf7O7x6VB5pQZ4eEsTJIz1buIxFwES2clCiZT0F_0p-06LvMPHPezOvvf1r9klR5YfhUSyLWjJ_",
+        widthPx: 555,
+        heightPx: 555,
+        authorAttributions: [
+          {
+            displayName: "Wendy's",
+            uri: "//maps.google.com/maps/contrib/102157968937028772970",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWurByyXHKA28tG7SxrNMQyJCFWDQlc4tecszVk7Bx-SDU_7X6n=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0",
+    id: "ChIJ2wPdmtWVwokRWW6Aqiv_Ut0",
+    types: [
+      "mexican_restaurant",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "210 Saw Mill River Rd, Elmsford, NY 10523, USA",
+    location: {
+      latitude: 41.061790099999996,
+      longitude: -73.814657099999991,
+    },
+    rating: 4.7,
+    websiteUri: "http://invitorestaurantny.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 30,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 12,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 2,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 15,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 2,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: Closed",
+        "Tuesday: 12:00 – 9:30 PM",
+        "Wednesday: 12:00 – 9:30 PM",
+        "Thursday: 12:00 – 9:30 PM",
+        "Friday: 12:00 PM – 2:00 AM",
+        "Saturday: 3:00 PM – 2:00 AM",
+        "Sunday: 11:00 AM – 10:00 PM",
+      ],
+    },
+    userRatingCount: 120,
+    displayName: {
+      text: "Invito Restaurant",
+      languageCode: "en",
+    },
+    regularSecondaryOpeningHours: [
+      {
+        openNow: false,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 22,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 22,
+              minute: 30,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: 12:00 – 9:30 PM",
+          "Wednesday: 12:00 – 9:30 PM",
+          "Thursday: 12:00 – 9:30 PM",
+          "Friday: 12:00 – 10:30 PM",
+          "Saturday: 12:00 – 10:30 PM",
+          "Sunday: 3:00 – 9:30 PM",
+        ],
+        secondaryHoursType: "TAKEOUT",
+      },
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 11,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 15,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: Closed",
+          "Wednesday: Closed",
+          "Thursday: Closed",
+          "Friday: Closed",
+          "Saturday: Closed",
+          "Sunday: 11:00 AM – 3:00 PM",
+        ],
+        secondaryHoursType: "BRUNCH",
+      },
+      {
+        openNow: false,
+        periods: [
+          {
+            open: {
+              day: 2,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 15,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 15,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 15,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 15,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: 12:00 – 3:00 PM",
+          "Wednesday: 12:00 – 3:00 PM",
+          "Thursday: 12:00 – 3:00 PM",
+          "Friday: 12:00 – 3:00 PM",
+          "Saturday: Closed",
+          "Sunday: Closed",
+        ],
+        secondaryHoursType: "LUNCH",
+      },
+      {
+        openNow: false,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 22,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 15,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 22,
+              minute: 30,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: 3:00 – 9:30 PM",
+          "Wednesday: 3:00 – 9:30 PM",
+          "Thursday: 3:00 – 9:30 PM",
+          "Friday: 3:00 – 10:30 PM",
+          "Saturday: 3:00 – 10:30 PM",
+          "Sunday: 3:00 – 9:30 PM",
+        ],
+        secondaryHoursType: "DINNER",
+      },
+    ],
+    primaryType: "mexican_restaurant",
+    shortFormattedAddress: "210 Saw Mill River Rd, Elmsford",
+    photos: [
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q6YNvYKuvBktgEN7HR_Z9dKqlPFiEo9i6bYRyPTPmCGCp9SzCuJemSGWmkVt2qGe0Lq0mLX5upbZYhlguG2Qj5tEw0R0MPX4lpdHraUkR1he2YzQHriB-5eK29JIy5CHdwFJpq5V2n4gK0oyWHLMk0BtVB-jGeNF8Nd",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Joselyn Vargas",
+            uri: "//maps.google.com/maps/contrib/109062827595312372211",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjU-G_l_8XLPteWEtQ7eP0l9kRTLxx8pxaavuK4NR20I9iAJNHWlyA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q5KGTkYd-kzTVKIJX3jmkNjXn6b3C57o0TRNUBnR6PHzrUKChQ0rdKh84Ka7_ivMnEpjmnJ4Qs4SFJM_Qz9RkhwyL33ox45MyiV4GnXL1HTu1uMrCcXwxCVIs4FXn0j8yzOK5UMJO7WOuYiXpob0PG0rw_pB7-6meUk",
+        widthPx: 800,
+        heightPx: 800,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q46QzBfGGfvQesiyAJjPIciaT4UEsttPm3hvRUKTiv0-kzMTayeFJKiv9sdVrfm_TeD7MigSaMO4vdy0NK3rhMfyR0qY3LXX1yKGNOg1E-ttUMGinquEp8oxlga3wgKCvUmFOGrpKS0EolrNiCMyZOQZwdyEbCCI4xK",
+        widthPx: 800,
+        heightPx: 800,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q4RUjFC39UGZ1EOew_uoVKG03maiPA31ZTo1KuC6N4wscR0yw9lISoGem-THkBCjCeqo-iXRP2taabg0pEoI_UrcSMcDIuMryjIvFTvQ6ciutla9j6f6emlq_MWbMug74ITSnap4A2boDoA5LuPF0Nzwp5yYZ3cYMVK",
+        widthPx: 800,
+        heightPx: 800,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q6YxBwGFZTgvq6ldOTgT65d5rxg3LsdDz5U2QbfVhOUIl77p_vxH0KQ6Pa2ULPVFTbvNVjy74DneFc5kcKG8uFbpF3STUiO7Q73od_lFciupR1fiLYA0qJXbbg45FM30dZz4VU19-guynZGut4tx-x-1nU_fdkER_c2",
+        widthPx: 800,
+        heightPx: 800,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q7G16CCKFax2YF2PynMAoXzilOGuWCtWA8doa5vvPto5fS-jGr5FdU1DDy2NDRw0bBf9f2QCSbIh4TQokp_x3MhckTrsVX49z4h7Rns2CSREk7RGnpbeXK4W_O6t3460F3Bajev2QJtrMpWA0L_qt-zzD_VtAfo3sgA",
+        widthPx: 800,
+        heightPx: 800,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q47-OOeUNmKQrm38-2H3UJwWTTQVmaTvtFSWEUR5dCb80O3o69K5qD6wkHL8-aXa0_ZXcBZJCCFXoY5NlxInakkGVRkCPLiOse2gt1-UIGCLmUz8FIaTfIO1pWNtxXQ8-k_UkyCiowXJpRgrbuyH6XRXhNbTrkjxwhc",
+        widthPx: 4800,
+        heightPx: 3200,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q7suCwU_QRm99u_NNTmu6z0FiS7y3RWFXcAPRyp7QslwOt4sOoPmCoY6SwPkmfrz8A1n-t1vc0yiONs4omzBxkFQYGQF4kWqrcbsJugKoG0ib__shs3Y9Ban-f473WDEZlJxyRwhDh-DR1vvwdcaU4M3e6_b-NQbOgd",
+        widthPx: 800,
+        heightPx: 800,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q6xUfU03TkL-Y9xEu_03mCh3Pwa4hrPGq961bVngQOCJhHkzGDvZba8e0jna5txuGNK_2A2tOLTFcUk6dsidl7UwaQ-X5DLQv2E6qfrVAyVOyQ2cdoofHYRk-3PVaGfwgZHtUuQ9aerUixvhICpY4OLhGeYkRV7benw",
+        widthPx: 800,
+        heightPx: 800,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ2wPdmtWVwokRWW6Aqiv_Ut0/photos/AXCi2Q40oM4RHkGVcnNywEYAlMis4cTB1qmHXV4ACUiNjTTA8-pj3Lp8vJN-pbUYGJnTOdg-dPewj2zNVOfDW2wM8WPG0_IV_9ACZ5o8xYFBgvLleMxPzp6Q2Z_AxAxyeE6QMW61wREdiXcLh_mEfg8W7-oZKWlJSN58UD50",
+        widthPx: 800,
+        heightPx: 800,
+        authorAttributions: [
+          {
+            displayName: "Invito Restaurant",
+            uri: "//maps.google.com/maps/contrib/114252986918966350204",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWzNs0BNWA9Cjcr62Z_1qRJP0-FBzjAYUq65w3QP4TILqsq5cs=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE",
+    id: "ChIJ7xSVPhSVwokRFYt9yY972pE",
+    types: [
+      "meal_delivery",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "209 Saw Mill River Rd, Elmsford, NY 10523, USA",
+    location: {
+      latitude: 41.0619163,
+      longitude: -73.8151407,
+    },
+    rating: 4.1,
+    websiteUri: "http://www.elmiski2.com/",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 9,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 10,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 10,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 10,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 10,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 10,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 9,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 22,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 10:00 AM – 10:00 PM",
+        "Tuesday: 10:00 AM – 10:00 PM",
+        "Wednesday: 10:00 AM – 10:00 PM",
+        "Thursday: 10:00 AM – 10:00 PM",
+        "Friday: 10:00 AM – 10:00 PM",
+        "Saturday: 9:00 AM – 10:00 PM",
+        "Sunday: 9:00 AM – 10:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_MODERATE",
+    userRatingCount: 187,
+    displayName: {
+      text: "El Miski II",
+      languageCode: "en",
+    },
+    primaryType: "restaurant",
+    shortFormattedAddress: "209 Saw Mill River Rd, Elmsford",
+    photos: [
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q6TYZ_HJbkbnSiD0K99zsb3uCzquwMfL13BIVcUR_FTWQfjaQt447G5twmBzO869tkVR5Ij8B6l6H8tDDFCxfd_IdonUwsihHk3IhjEp1XjgzkSmAjyNJZ1XckFGu6CM6v25cwZ76xi6YqDsmR5_EnLMWGGoNPnQEsC",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Kevin Cleary",
+            uri: "//maps.google.com/maps/contrib/101178602725688057130",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVvG5qHZDoVaxRBSCcre1QWuRPZFVaUw-HjSo2yNQDDG1R1D0W3=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q6f_Foi9KMTebIneAq8daUkD2kxKtYw807n94oTxQIhAZKxyAFKvxMeb2mMbU0tjk04U3b61U4y1nsWgS7DrxWExPqsX2oaweq4PUKskj3fUGjVNw2PwMefwHwxluYVM40qTclPjFI2eY4gVzMtHKfk0lT1OmZCGLBF",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "carlos garcia",
+            uri: "//maps.google.com/maps/contrib/100388263834332136590",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUEI2TT-8Dwd_GX_HBiCIFYm8P2orGzgKV36YCMCbJrY3xU6pYv=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q7kj5lkXjkfQmsKWYWygSZNsSNeChQj3luLbTBFBFxBHgu3-9RmbsmooYKI2uQ6A3Oh-QQjsTHJ3s2Cr0gQb2DgbGP3g9YaSmPMccwqnkWh1v-4KRjjBmJBSfHFIIZcwO85cRRks1p2Ze7lma5qSzxX7jRBhtnylHrx",
+        widthPx: 3072,
+        heightPx: 4080,
+        authorAttributions: [
+          {
+            displayName: "Maximino Reyes",
+            uri: "//maps.google.com/maps/contrib/116362220585447226219",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXMn0MW_doHXEnlaiM8kpZPj7XAgg7ygxroJrPkgDqKG0G40tcS=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q70-QwIx4-F4WwORqUN2Gnazbl_0Maw_W-jr1LaYh2I9fxVUlY0aoBJdeXpTgKZOWoiAaozFdEgfgtY1rDrwYGSVw7fGqe2hKNVxFmM2v6OWzL3PP208cVKnSWCWkPepcfTbFzJB5gyQelQjZAfVCpKHrwFYFaL8iw9",
+        widthPx: 2268,
+        heightPx: 2705,
+        authorAttributions: [
+          {
+            displayName: "Nino Ken",
+            uri: "//maps.google.com/maps/contrib/103254410187577088197",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX2BWIm9GG_MH8P9nE_LoasECX2EMPamWN4qJIzJ1-KcE6So0aP=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q5hWfZAKhJHMYvlDraXbhg2WPNEaGJKsSK_gX2maC6b3CSci13Ylep0GkuWqJ9bJmM1dxEmNhYCMcwAmS53scaqbjMxeu4Pb7iTjP1qulsgdVz2ar1Pjt1Sp-myRTnJK23p9LOyUI9lp-i6Z7QvIB8zdILLSOajyOMV",
+        widthPx: 4000,
+        heightPx: 3000,
+        authorAttributions: [
+          {
+            displayName: "Herbie",
+            uri: "//maps.google.com/maps/contrib/108400146478832900515",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWPkolMmFEvhQcuQnMIJC481F-2Xkq0wz13HnaqI-f0oc6CZ6e2mg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q6_Yl1zbDre1q_rg_NWa_qijyDJ2TirYqdn7sDs8p1zSto8WXGoEGdt4SYs5Hq2F08ZT3PlDci_r3_aeIjHgROftIGcViL2V3siNyrCedN07wFkFFu-0tQk_jQ5_W8YdC9F4uhInPWEWf_V8sT1nObAVYUG6CqeYKdV",
+        widthPx: 2448,
+        heightPx: 3264,
+        authorAttributions: [
+          {
+            displayName: "Mass Engineer",
+            uri: "//maps.google.com/maps/contrib/110254466485522626981",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocLUyDiKK5AwEGmek_xeCITf6sgbTxjnqIdhkeOG33Bt7hGc_Q=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q4NEQPnbBeknXjBOcQO_NC-LUjus52ecMeAWb34esuNoxv5ImzN_3YeL_jn8b8Go5qHIxBMM7aOP8NeUhlayEf8iAdbCGlbnFdKGPy0-Km4ifFb9NmXbSHQys0wCu5OKlXllVPq_icOLCqFXxt3CAQtsRaiciXXO9py",
+        widthPx: 4000,
+        heightPx: 3000,
+        authorAttributions: [
+          {
+            displayName: "Herbie",
+            uri: "//maps.google.com/maps/contrib/108400146478832900515",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWPkolMmFEvhQcuQnMIJC481F-2Xkq0wz13HnaqI-f0oc6CZ6e2mg=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q7cSWgzEnSu_LVWHT-2OAjhl8FJ-F1Qr6Wm8sN5M22xh0hNzvMh_Y2ky8NC5t6VKFdMEht8m5Cviu0okHB606YY0LrKGJHx3bUXI1hyldO2txKolTLvwWq1ONIZIIapCB3GgCfjD9HSPnkqgMYKlu2zg7OcaSECqQeb",
+        widthPx: 2592,
+        heightPx: 4608,
+        authorAttributions: [
+          {
+            displayName: "Fernando Chacha",
+            uri: "//maps.google.com/maps/contrib/107387706305697434117",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVfn5aM0D4qRqxCBHRDdqYAONpLiveNLtxWZj_Ro-Fl2AZhEXc=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q77jWEb2qNmaLpCngdkM3bJEPY2zPrs56FVuEYSy7sGskH6izGJBnUJwQxhNWtWRiP3jgqz6VBRsKGLdKdJqfu-QKYDLDuKTUW7CryGOqkRZfzIweN8czj2T3mOmu_JFxsk64pU6fGzIHuqTE0OHlT6fxDEJzrvCb9W",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Walter Reyes",
+            uri: "//maps.google.com/maps/contrib/105275799351501120336",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX0QWS5o5HYlraLIMw--WHDEoq-he5PDmtTESNSU6zviIu5gUEL=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJ7xSVPhSVwokRFYt9yY972pE/photos/AXCi2Q5PoulI3Y2lFdHUdWozuyZafAI3_Vb-08_Q738DbeOuQiPw51QmVzEvZwe6Jp7oXwD_HfWjv6VWrOE8MsghS8jkCmzp3ANdE7wEZgAiQ_yC--dEPx_1HOTe7bx7PV0oT_l2axm0KJP1TZekvKZxwokGmDtWrjT2DQAO",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Rickie-NYC",
+            uri: "//maps.google.com/maps/contrib/114140617235833272631",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWa8K1fEQFNKlZjKS8QyhP1eKwpYJopXxmjTyqyZmp5lEMmQkA=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8",
+    id: "ChIJy5gMsReVwokRVOA6cZGJMI8",
+    types: [
+      "coffee_shop",
+      "fast_food_restaurant",
+      "breakfast_restaurant",
+      "meal_takeaway",
+      "bakery",
+      "cafe",
+      "store",
+      "restaurant",
+      "food",
+      "point_of_interest",
+      "establishment",
+    ],
+    formattedAddress: "182 Saw Mill River Rd, Elmsford, NY 10523, USA",
+    location: {
+      latitude: 41.06078,
+      longitude: -73.8150236,
+    },
+    rating: 4,
+    websiteUri:
+      "https://locations.dunkindonuts.com/en/ny/elmsford/182-saw-mill-river-rd/334933?utm_source=google&utm_medium=local&utm_campaign=localmaps&utm_content=334933&y_source=1_MTIxMDg5MzMtNzE1LWxvY2F0aW9uLndlYnNpdGU%3D",
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 1,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 2,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 3,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 4,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 5,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 5,
+            minute: 0,
+          },
+          close: {
+            day: 6,
+            hour: 21,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 5:00 AM – 9:00 PM",
+        "Tuesday: 5:00 AM – 9:00 PM",
+        "Wednesday: 5:00 AM – 9:00 PM",
+        "Thursday: 5:00 AM – 9:00 PM",
+        "Friday: 5:00 AM – 9:00 PM",
+        "Saturday: 5:00 AM – 9:00 PM",
+        "Sunday: 5:00 AM – 9:00 PM",
+      ],
+    },
+    priceLevel: "PRICE_LEVEL_INEXPENSIVE",
+    userRatingCount: 435,
+    displayName: {
+      text: "Dunkin'",
+      languageCode: "en",
+    },
+    regularSecondaryOpeningHours: [
+      {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 5,
+              minute: 30,
+            },
+            close: {
+              day: 0,
+              hour: 20,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 1,
+              hour: 5,
+              minute: 30,
+            },
+            close: {
+              day: 1,
+              hour: 20,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 5,
+              minute: 30,
+            },
+            close: {
+              day: 2,
+              hour: 20,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 5,
+              minute: 30,
+            },
+            close: {
+              day: 3,
+              hour: 20,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 5,
+              minute: 30,
+            },
+            close: {
+              day: 4,
+              hour: 20,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 5,
+              minute: 30,
+            },
+            close: {
+              day: 5,
+              hour: 20,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 5,
+              minute: 30,
+            },
+            close: {
+              day: 6,
+              hour: 20,
+              minute: 0,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: 5:30 AM – 8:00 PM",
+          "Tuesday: 5:30 AM – 8:00 PM",
+          "Wednesday: 5:30 AM – 8:00 PM",
+          "Thursday: 5:30 AM – 8:00 PM",
+          "Friday: 5:30 AM – 8:00 PM",
+          "Saturday: 5:30 AM – 8:00 PM",
+          "Sunday: 5:30 AM – 8:00 PM",
+        ],
+        secondaryHoursType: "DELIVERY",
+      },
+    ],
+    primaryType: "coffee_shop",
+    shortFormattedAddress: "182 Saw Mill River Rd, Elmsford",
+    photos: [
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q4gSDFF4kPqF_tNIQUghNRoAJ0rVSa-AsrRDPdyyrvWG7-enGuMiRdgh4nTlp1n-KTd_ywxU043WJKhRW_9n_iMTOwAmU1xbGL99-DVHXAc9MM34lnS_iw7Ori5yPO6oGXbJxIfFjgN8HswaKN_ZjpdasxOeYpCMWY4",
+        widthPx: 4048,
+        heightPx: 3036,
+        authorAttributions: [
+          {
+            displayName: "Jay Last",
+            uri: "//maps.google.com/maps/contrib/114273198225564253463",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXVHnxx9FAGF-h4GnVTJESu8_SeZJTcbbRnewTVcwFU2FsTYXZolw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q5nKFL98QTUHpKRIZuwmgRYs1aWhG7_7zeNV7pTQRm4FrCOXuOZjtXDOt7T5jehxdj5jaVR7d6YwIfRx9YV385mWpqARTpYlBaSfBCNkecdc5yaghATFtLO3CdYNiNg7mVv6AQX0Wk-ckPDy14gfyCrDjRZ1Z_fGoEm",
+        widthPx: 480,
+        heightPx: 270,
+        authorAttributions: [
+          {
+            displayName: "Dunkin'",
+            uri: "//maps.google.com/maps/contrib/114248160793891830248",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWOwfBrQLo09hkCrdKxeH5AUw4JRLZffpQMtpGkDdhT7tYc3y9x=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q7s7faKrLGUqlBEKHR899lURb_zJxVjaU2WZxh-L54decvAK7_MOwugfj5A32cawrZ7PO4Ti4obzSEDh7Q20g91w4b34t2H8vLgwpAQ5DdpUURY5S1n_HSD8V3rP5xtSHDsPLDfG2qc78aM0UxkTXWrZh7498rF9YEM",
+        widthPx: 374,
+        heightPx: 374,
+        authorAttributions: [
+          {
+            displayName: "Dunkin'",
+            uri: "//maps.google.com/maps/contrib/114248160793891830248",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWOwfBrQLo09hkCrdKxeH5AUw4JRLZffpQMtpGkDdhT7tYc3y9x=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q63cTx5fLOBoQsfVBJ8SnzSW9oQGqkLAqFSvft5VNi3tXvSz7WL5QfYXUYeq1Bczy4Zoh5GGkwgXj-Wh7GHB0MzKfXjfWrVQKCBqU_uxWb9kcaYUqQFH6OZr8JVbKJJ8DMU9KaI4ZMNdvbQ0XIpVCtpYzP9VY0WSTq_",
+        widthPx: 2304,
+        heightPx: 1295,
+        authorAttributions: [
+          {
+            displayName: "Dunkin'",
+            uri: "//maps.google.com/maps/contrib/114248160793891830248",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjWOwfBrQLo09hkCrdKxeH5AUw4JRLZffpQMtpGkDdhT7tYc3y9x=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q5u4yP8FaPm64dETE9jEDa7uWp5pg4_MXjQvYKJCBTRcjB-hG2Ewj7LEvugC3j_doPMhnUHinJHqimjjHLJg8Gq3FixhxblYcVf6C7esnZfhLjMtUYRQ-uLuDAzGyOZ2mbfCgkWd16OojbTop0y0blPxR2HYgGrm6uG",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Rolando Rosales",
+            uri: "//maps.google.com/maps/contrib/108662213895514898808",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUlH7_uLReQeNqgQNafmla48QCb6Ip67PwdqVKUoTR_y_gInsLK=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q604_p_EudXKLaydLA3HvmszBwa29lqTF4yHLcrsMY9ICXKUEjuSsicVO061-HqWe2vO0p5hAgSZKzGaCa5y-VbxK23cXHyYeyeZN6H7UqgjpnTL6UJxDYzJ2s0xJRlwBWMYQJdsu6IK_ym1QhdMKZ2ShsEH4air2RN",
+        widthPx: 3000,
+        heightPx: 4000,
+        authorAttributions: [
+          {
+            displayName: "Alexander Shyshla",
+            uri: "//maps.google.com/maps/contrib/107387949310156571235",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXiv4kcwPbhjnXZCWrY2eUgWlljoUcQ2YCp3RCVPmBZA7BH4j_p=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q47PQmdlqKTYUQZBogTrTqCBYEf_HqhGSXDxDvmEX29c5jQdWjfUdaJQkyD7ZH5Xvmu2oFzLmCkmm1OpKbmaTMYdcE9Ds5wY0NM9U-_AyWOc3an65tcMq7nsdPFfxvoXNheLuFU1S-vCRW3Q5jA-BMxvbsOhJEU9vXW",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "cabo2wire",
+            uri: "//maps.google.com/maps/contrib/112419057088731589653",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXi216xKe8Rmx0y1jzaZJcZp1ooZjeqScQis79tJAtJm4ZdSXIrjA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q6hUxMoLk4FDhIDFQ2gtk_jf3B7PFUyeL9lKlFsM8AQeRY7c4ZjU8k7rGeiVhPORpatTfBiY8KjX0OX0UpIjKD6jbKuuMoPekkcjIsEuVNJ4D_Cl3UyNEnXDDyveozc9srL6Fjsbea_N_nskMkBgABYtAPnyITpTBnn",
+        widthPx: 4032,
+        heightPx: 2268,
+        authorAttributions: [
+          {
+            displayName: "Krystle",
+            uri: "//maps.google.com/maps/contrib/110536710081043577990",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVHS_N8fHY3Pw4IeusdSVqZAAIsA5-K4oBEp1XRbbp2gNauI1pXaw=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q5HqHA39GwxmykIi30mvwzp3Gs9jEzKFar3p2UZxyIu7pf0JW15DOwoXNl9ABmizxhE446KVmmu9JaK-R29llq6XmEa-HF2fq3hiUcIr8YoJ8cj5cXBgs5F1qO6bBUQeSn51Q1OiTKK1aM1JjeVlREZvAriiAp0zQIq",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Rolando Rosales",
+            uri: "//maps.google.com/maps/contrib/108662213895514898808",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUlH7_uLReQeNqgQNafmla48QCb6Ip67PwdqVKUoTR_y_gInsLK=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJy5gMsReVwokRVOA6cZGJMI8/photos/AXCi2Q4XvOMUX5i1bOTrk5LdIVEE33t0DGBBP82ZDh_LqSh_Un4H9A-GBFqVHUqOHZYxzslann2_UPEWsFtoeFcBLzC9G6EeJpZzsfXHM5aSwqcCm3-ItJnhfusXKw-Ez8p9-Jx7i9Cj0vXvX6AAkQcuuBirKASqyl4MTU2J",
+        widthPx: 2700,
+        heightPx: 4800,
+        authorAttributions: [
+          {
+            displayName: "Robert Tocco",
+            uri: "//maps.google.com/maps/contrib/106400870402305914097",
+            photoUri:
+              "//lh3.googleusercontent.com/a/ACg8ocKzB_WbWoSsWnrGgjxuZoCdJGxzEva7FX486V5ZDfE8XtkEhw=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+      wheelchairAccessibleEntrance: true,
+      wheelchairAccessibleRestroom: true,
+      wheelchairAccessibleSeating: true,
+    },
+  },
+  {
+    name: "places/ChIJt865ZZWVwokRZC5487llZBk",
+    id: "ChIJt865ZZWVwokRZC5487llZBk",
+    types: ["restaurant", "food", "point_of_interest", "establishment"],
+    formattedAddress: "213 Saw Mill River Rd, Elmsford, NY 10523, USA",
+    location: {
+      latitude: 41.061993099999995,
+      longitude: -73.8151407,
+    },
+    rating: 3.6,
+    regularOpeningHours: {
+      openNow: true,
+      periods: [
+        {
+          open: {
+            day: 0,
+            hour: 11,
+            minute: 0,
+          },
+          close: {
+            day: 0,
+            hour: 21,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 1,
+            hour: 7,
+            minute: 30,
+          },
+          close: {
+            day: 1,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 2,
+            hour: 7,
+            minute: 30,
+          },
+          close: {
+            day: 2,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 3,
+            hour: 7,
+            minute: 30,
+          },
+          close: {
+            day: 3,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 4,
+            hour: 7,
+            minute: 30,
+          },
+          close: {
+            day: 4,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 5,
+            hour: 7,
+            minute: 30,
+          },
+          close: {
+            day: 5,
+            hour: 22,
+            minute: 0,
+          },
+        },
+        {
+          open: {
+            day: 6,
+            hour: 7,
+            minute: 30,
+          },
+          close: {
+            day: 6,
+            hour: 22,
+            minute: 0,
+          },
+        },
+      ],
+      weekdayDescriptions: [
+        "Monday: 7:30 AM – 10:00 PM",
+        "Tuesday: 7:30 AM – 10:00 PM",
+        "Wednesday: 7:30 AM – 10:00 PM",
+        "Thursday: 7:30 AM – 10:00 PM",
+        "Friday: 7:30 AM – 10:00 PM",
+        "Saturday: 7:30 AM – 10:00 PM",
+        "Sunday: 11:00 AM – 9:00 PM",
+      ],
+    },
+    userRatingCount: 111,
+    displayName: {
+      text: "Big Jerk Caribbean Restaurant",
+      languageCode: "en",
+    },
+    primaryType: "restaurant",
+    shortFormattedAddress: "213 Saw Mill River Rd, Elmsford",
+    photos: [
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q6MG_-u76CSnLh27payK2zkNHH5ZpcwJUmuLM74oDLwICsBrci06HMIkqPWyDzHwGsaISGseIq_2bKrwCodrQWBAenVSW-0TMcZdooiBrrcVcUEqpp8hOL4VOjQYlNKCydg2zhk0Gn5_RPpbw5f4tm--plVaX5z6sSM",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Sheba Gemini",
+            uri: "//maps.google.com/maps/contrib/107923009676354374209",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUc4NtGbHvQjuPz34s34sEoe45HJyN8Cy59423WUrGjOSxonZ6c=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q6Ls1PriZCMm37FV7P9kLGSo1Id9OjpiFnTS43XJhy3aS9WaXWfdhMQHVFZ3iFXNbXvAOSEJAhWUUe7RMv6LtUc7swLUQr7JOC81bHic07xnWFbfrMUNBFfMPAnzFIUvx27szaQAQBZZ-D2NW5lM3LFBRSAaTOytIb5",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Sandra Batrony",
+            uri: "//maps.google.com/maps/contrib/117287207854556786647",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjVRgYoyYNwxxaUVQXBNjuNbg1yPZhaCWmFCNdfjwP7WuIYYFA5M_w=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q5s1FPZ8b5ew-k9aOEmwYZYkqdVfLIBjliEKBRhVSbQiICfPmrBKjkdW9SkDZHJDsP95vCDVO4xwGH6yBpJ-PZMZae_2ivkRRN1OYSpoSPpUyc1Fga5sUU4v23T3xg5K9LFOd2qZF7rVCtx6sV2lK9PrEAqjHui1uNe",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Dominic Berlingeri",
+            uri: "//maps.google.com/maps/contrib/108624298437922791280",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjXcnUq6i5N58lQhxhBURf4vg1GnO9YZ_jg4QKcEFpUw7RoBTEew=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q4hxGYrTZsxODfCWpBzk8eIXWjNb6L-MKhO1SPOlCYmenh1xVXoyYqO01a6toDW-hm4zECbBvklEKyyZTdZaJRGHQTv02EAyaAHyktzLBp_0LitP_nWepdGwyTTJRyp12wqZMNPv7Od6D1Ea5ybpgEgm-8FO2hc6_wh",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Nippon Fraser",
+            uri: "//maps.google.com/maps/contrib/112251033429899430132",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjX7YTYJJs70uQLIeRUOZ9F3fayYeRmfOPwjW45VQcWkvYqrxrbTQA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q7aHyv9gszhK2wgzeL_YiBrg39u0hyGaqZdSZWRaEeCD0x4pxb9vcHo6mnClDBGOu4hu7gXV30tL_lrer6cpVJ4tlnngNiOHfVSYard0VK1FzlhSBMJ_DpUn0Cao6a1uLxQA_M7QgSEQFNPDITX1Rz_ZdMnY9av9PJQ",
+        widthPx: 4032,
+        heightPx: 3024,
+        authorAttributions: [
+          {
+            displayName: "Sheba Gemini",
+            uri: "//maps.google.com/maps/contrib/107923009676354374209",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUc4NtGbHvQjuPz34s34sEoe45HJyN8Cy59423WUrGjOSxonZ6c=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q5OMNduv2-02xtLHx2dqQwmRscefMg4MiN6qRtnC9ABgEzpjRtO_7ALRzfUNthga5rc17HZ-A-x4fG9BmEauDl9UOG0zmk4QY3a5fcfRyjOQr7pIK-TmBMCEHYaG4GjPmuILUa0yXUevlwp7m9xrOYT8CmfSX01GKK0",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Sheba Gemini",
+            uri: "//maps.google.com/maps/contrib/107923009676354374209",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUc4NtGbHvQjuPz34s34sEoe45HJyN8Cy59423WUrGjOSxonZ6c=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q5e5obBCMqC9ganQGIQAIsQpvk9PqRv4OGtBVAd3DsfV6MuMwzL3-L_AcR4_CUfI0KvuJ1kjVMTrK8K7gj4xztDsYQKfzZKeZmfW7kD9joftu0suVat-Kumjct4chXcYmw6C4ofW_BE3Tjy1pwtTmDW-cwwDk1yD0Vj",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "S K",
+            uri: "//maps.google.com/maps/contrib/116744425717691789505",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUoLx1_1uFs-OFsIwTXvw9WXHI8ns6qUYoJa8vVLeIj04SiwDT7lA=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q7J_11sWSdr9QL7XHPLp7MrHh4eB8ZS3kxklSE1_tCMmyVYeXH0HP57FMANqY07qK09DZNdsw-EL8sTW3ahizHSyZo9ULUFUWxP6bwN0xKIn3g4gYaCJqJf4Ekf19hIYfzY5sg1_4WwP5D6RU-q1DfYObQXzaTEw6CR",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Sheba Gemini",
+            uri: "//maps.google.com/maps/contrib/107923009676354374209",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUc4NtGbHvQjuPz34s34sEoe45HJyN8Cy59423WUrGjOSxonZ6c=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q48WlRl3-ItWqrt5gqLNx_T_skyQCTR95Izb-u63fxrnQOO8PVuF6C16YK3la8smwf3loKcoT4Z2Jnd6W909cGnCiM0qXJs4PRGiMGn37vSBAZ_SRNpd-7NCLdy6ehKBLLjnnGnqJHdgDwQWVanYBBdCthahCJP56FE",
+        widthPx: 1236,
+        heightPx: 2543,
+        authorAttributions: [
+          {
+            displayName: "Anthony Ash",
+            uri: "//maps.google.com/maps/contrib/106026313861545878771",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUb9WnpLi2NMsVIwR8U6JPRe3tx3lrzBXa7xVVEAPTB3rSB2USf=s100-p-k-no-mo",
+          },
+        ],
+      },
+      {
+        name: "places/ChIJt865ZZWVwokRZC5487llZBk/photos/AXCi2Q6v144A1R0rW_PU-miUy_YrXIHbK_eI7ZVTDXbHHNIXEVuYR8mqNYo0tJb9kt3ipm6r1mvbGEUn8kg8lp0IOmJiYmuzve-ozfsjr8kXJukHgE8Zk5RAegKGPJRqC9mIwn0zAbm2nz_UEmSmgUn5DgmVEm1EAgo3GZ-0",
+        widthPx: 3024,
+        heightPx: 4032,
+        authorAttributions: [
+          {
+            displayName: "Sheba Gemini",
+            uri: "//maps.google.com/maps/contrib/107923009676354374209",
+            photoUri:
+              "//lh3.googleusercontent.com/a-/ALV-UjUc4NtGbHvQjuPz34s34sEoe45HJyN8Cy59423WUrGjOSxonZ6c=s100-p-k-no-mo",
+          },
+        ],
+      },
+    ],
+    accessibilityOptions: {
+      wheelchairAccessibleParking: true,
+    },
+  },
+];
+
+exports.update_google_data = async (req, res, next) => {
+  try {
+    let { tag_map, places_data, db_ids } = req.googleData;
+    console.log("GOOGLE DATA", req.googleData);
+    let locationInfo = req.locationInfo;
+
+    let price_hours_data = [];
+    let res_ids = [];
+    let rating_tags_data = [];
+    console.log(Object.keys(places_data));
+    for (let id of db_ids) {
+      console.log(id.place_id, id.res_id);
+      places_data[id.res_id] = places_data[id.place_id];
+      delete places_data[id.place_id];
+      price_hours_data.push({
+        meal_id: req.params.mealId,
+        res_id: id.res_id,
+        is_open: places_data[id.res_id].is_open,
+        in_budget: places_data[id.res_id].in_budget,
+      });
+      res_ids.push(id.res_id);
+      rating_tags_data.push({
+        res_id: id.res_id,
+        rating: places_data[id.res_id].rating,
+        tags: places_data[id.res_id].tags,
+      });
+    }
+
+    console.log(price_hours_data);
+    console.log(rating_tags_data);
+    // perform updates first
+    await restaurants_model.upsert_meal_restaurants(price_hours_data);
+    await restaurants_model.update_google_restaurants(
+      req.params.mealId,
+      rating_tags_data
+    );
+
+    // then delete all old restaurants
+    await restaurants_model.pare_old_meal_restaurants(
+      req.params.mealId,
+      res_ids
+    );
 
     res.status(200).json({
       restaurantsMap: places_data,
-      google_sql_string: sqlValueString,
       tag_map: tag_map,
       locationInfo: locationInfo,
     });
@@ -14736,74 +10100,360 @@ exports.update_google_data = async (req, res, next) => {
   }
 };
 
-function filter_by_hours(hoursList, date) {
-  let weekday = date.getDay() - 1;
-  if (weekday < 0) weekday = 6;
-  let yesterday = weekday - 1;
-  if (yesterday < 0) yesterday = 6;
+exports.get_chosen_restaurant_details = async (req, res, next) => {
+  try {
+    let { place_id } = await meals_model.get_chosen_restaurant_place_id(
+      req.params.mealId
+    );
+    console.log(place_id);
 
-  const processHoursString = (index, day) => {
-    const hoursString = hoursList[index].split(": ")[1];
-    console.log(hoursString);
-    if (hoursString.trim() == "Closed") {
-      return false;
-    }
-    if (hoursString.trim() == "Open 24 hours") {
-      return true;
-    }
-    const hours = hoursString.split(" – ").map((time, index) => {
-      let timeArr = time.split(" ");
-      const output = timeArr[0].split(":");
-      if (output[0] == "12") {
-        if (timeArr[1] == "AM") {
-          output[0] = "23";
-        }
-      } else if (timeArr[1] == "PM") {
-        output[0] = Number(output[0]) + 12;
-      } else if (output[0] == "1" && timeArr == "AM") {
-        output[0] = "0";
-      }
+    // let { data } = await axios.get(
+    //   `https://places.googleapis.com/v1/places/${place_id}`,
+    //   {
+    //     headers: {
+    //       "X-Goog-Api-Key": KEY,
+    //       "X-Goog-FieldMask":
+    //         "accessibilityOptions,formattedAddress,name,id,shortFormattedAddress,displayName,location,photos,types,primaryType,priceLevel,regularOpeningHours,regularSecondaryOpeningHours,rating,userRatingCount,websiteUri",
+    //     },
+    //   }
+    // );
+    let data = {
+      name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE",
+      id: "ChIJlZuJwOiSwokRrJNNhf-PrWE",
+      types: [
+        "pizza_restaurant",
+        "italian_restaurant",
+        "bar",
+        "restaurant",
+        "food",
+        "point_of_interest",
+        "establishment",
+      ],
+      formattedAddress: "425 White Plains Rd, Eastchester, NY 10709, USA",
+      location: {
+        latitude: 40.9563694,
+        longitude: -73.8138311,
+      },
+      rating: 4.5,
+      websiteUri: "http://www.burratapizza.com/",
+      regularOpeningHours: {
+        openNow: true,
+        periods: [
+          {
+            open: {
+              day: 0,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 0,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 2,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 2,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 3,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 3,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 4,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 4,
+              hour: 21,
+              minute: 0,
+            },
+          },
+          {
+            open: {
+              day: 5,
+              hour: 17,
+              minute: 0,
+            },
+            close: {
+              day: 5,
+              hour: 21,
+              minute: 30,
+            },
+          },
+          {
+            open: {
+              day: 6,
+              hour: 12,
+              minute: 0,
+            },
+            close: {
+              day: 6,
+              hour: 21,
+              minute: 30,
+            },
+          },
+        ],
+        weekdayDescriptions: [
+          "Monday: Closed",
+          "Tuesday: 5:00 – 9:00 PM",
+          "Wednesday: 5:00 – 9:00 PM",
+          "Thursday: 5:00 – 9:00 PM",
+          "Friday: 5:00 – 9:30 PM",
+          "Saturday: 12:00 – 9:30 PM",
+          "Sunday: 12:00 – 9:00 PM",
+        ],
+      },
+      priceLevel: "PRICE_LEVEL_MODERATE",
+      userRatingCount: 626,
+      displayName: {
+        text: "BURRATA",
+        languageCode: "en",
+      },
+      primaryType: "pizza_restaurant",
+      shortFormattedAddress: "425 White Plains Rd, Eastchester",
+      photos: [
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q6CZfjrsM8fbpVLtQKlyPk32gIFkbHIl9wcoEHAF0vDedCBzZ1OKTPokaiTA8qgNI_s1QZ_qSy8AN78gkUG75k-VewCDroMyNoGZ-vfE4MJygDPyiTZRSRoNz0faoWfMYHNrZ8-PgyOEI-FcLsAm6ppxpfJ0BTFxFDl",
+          widthPx: 1348,
+          heightPx: 899,
+          authorAttributions: [
+            {
+              displayName: "BURRATA",
+              uri: "//maps.google.com/maps/contrib/102792430970730061751",
+              photoUri:
+                "//lh3.googleusercontent.com/a-/ALV-UjUbhwvIBJWKtr45_hWoLUvoVyKHTEr8ISi72LEMkUqmbkqZxqV-=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q68Ya2pYDONGNos9CyhkzCkpC0pxREa7eb6TeYpj_pJpmgSbZUKWNL2Jy_uqU35snOW0Ejlx_UjWaT8ANu_JhVButqK2NTTnm0rggzwW6vheEntiaryNgInEEDlL0iXl1t9yJSexJl9J4p5EnLUZME5xwMpxY1kqFrt",
+          widthPx: 4800,
+          heightPx: 3200,
+          authorAttributions: [
+            {
+              displayName: "BURRATA",
+              uri: "//maps.google.com/maps/contrib/102792430970730061751",
+              photoUri:
+                "//lh3.googleusercontent.com/a-/ALV-UjUbhwvIBJWKtr45_hWoLUvoVyKHTEr8ISi72LEMkUqmbkqZxqV-=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q5Sti1Albahg6zFaH_g5R1FnNYvYDbpjiAePqXDxCOmkXtQK7LgveDCvHEemef3TZxEgH8ns4NizZOJMcFNpzR_p_49ighjgihuAIVYMQX3GWuvXHTrFpAECb8pyzcBlwNSW24A830mjOIdN4rin6_b3nega7sU4Z7d",
+          widthPx: 4032,
+          heightPx: 3024,
+          authorAttributions: [
+            {
+              displayName: "J Lim",
+              uri: "//maps.google.com/maps/contrib/109935156740971751576",
+              photoUri:
+                "//lh3.googleusercontent.com/a/ACg8ocKYnG11pwVBark64wiserzR8n-rEfTAglboJ7aaEgmmefWHqA=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q6GBXTliI-V7gctPkRtHG4rn4sPtxLI1GF7BTzsQYpTyzoMq-S6NZKjDDgY6xROik-efbx_9EEAl03m9wKWyxM7PkRX4q_1rYOkVL1qsLi7KfrxbL3COpDIbp_dEDPLG9M1vHiaFi5nQ1vszkPPUf8t-HAFlTVZWe80",
+          widthPx: 1713,
+          heightPx: 1284,
+          authorAttributions: [
+            {
+              displayName: "Bianca C.",
+              uri: "//maps.google.com/maps/contrib/116185846034886264029",
+              photoUri:
+                "//lh3.googleusercontent.com/a-/ALV-UjVPHPzu70ySmPXIn0hvpY7LATjAvL-8ffHTtSOjtXEsY5rGCVRSjw=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q7FjFHbBwaAp7PUm5vIpw8WgVOUvUjq8sda9a-_WfoF8elhuMr59zAHsG3CNwBL12YDgbjzdOqFN4iXobXJEHUrq7meQsZz7p7hKdDI5yhVzgXV2z5K_rsrAamMBx28JvfwAz24nYQZXIqadkg-EahEMON11_N3cFeK",
+          widthPx: 3024,
+          heightPx: 3024,
+          authorAttributions: [
+            {
+              displayName: "Johan Jonsson",
+              uri: "//maps.google.com/maps/contrib/100207722052513615898",
+              photoUri:
+                "//lh3.googleusercontent.com/a-/ALV-UjVdChPFXKGqM-BqoCS5LTusXc53z0NwYcdioLJ9143qhrmjEuO7xA=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q7lVaufKa9w_dENa6jg2qSuuLuTWVJLMv1TJq8pgkkYKijjdG_DARYGRGObMUAQUK3Ypf2Zmo8xIIqB3ub9_Y1i60g0MQoeLNHsRUNl0JvO7UByWb3mAmbZ24pcogVO8MqZyn4Q1p0GDkz8UPgXWmYlTqOqYxhB3K1w",
+          widthPx: 4800,
+          heightPx: 2700,
+          authorAttributions: [
+            {
+              displayName: "Eduardo Angel Ramirez Saavedra",
+              uri: "//maps.google.com/maps/contrib/100701954365206116050",
+              photoUri:
+                "//lh3.googleusercontent.com/a-/ALV-UjX3vRK8Zux685a0FCG5qkyBHAQ8SzZswDgmmQ7MKZIYRuKlaOkaYQ=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q5YhAA3iyo_IfW6CHbCL6iF4_xRwRpckezTkIbhWogSDnsa8sKqoIsGAiTvJPa-dBOJBY07VUQFnH-IDUhPcaa9OIymOr7QFuRIZ8MWI8ZaQaOy_f5DdLLdV0CGlCxSqBTQJ9Kk1UYlzkW-w5hVy5JuRkkfv4z8L4hD",
+          widthPx: 4080,
+          heightPx: 3072,
+          authorAttributions: [
+            {
+              displayName: "Dominick Vellucci",
+              uri: "//maps.google.com/maps/contrib/116345219794599247988",
+              photoUri:
+                "//lh3.googleusercontent.com/a/ACg8ocLL_owKx7Ll_ECHNGV8gYvICGsjANzrOOhaddLlAt_rs7dnEw=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q7wZnyrRLlTsG2CSab-7Wjq0ohxOqOJEJTnJWo5p6qL_7h3E5NfghZ4xTze_by6NeIxxN8EpegfdEL0UoXDk5dOhEfIrJBchrkd76c0X4gJtcDxIxly-QS1i5er9OBrSs_IUzkth9Y8r6y6MoFpgBS80Yy6D6GZFqQ",
+          widthPx: 2576,
+          heightPx: 1932,
+          authorAttributions: [
+            {
+              displayName: "Hiram Mendez",
+              uri: "//maps.google.com/maps/contrib/115304703684795952242",
+              photoUri:
+                "//lh3.googleusercontent.com/a-/ALV-UjWZymh_J3YDVAjaXOxt4gFu8WbY1iAyR-089gYzXva2xED8q7sN=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q600sZmyAD1Z22Ql6YkFBn38A3PB_C_UymH5pTp5zqFQnjSXNePpUT3TkWg7f1Gk4hmCJsmCLnYIJVV_x5kJYTdsIgLX9hdEeNtSDfQm5UHkDpJ39kF7rGwf7mD06GvIg2gqwA-MHFXnlesHd2QcHmOdKFyi5oC_Mg3",
+          widthPx: 4000,
+          heightPx: 3000,
+          authorAttributions: [
+            {
+              displayName: "Adam Corrigan",
+              uri: "//maps.google.com/maps/contrib/115051006048521434223",
+              photoUri:
+                "//lh3.googleusercontent.com/a-/ALV-UjUwhqqQ4QK9iUdBNQUMHPnsw7vAwUwC_QWed209cPTLnnaUPmnGuA=s100-p-k-no-mo",
+            },
+          ],
+        },
+        {
+          name: "places/ChIJlZuJwOiSwokRrJNNhf-PrWE/photos/AXCi2Q7nN3W6zwyPqxujCUhBIoQb4VOjh1pksIbeC9A0HCUVa-b79D1fSql7fa5yEOLhqiZrJcSgRgD1XkggFXahTbCtsqX5BdEUFowSz4kpLhfqtrT10b9No2wHgZHPmY-jbpE__ylv80J2P68GowW6cnNGY87--oLD9YOu",
+          widthPx: 4000,
+          heightPx: 3000,
+          authorAttributions: [
+            {
+              displayName: "Alex Kay",
+              uri: "//maps.google.com/maps/contrib/112497667468245081491",
+              photoUri:
+                "//lh3.googleusercontent.com/a-/ALV-UjVU_5-Ygv-e9SsPOMfVZFRcaDlqFTM28WOa_hQQSuSfubejBua0=s100-p-k-no-mo",
+            },
+          ],
+        },
+      ],
+      accessibilityOptions: {
+        wheelchairAccessibleParking: true,
+        wheelchairAccessibleEntrance: true,
+        wheelchairAccessibleRestroom: true,
+        wheelchairAccessibleSeating: true,
+      },
+    };
+    let restaurant = process_google_place(data, {});
 
-      let returnVal = new Date(
-        day.getFullYear(),
-        day.getMonth(),
-        day.getDate()
-      );
+    res.status(200).json({ restaurant });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ err: err });
+  }
+};
 
-      returnVal.setHours(Number(output[0]) - index);
-      returnVal.setMinutes(output[1]);
+exports.filter_by_hours = (periods, date) => {
+  // never open
+  if (periods.length == 0) {
+    return false;
+  }
 
-      return returnVal;
-    });
-
-    if (hours[1] < hours[0]) {
-      hours[1].setDate(
-        date.getDate() + 1,
-        hours[1].getHours(),
-        hours[1].getMinutes()
-      );
-    }
-    return hours;
-  };
-
-  const hours = processHoursString(weekday, date);
-  if (hours === true) {
+  // open 24 hours
+  if (periods.length == 1 && !periods[0].close) {
     return true;
   }
-  const yesterdayHours = processHoursString(
-    yesterday,
-    new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1)
-  );
 
-  if (date < hours[0]) {
-    return (
-      yesterdayHours && date >= yesterdayHours[0] && date <= yesterdayHours[1]
-    );
+  let weekday = date.getDay();
+  let hour = date.getHours();
+  let minute = date.getMinutes();
+  /*
+   * checks if period2 is before period1 returns false if period2 is after
+   * period1, or if both periods are at the same time
+   * parameters:
+   * period1: {day: int 0-6, hour: int 0-24, minute: int 0-59},
+   * period2: {day: int 0-6, hour: int 0-24, minute: int 0-59}
+   */
+  const isBefore = (period1, period2) => {
+    if (
+      period2.day > 6 ||
+      period2.day < 0 ||
+      period2.hour > 24 ||
+      period2.hour < 0 ||
+      period2.minute > 59 ||
+      period2.minute < 0
+    ) {
+      throw "invalid time values provided";
+    }
+
+    if (
+      period1.day == period2.day + 1 ||
+      (period2.day == 6 && period1.day == 0)
+    ) {
+      // edge case for closing time - check if within an hour of
+      // closing if close is early morning the next day and date
+      // is late at night
+      if (
+        period2.hour == 24 &&
+        period1.hour == 0 &&
+        period1.minute <= period2.minute
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+    if (period1.day == period2.day) {
+      if (period1.hour > period2.hour) {
+        return true;
+      }
+      if (period1.hour == period2.hour && period1.minute > period2.minute) {
+        return true;
+      }
+    }
+    return false;
+  };
+  for (let period of periods) {
+    if (
+      (period.close.day == weekday &&
+        period.close.hour == hour + 1 &&
+        period.close.minute == minute) ||
+      isBefore(period.close, { day: weekday, hour: hour + 1, minute })
+    ) {
+      if (weekday != 6 || period.open.day != 0) {
+        return !isBefore(period.open, { day: weekday, hour, minute });
+      }
+    }
   }
-  return hours && date >= hours[0] && date <= hours[1];
-}
+  return false;
+};
 
-function filter_by_budget(res_budget, budget_min, budget_max) {
+exports.filter_by_budget = (res_budget, budget) => {
   if (!res_budget || res_budget == "PRICE_LEVEL_UNSPECIFIED") {
     return true;
   }
@@ -14826,8 +10476,8 @@ function filter_by_budget(res_budget, budget_min, budget_max) {
   };
 
   const restaurant_budget = budget_to_int(res_budget);
-  return restaurant_budget <= budget_max && restaurant_budget >= budget_min;
-}
+  return restaurant_budget <= budget[1] && restaurant_budget >= budget[0];
+};
 
 function calculate_coord(latitude, longitude, distance) {
   const lat1 = (latitude * Math.PI) / 180;

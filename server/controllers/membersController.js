@@ -12,7 +12,6 @@ exports.meal_members_get = asyncHandler(async (req, res, next) => {
 
 exports.meal_member_add = asyncHandler(async (req, res, next) => {
   const { user_id, role } = req.body;
-  console.log(req.params.mealId, user_id);
   let rows = await member_model.member_create(req.params.mealId, user_id, role);
   console.log(rows);
   if (rows.length) {
@@ -71,6 +70,18 @@ exports.meal_members_add = asyncHandler(async (req, res, next) => {
   } else {
     res.status(401).json({ error: "No members to add" });
   }
+});
+
+exports.meal_member_get_round = asyncHandler(async (req, res, next) => {
+  let memberRound = await member_model.member_get_round(req.decoded.member_id);
+  res.status(200).json({ round: memberRound });
+});
+
+exports.meal_member_update_round = asyncHandler(async (req, res, next) => {
+  let memberRound = await member_model.member_update_round(
+    req.decoded.member_id
+  );
+  res.status(200).json({ message: "Updated successfully", round: memberRound });
 });
 
 exports.meal_members_delete = asyncHandler(async (req, res, next) => {

@@ -2,6 +2,7 @@ const asyncHandler = require("express-async-handler");
 const meal_model = require("../models/meals");
 const member_model = require("../models/members");
 const user_model = require("../models/users");
+const restaurant_model = require("../models/restaurants");
 const { parse_meal_body } = require("../middleware/mealsMiddleware");
 
 exports.meals_list_by_user_id = asyncHandler(async (req, res, next) => {
@@ -84,8 +85,8 @@ exports.meal_create = asyncHandler(async (req, res, next) => {
       );
 
       // add admin user
-      await member_model.member_create(meal, adminId, "admin");
-
+      let testAdmin = await member_model.member_create(meal, adminId, "admin");
+      console.log(testAdmin);
       if (meal) {
         res.status(200).json({ meal_id: meal });
       } else {
@@ -103,12 +104,13 @@ exports.meal_create = asyncHandler(async (req, res, next) => {
 
 exports.meal_get_by_id = asyncHandler(async (req, res, next) => {
   //verifies membership
+  console.log(req.params.mealId, req.decoded.member_id);
   const meal = await meal_model
     .meal_get_by_id(req.params.mealId, req.decoded.member_id)
     .catch((err) => {
       console.log(err);
     });
-  // console.log(meal);
+  console.log(meal);
   res.status(200).json({ meal: meal, userRole: req.decoded.role });
 });
 
@@ -164,4 +166,41 @@ exports.meal_update = asyncHandler(async (req, res, next) => {
       res.status(401).json({ error: "Not authorized" });
     }
   }
+});
+
+exports.meal_check_round = asyncHandler(async (req, res, next) => {
+  let meal_round = await meal_model.meal_check_round(req.params.mealId);
+  if (meal_round == 0) {
+    let unseenResRows = await meal_model.meal_unseen_rows(
+      req.params.mealId,
+      req.decoded.member_id
+    );
+    if (unseenResRows.length == 0) {
+      let check_meal_restaurants =
+        await restaurant_model.meal_restaurants_exist(req.params.mealId);
+      if (check_meal_restaurants) {
+        meal_round = await meal_model.update_meal_round(req.params.mealId);
+      }
+    }
+    res.status(200).json({ meal_round });
+  } else {
+    let unrankedMembers = await meal_model.get_remaining_unranked_members(
+      req.params.mealId
+    );
+    if (unrankedMembers.length > 0) {
+      res.status(200).json({
+        remainingMembers: unrankedMembers.map((item) => item.member_id),
+      });
+    } else {
+      let chosen_restaurant = await meal_model.choose_best_ranked(
+        req.params.mealId
+      );
+      res.status(200).json({ chosen_restaurant });
+    }
+  }
+});
+
+exports.meal_update_round = asyncHandler(async (req, res, next) => {
+  let updated = await meal_model.update_meal_round(req.params.mealId);
+  res.status(200).json({});
 });

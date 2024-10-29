@@ -59,9 +59,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 exports.login = asyncHandler(async (req, res, next) => {
   const { username, password } = req.body;
 
-  let user = await user_model
-    .get_user_by_username(username)
-    .catch((err) => res.status(500).json({ error: err }));
+  let user = await user_model.get_user_by_username(username);
 
   if (user) {
     bcrypt.compare(password, user.password, (err, result) => {

@@ -20,7 +20,7 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "https://tastebuds-4mr3.onrender.com",
+    origin: "http://localhost:3000/", //"https://tastebuds-4mr3.onrender.com",
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -73,7 +73,7 @@ io.on("connection", (socket) => {
   socket.on("like", (meal, restaurant) => {
     console.log(restaurant);
     if (restaurant && restaurant.score != 1) {
-      socket.to(meal).emit("newResData", restaurant, 1);
+      socket.to(meal).emit("newResData", restaurant, "like");
     } else {
       socket.to(meal).emit("match", restaurant);
     }
@@ -81,17 +81,12 @@ io.on("connection", (socket) => {
 
   socket.on("dislike", (meal, restaurant) => {
     console.log(restaurant);
-    socket.to(meal).emit("newResData", restaurant, 0);
+    socket.to(meal).emit("newResData", restaurant, "dislike");
   });
 
   socket.on("settingsChange", (meal, settings) => {
-    console.log(settings);
-    socket.to(meal).emit("settingsUpdate", settings);
-  });
-
-  socket.on("requestData", (meal) => {
-    console.log(meal);
-    io.to(meal).emit("sendData", "someData");
+    console.log("settings", settings);
+    socket.to(meal).emit("settingsUpdate", settings || {});
   });
 
   socket.on("disconnect", () => {

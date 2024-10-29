@@ -3,8 +3,8 @@ const pool = require("../pool");
 exports.member_create = async (mealId, userId, role) => {
   try {
     let result = await pool.query(
-      `insert into meal_members(user_id, meal_id, role) select $1,$2,$3 
-      where not exists (select 1 from meal_members where user_id = $1 and meal_id = $2)
+      `insert into meal_members(user_id, meal_id, role) values ($1,$2,$3)
+      on conflict(user_id, meal_id) do nothing
       returning member_id`,
       [userId, mealId, role]
     );
@@ -22,7 +22,10 @@ exports.member_create_many = async (mealId, userIds) => {
 
   try {
     const result = await pool.query(
-      `insert into meal_members(user_id, meal_id, role) values ${values} returning member_id`,
+      `insert into meal_members(user_id, meal_id, role) 
+      values ${values} 
+      on conflict(user_id, meal_id) do nothing
+      returning member_id`,
       []
     );
     return result.rows;
@@ -117,10 +120,37 @@ exports.get_min_rating = async (mealId, userId) => {
   }
 };
 
+exports.member_get_round = async (memberId) => {
+  try {
+    const result = await pool.query(
+      `select round from meal_members 
+      where member_id = $1`,
+      [memberId]
+    );
+    return result.rows[0].round;
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
+exports.member_update_round = async (memberId) => {
+  try {
+    const result = await pool.query(
+      `update meal_members set round = round+1 where member_id = $1 returning round`,
+      [memberId]
+    );
+    return result.rows[0].round;
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+};
+
 exports.member_get_settings = async (mealId, userId) => {
   try {
     const result = await pool.query(
-      `select min_rating, bad_tags from meal_members where meal_id = $1 and user_id = $2`,
+      `select min_rating, bad_tags, round from meal_members where meal_id = $1 and user_id = $2`,
       [mealId, userId]
     );
     return result.rows[0];
@@ -144,8 +174,6 @@ exports.member_update_bad_tags = async (memberId, tagList) => {
 };
 
 exports.member_update_min_rating = async (memberId, rating) => {
-  console.log(memberId);
-  console.log(rating);
   try {
     const result = await pool.query(
       `update meal_members set min_rating = $1 where member_id=$2 returning min_rating`,

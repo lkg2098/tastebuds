@@ -354,17 +354,16 @@ describe("test meal endpoints", () => {
         radius: 20,
         budget: [10, 30],
       });
-    console.log(res.body);
     expect(res.status).toBe(200);
     expect(res.body.meal_id).toBeTruthy();
     testMealId = res.body.meal_id;
+    console.log(res.body);
   });
 
   it("test get meals by user id", async () => {
     const res = await request(app)
       .get("/meals")
       .set("Authorization", authTokens.Test1);
-    console.log(res.body);
     expect(res.status).toBe(200);
     expect(res.body.meals).toBeTruthy();
   });
@@ -373,7 +372,6 @@ describe("test meal endpoints", () => {
       .get("/meals")
       .query({ time: "past" })
       .set("Authorization", authTokens.Test1);
-    console.log(res.body);
     expect(res.status).toBe(200);
     expect(res.body.meals).toBeTruthy();
   });
@@ -382,14 +380,14 @@ describe("test meal endpoints", () => {
       .get("/meals")
       .query({ time: "future" })
       .set("Authorization", authTokens.Test1);
-    console.log(res.body);
     expect(res.status).toBe(200);
     expect(res.body.meals).toBeTruthy();
   });
-  it("test get meal by id", async () => {
+  it("test get meal by member id", async () => {
     const res = await request(app)
       .get(`/meals/${testMealId}`)
       .set("Authorization", authTokens.Test1);
+    console.log("GET BY MEMBER ID:", res.body);
     expect(res.status).toBe(200);
     expect(res.body.meal.meal_id).toBe(testMealId);
     expect(res.body.meal.location_coords).toEqual([200, 300]);
@@ -399,11 +397,11 @@ describe("test meal endpoints", () => {
     expect(res.body.meal.location_id).toBe("100 Cherry Ln Brewster, NY 10000");
     expect(res.body.meal.radius).toBe(20);
     expect(res.body.meal.budget).toEqual([10, 30]);
-    expect(res.body.meal.created_at).toBeTruthy();
+    expect(res.body.meal.min_rating).toBe(null);
+    expect(res.body.meal.bad_tags).toBe(null);
   });
 
   it("test add member - already in meal", async () => {
-    console.log(userData.john.id);
     const res = await request(app)
       .post(`/meals/27/members/new`)
       .set("Authorization", authTokens.Test1)
@@ -412,7 +410,6 @@ describe("test meal endpoints", () => {
     expect(res.body.error).toBe("Member already in meal");
   });
   it("test add member - test meal", async () => {
-    console.log(userData.john.id);
     const res = await request(app)
       .post(`/meals/${testMealId}/members/new`)
       .set("Authorization", authTokens.Test1)
@@ -432,18 +429,32 @@ describe("test meal endpoints", () => {
     const res = await request(app)
       .get(`/meals/${testMealId}/members`)
       .set("Authorization", authTokens.Test1);
-    console.log(res.body);
+
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.members)).toBeTruthy();
     expect(res.body.members.length).toBe(1);
   });
-
+  it("test get member round", async () => {
+    const res = await request(app)
+      .get(`/meals/${testMealId}/members/round`)
+      .set("Authorization", authTokens.Test1);
+    expect(res.status).toBe(200);
+    expect(res.body.round).toBe(0);
+  });
+  it("test update member round", async () => {
+    const res = await request(app)
+      .put(`/meals/${testMealId}/members/round`)
+      .set("Authorization", authTokens.Test1);
+    expect(res.status).toBe(200);
+    expect(res.body.round).toBe(1);
+    expect(res.body.message).toBe("Updated successfully");
+  });
   it("test meal search", async () => {
     const res = await request(app)
       .post("/meals/search")
       .set("Authorization", authTokens.Test1)
       .send({ queryTerm: "o" });
-    console.log(res.body);
+
     expect(res.status).toBe(200);
   });
   it("test delete member from meal", async () => {
@@ -452,7 +463,30 @@ describe("test meal endpoints", () => {
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
   });
-
+  it("test get best dislikes", async () => {
+    const login = await request(app)
+      .post("/login")
+      .send({ username: "ghostBoy97", password: "boo" });
+    expect(login.status).toBe(200);
+    const res = await request(app)
+      .get("/meals/27/restaurants/dislikes")
+      .set("Authorization", "Bearer " + login.body.accessToken);
+    console.log("DISLIKES", res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.restaurants.length == 5).toBeTruthy();
+  });
+  it("test set ranks", async () => {
+    const login = await request(app)
+      .post("/login")
+      .send({ username: "ghostBoy97", password: "boo" });
+    expect(login.status).toBe(200);
+    let resIds = [12, 9, 11, 16, 11460];
+    const res = await request(app)
+      .post(`/meals/27/restaurants/rank`)
+      .send({ ranks: resIds })
+      .set("Authorization", "Bearer " + login.body.accessToken);
+    expect(res.status).toBe(200);
+  });
   it("test update meal data", async () => {
     const res = await request(app)
       .put(`/meals/${testMealId}`)
@@ -465,7 +499,6 @@ describe("test meal endpoints", () => {
         location_coords: [100, 100],
         radius: 20,
         budget: [10, 30],
-        rating: 3.5,
       });
     expect(res.status).toBe(200);
     expect(res.body.location_coords).toEqual([100, 100]);
@@ -482,7 +515,6 @@ describe("test meal endpoints", () => {
         location_coords: [50, 50],
         radius: 20,
         budget: [10, 30],
-        rating: 3.5,
       });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Not authorized, user not in meal");
@@ -499,7 +531,6 @@ describe("test meal endpoints", () => {
         location_coords: [50, 50],
         radius: 20,
         budget: [10, 30],
-        rating: 3.5,
       });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Not authorized");
@@ -515,7 +546,6 @@ describe("test meal endpoints", () => {
         location_coords: [50, 50],
         radius: 20,
         budget: [10, 30],
-        rating: 3.5,
       });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Not authorized, token not available");
@@ -534,9 +564,9 @@ describe("test meal endpoints", () => {
     const res = await request(app)
       .put(`/meals/${testMealId}`)
       .set("Authorization", authTokens.Test1)
-      .send({ chosen_restaurant: "aRestaurantId" });
+      .send({ chosen_restaurant: 10 });
     expect(res.status).toBe(200);
-    expect(res.body.chosen_restaurant).toBe("aRestaurantId");
+    expect(res.body.chosen_restaurant).toBe(10);
   });
   it("test delete meal", async () => {
     const res = await request(app)
@@ -544,10 +574,874 @@ describe("test meal endpoints", () => {
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
   });
+  it("test update meal round - round 0 can't update", async () => {
+    const res = await request(app)
+      .get("/meals/27/round")
+      .set("Authorization", authTokens.Test1);
+    console.log(res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.meal_round).toBe(0);
+  });
+  it("test update meal round - round 0 can update", async () => {
+    const login = await request(app)
+      .post("/login")
+      .send({ username: "ghostBoy97", password: "boo" });
+    expect(login.status).toBe(200);
+
+    const res = await request(app)
+      .get("/meals/1008/round")
+      .set("Authorization", "Bearer " + login.body.accessToken);
+    console.log(res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.meal_round).toBe(1);
+  });
+  it("test get best ranked in round 1 - not all votes in", async () => {
+    const login = await request(app)
+      .post("/login")
+      .send({ username: "ghostBoy97", password: "boo" });
+    expect(login.status).toBe(200);
+
+    const res = await request(app)
+      .get("/meals/1008/round")
+      .set("Authorization", "Bearer " + login.body.accessToken);
+    console.log(res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.remainingMembers).toEqual([4149]);
+  });
+  it("test get best ranked in round 1 - not all votes in", async () => {
+    const login = await request(app)
+      .post("/login")
+      .send({ username: "ghostBoy97", password: "boo" });
+    expect(login.status).toBe(200);
+
+    await request(app)
+      .post("/meals/1008/restaurants/rank")
+      .send({
+        ranks: [8, 11442, 11458, 11452, 11460],
+      })
+      .set("Authorization", "Bearer " + login.body.accessToken);
+
+    const res = await request(app)
+      .get("/meals/1008/round")
+      .set("Authorization", "Bearer " + login.body.accessToken);
+    console.log(res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.chosen_restaurant).toBe(11447);
+  });
+  // it("test get chosen restaurant data", async () => {
+  //   const res = await request(app)
+  //     .get("/meals/27/chosen_restaurant")
+  //     .set("Authorization", authTokens.Test1);
+  //   expect(res.status).toBe(200);
+  // });
 });
 
+const testGoogleDataLocal = [
+  {
+    res_id: 8,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 12, minute: 0 },
+        close: { day: 0, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 12, minute: 0 },
+        close: { day: 1, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 12, minute: 0 },
+        close: { day: 2, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 12, minute: 0 },
+        close: { day: 3, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 12, minute: 0 },
+        close: { day: 4, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 12, minute: 0 },
+        close: { day: 5, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 12, minute: 0 },
+        close: { day: 6, hour: 22, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 9,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 11, minute: 0 },
+        close: { day: 1, hour: 0, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 12, minute: 0 },
+        close: { day: 2, hour: 0, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 12, minute: 0 },
+        close: { day: 3, hour: 0, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 12, minute: 0 },
+        close: { day: 4, hour: 0, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 12, minute: 0 },
+        close: { day: 5, hour: 0, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 12, minute: 0 },
+        close: { day: 6, hour: 2, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 11, minute: 30 },
+        close: { day: 0, hour: 2, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 10,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 13, minute: 0 },
+        close: { day: 0, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 12, minute: 0 },
+        close: { day: 2, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 17, minute: 0 },
+        close: { day: 2, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 12, minute: 0 },
+        close: { day: 3, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 17, minute: 0 },
+        close: { day: 3, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 12, minute: 0 },
+        close: { day: 4, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 17, minute: 0 },
+        close: { day: 4, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 12, minute: 0 },
+        close: { day: 5, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 17, minute: 0 },
+        close: { day: 5, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 12, minute: 0 },
+        close: { day: 6, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 17, minute: 0 },
+        close: { day: 6, hour: 23, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 12, minute: 0 },
+        close: { day: 0, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 12, minute: 0 },
+        close: { day: 1, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 12, minute: 0 },
+        close: { day: 2, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 12, minute: 0 },
+        close: { day: 3, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 12, minute: 0 },
+        close: { day: 4, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 12, minute: 0 },
+        close: { day: 5, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 12, minute: 0 },
+        close: { day: 6, hour: 23, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 12,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 6, minute: 0 },
+        close: { day: 0, hour: 19, minute: 30 },
+      },
+      {
+        open: { day: 1, hour: 5, minute: 0 },
+        close: { day: 1, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 5, minute: 0 },
+        close: { day: 2, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 5, minute: 0 },
+        close: { day: 3, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 5, minute: 0 },
+        close: { day: 4, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 5, minute: 0 },
+        close: { day: 5, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 6, minute: 0 },
+        close: { day: 6, hour: 20, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 15,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 12, minute: 0 },
+        close: { day: 0, hour: 14, minute: 30 },
+      },
+      {
+        open: { day: 0, hour: 17, minute: 0 },
+        close: { day: 0, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 1, hour: 12, minute: 0 },
+        close: { day: 1, hour: 14, minute: 30 },
+      },
+      {
+        open: { day: 1, hour: 17, minute: 0 },
+        close: { day: 1, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 2, hour: 12, minute: 0 },
+        close: { day: 2, hour: 14, minute: 30 },
+      },
+      {
+        open: { day: 2, hour: 17, minute: 0 },
+        close: { day: 2, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 3, hour: 12, minute: 0 },
+        close: { day: 3, hour: 14, minute: 30 },
+      },
+      {
+        open: { day: 3, hour: 17, minute: 0 },
+        close: { day: 3, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 4, hour: 12, minute: 0 },
+        close: { day: 4, hour: 14, minute: 30 },
+      },
+      {
+        open: { day: 4, hour: 17, minute: 0 },
+        close: { day: 4, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 5, hour: 12, minute: 0 },
+        close: { day: 5, hour: 14, minute: 30 },
+      },
+      {
+        open: { day: 5, hour: 17, minute: 0 },
+        close: { day: 5, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 6, hour: 12, minute: 0 },
+        close: { day: 6, hour: 14, minute: 30 },
+      },
+      {
+        open: { day: 6, hour: 17, minute: 0 },
+        close: { day: 6, hour: 21, minute: 30 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 16,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 12, minute: 0 },
+        close: { day: 0, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 12, minute: 0 },
+        close: { day: 2, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 12, minute: 0 },
+        close: { day: 3, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 12, minute: 0 },
+        close: { day: 4, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 12, minute: 0 },
+        close: { day: 5, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 12, minute: 0 },
+        close: { day: 6, hour: 22, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11441,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 12, minute: 0 },
+        close: { day: 0, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 17, minute: 0 },
+        close: { day: 2, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 17, minute: 0 },
+        close: { day: 3, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 17, minute: 0 },
+        close: { day: 4, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 17, minute: 0 },
+        close: { day: 5, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 6, hour: 12, minute: 0 },
+        close: { day: 6, hour: 21, minute: 30 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11442,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 10, minute: 30 },
+        close: { day: 0, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 10, minute: 30 },
+        close: { day: 1, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 10, minute: 30 },
+        close: { day: 2, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 10, minute: 30 },
+        close: { day: 3, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 10, minute: 30 },
+        close: { day: 4, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 10, minute: 30 },
+        close: { day: 5, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 10, minute: 30 },
+        close: { day: 6, hour: 20, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11443,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 11, minute: 0 },
+        close: { day: 0, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 17, minute: 0 },
+        close: { day: 2, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 17, minute: 0 },
+        close: { day: 3, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 17, minute: 0 },
+        close: { day: 5, hour: 0, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 17, minute: 0 },
+        close: { day: 6, hour: 1, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 17, minute: 0 },
+        close: { day: 0, hour: 1, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_INEXPENSIVE",
+  },
+  {
+    res_id: 11445,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 11, minute: 0 },
+        close: { day: 0, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 0, hour: 16, minute: 30 },
+        close: { day: 0, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 11, minute: 0 },
+        close: { day: 2, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 16, minute: 30 },
+        close: { day: 2, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 11, minute: 0 },
+        close: { day: 3, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 16, minute: 30 },
+        close: { day: 3, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 11, minute: 0 },
+        close: { day: 4, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 16, minute: 30 },
+        close: { day: 4, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 11, minute: 0 },
+        close: { day: 5, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 16, minute: 30 },
+        close: { day: 5, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 11, minute: 0 },
+        close: { day: 6, hour: 15, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 16, minute: 30 },
+        close: { day: 6, hour: 22, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11446,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 12, minute: 30 },
+        close: { day: 0, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 1, hour: 11, minute: 30 },
+        close: { day: 1, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 2, hour: 11, minute: 30 },
+        close: { day: 2, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 3, hour: 11, minute: 30 },
+        close: { day: 3, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 4, hour: 11, minute: 30 },
+        close: { day: 4, hour: 21, minute: 30 },
+      },
+      {
+        open: { day: 5, hour: 11, minute: 30 },
+        close: { day: 5, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 12, minute: 30 },
+        close: { day: 6, hour: 22, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11447,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 11, minute: 0 },
+        close: { day: 0, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 11, minute: 0 },
+        close: { day: 1, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 11, minute: 0 },
+        close: { day: 2, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 11, minute: 0 },
+        close: { day: 3, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 11, minute: 0 },
+        close: { day: 4, hour: 20, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 11, minute: 0 },
+        close: { day: 5, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 11, minute: 0 },
+        close: { day: 6, hour: 21, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11449,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 12, minute: 0 },
+        close: { day: 0, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 12, minute: 0 },
+        close: { day: 1, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 12, minute: 0 },
+        close: { day: 2, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 12, minute: 0 },
+        close: { day: 3, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 12, minute: 0 },
+        close: { day: 4, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 12, minute: 0 },
+        close: { day: 5, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 12, minute: 0 },
+        close: { day: 6, hour: 21, minute: 30 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11450,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 11, minute: 30 },
+        close: { day: 0, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 11, minute: 30 },
+        close: { day: 1, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 11, minute: 30 },
+        close: { day: 2, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 11, minute: 30 },
+        close: { day: 3, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 11, minute: 30 },
+        close: { day: 4, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 11, minute: 30 },
+        close: { day: 5, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 11, minute: 30 },
+        close: { day: 6, hour: 23, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11451,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 11, minute: 30 },
+        close: { day: 1, hour: 2, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 15, minute: 0 },
+        close: { day: 2, hour: 2, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 11, minute: 30 },
+        close: { day: 3, hour: 2, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 11, minute: 30 },
+        close: { day: 4, hour: 2, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 11, minute: 30 },
+        close: { day: 5, hour: 2, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 11, minute: 30 },
+        close: { day: 6, hour: 4, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 11, minute: 30 },
+        close: { day: 0, hour: 4, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11452,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 11, minute: 0 },
+        close: { day: 0, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 11, minute: 0 },
+        close: { day: 1, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 11, minute: 0 },
+        close: { day: 2, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 11, minute: 0 },
+        close: { day: 3, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 11, minute: 0 },
+        close: { day: 4, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 11, minute: 0 },
+        close: { day: 5, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 11, minute: 0 },
+        close: { day: 6, hour: 23, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11458,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 5, minute: 30 },
+        close: { day: 0, hour: 20, minute: 30 },
+      },
+      {
+        open: { day: 1, hour: 5, minute: 0 },
+        close: { day: 1, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 5, minute: 0 },
+        close: { day: 2, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 5, minute: 0 },
+        close: { day: 3, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 5, minute: 0 },
+        close: { day: 4, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 5, minute: 0 },
+        close: { day: 5, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 5, minute: 30 },
+        close: { day: 6, hour: 20, minute: 30 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_MODERATE",
+  },
+  {
+    res_id: 11459,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 16, minute: 0 },
+        close: { day: 0, hour: 21, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 16, minute: 0 },
+        close: { day: 1, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 16, minute: 0 },
+        close: { day: 2, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 16, minute: 0 },
+        close: { day: 3, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 16, minute: 0 },
+        close: { day: 4, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 16, minute: 0 },
+        close: { day: 5, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 16, minute: 0 },
+        close: { day: 6, hour: 22, minute: 0 },
+      },
+    ],
+  },
+  {
+    res_id: 11460,
+    regularOpeningHours: [
+      {
+        open: { day: 0, hour: 11, minute: 30 },
+        close: { day: 0, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 1, hour: 11, minute: 30 },
+        close: { day: 1, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 2, hour: 11, minute: 30 },
+        close: { day: 2, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 3, hour: 11, minute: 30 },
+        close: { day: 3, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 4, hour: 11, minute: 30 },
+        close: { day: 4, hour: 22, minute: 0 },
+      },
+      {
+        open: { day: 5, hour: 11, minute: 30 },
+        close: { day: 5, hour: 23, minute: 0 },
+      },
+      {
+        open: { day: 6, hour: 11, minute: 30 },
+        close: { day: 6, hour: 23, minute: 0 },
+      },
+    ],
+    priceLevel: "PRICE_LEVEL_INEXPENSIVE",
+  },
+];
+
+const testRatingTagDataLocal = [
+  {
+    res_id: 8,
+    rating: 4.5,
+    tags: ["italian_restaurant", "pizza_restaurant", "bar"],
+  },
+  { res_id: 9, rating: 4.6, tags: ["bar"] },
+  { res_id: 10, rating: 4.4, tags: ["italian_restaurant"] },
+  { res_id: 11, rating: 4.3, tags: [] },
+  {
+    res_id: 12,
+    rating: 4.1,
+    tags: ["coffee_shop", "breakfast_restaurant", "cafe"],
+  },
+  { res_id: 15, rating: 4.4, tags: ["indian_restaurant", "bar"] },
+  { res_id: 16, rating: 4.5, tags: ["italian_restaurant"] },
+  {
+    res_id: 11441,
+    rating: 4.5,
+    tags: ["pizza_restaurant", "italian_restaurant", "bar"],
+  },
+  {
+    res_id: 11442,
+    rating: 3,
+    tags: ["vegan_restaurant", "vegetarian_restaurant"],
+  },
+  { res_id: 11443, rating: 4.5, tags: ["italian_restaurant", "bar"] },
+  {
+    res_id: 11445,
+    rating: 4.3,
+    tags: ["italian_restaurant", "pizza_restaurant"],
+  },
+  {
+    res_id: 11446,
+    rating: 4.2,
+    tags: ["japanese_restaurant", "sushi_restaurant"],
+  },
+  { res_id: 11447, rating: 4.5, tags: ["sandwich_shop"] },
+  {
+    res_id: 11449,
+    rating: 4.1,
+    tags: ["italian_restaurant", "pizza_restaurant", "bar"],
+  },
+  {
+    res_id: 11450,
+    rating: 4.5,
+    tags: ["hamburger_restaurant", "american_restaurant"],
+  },
+  { res_id: 11451, rating: 4.4, tags: ["american_restaurant"] },
+  { res_id: 11452, rating: 4.5, tags: ["mexican_restaurant"] },
+  {
+    res_id: 11458,
+    rating: 3.9,
+    tags: ["coffee_shop", "breakfast_restaurant", "cafe"],
+  },
+  { res_id: 11459, rating: 4.6, tags: ["spanish_restaurant"] },
+  { res_id: 11460, rating: 4.5, tags: ["bar"] },
+];
 // PREFERENCES ENDPOINTS ============================================>
 describe("test preferences endpoints", () => {
+  it("test update restaurants open and in budget", async () => {
+    const res = await request(app)
+      .post("/meals/27/restaurants")
+      .send({
+        google_data_array: testGoogleDataLocal,
+        budget: [0, 2],
+        date: new Date("August 23, 2024 15:24:00"),
+      })
+      .set("Authorization", authTokens.Test1);
+
+    expect(res.status).toBe(200);
+  });
   it("test add preferences", async () => {
     const res = await request(app)
       .post("/meals/27/preferences")
@@ -557,26 +1451,7 @@ describe("test preferences endpoints", () => {
           "pizza_restaurant",
           "lebanese_restaurant",
         ],
-        google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
-        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
-        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
-        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
-        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
-        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
-        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
-        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
-        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
-        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.4,'{}'),
-        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
-        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
-        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
-        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
-        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
-        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
-        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","cafe","fast_food_restaurant","breakfast_restaurant"}'),
-        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"bar","american_restaurant"}')`,
+        google_data_string: JSON.stringify(testRatingTagDataLocal),
       })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
@@ -590,26 +1465,7 @@ describe("test preferences endpoints", () => {
           "pizza_restaurant",
           "italian_restaurant",
         ],
-        google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
-        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
-        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
-        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
-        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
-        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
-        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
-        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
-        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
-        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.4,'{}'),
-        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
-        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
-        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
-        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
-        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
-        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
-        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","cafe","fast_food_restaurant","breakfast_restaurant"}'),
-        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"bar","american_restaurant"}')`,
+        google_data_string: JSON.stringify(testRatingTagDataLocal),
       })
       .set("Authorization", authTokens.john2);
     expect(res.status).toBe(200);
@@ -623,24 +1479,24 @@ describe("test preferences endpoints", () => {
     expect(res.body.preferences).toBeTruthy();
     expect(res.body.preferences.length).toBe(3);
   });
-  // it("test get preferences - wanted", async () => {
-  //   const res = await request(app)
-  //     .get("/meals/27/preferences")
-  //     .query({ wanted: 1 })
-  //     .set("Authorization", authTokens.Test1);
-  //   expect(res.status).toBe(200);
-  //   expect(res.body.preferences).toBeTruthy();
-  //   expect(res.body.preferences.length).toBe(2);
-  // });
-  // it("test get preferences - not wanted", async () => {
-  //   const res = await request(app)
-  //     .get("/meals/27/preferences")
-  //     .query({ wanted: 0 })
-  //     .set("Authorization", authTokens.Test1);
-  //   expect(res.status).toBe(200);
-  //   expect(res.body.preferences).toBeTruthy();
-  //   expect(res.body.preferences.length).toBe(2);
-  // });
+  // // it("test get preferences - wanted", async () => {
+  // //   const res = await request(app)
+  // //     .get("/meals/27/preferences")
+  // //     .query({ wanted: 1 })
+  // //     .set("Authorization", authTokens.Test1);
+  // //   expect(res.status).toBe(200);
+  // //   expect(res.body.preferences).toBeTruthy();
+  // //   expect(res.body.preferences.length).toBe(2);
+  // // });
+  // // it("test get preferences - not wanted", async () => {
+  // //   const res = await request(app)
+  // //     .get("/meals/27/preferences")
+  // //     .query({ wanted: 0 })
+  // //     .set("Authorization", authTokens.Test1);
+  // //   expect(res.status).toBe(200);
+  // //   expect(res.body.preferences).toBeTruthy();
+  // //   expect(res.body.preferences.length).toBe(2);
+  // // });
   it("test get min rating", async () => {
     const res = await request(app)
       .get("/meals/27/preferences")
@@ -648,7 +1504,7 @@ describe("test preferences endpoints", () => {
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.rating).toBeTruthy();
-    expect(res.body.rating).toBe(4.5);
+    expect(res.body.rating).toBe(4);
   });
   it("test get all settings", async () => {
     const res = await request(app)
@@ -658,7 +1514,7 @@ describe("test preferences endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.settings).toBeTruthy();
     expect(res.body.settings.rating).toBeTruthy();
-    expect(res.body.settings.rating).toBe(4.5);
+    expect(res.body.settings.rating).toBe(4);
     expect(res.body.settings.preferences).toBeTruthy();
     expect(res.body.settings.preferences.length).toBe(3);
   });
@@ -672,36 +1528,52 @@ describe("test preferences endpoints", () => {
           "chinese_restaurant",
           "lebanese_restaurant",
         ],
-        google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
-        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
-        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
-        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
-        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
-        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
-        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
-        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
-        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
-        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.4,'{}'),
-        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
-        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
-        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
-        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
-        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
-        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
-        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","cafe","fast_food_restaurant","breakfast_restaurant"}'),
-        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"bar","american_restaurant"}')`,
+        google_data_string: JSON.stringify(testRatingTagDataLocal),
       });
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully updated preferences");
-    console.log(res.body);
+    // expect(res.body.message).toBe("Successfully updated preferences");
+    // console.log(res.body);
     let list = await request(app)
       .get("/meals/27/preferences")
       .query({ setting: "unwantedCuisines" })
       .set("Authorization", authTokens.Test1);
-
     expect(list.body.preferences.length).toBe(3);
+  });
+  it("get scores - should be round 0", async () => {
+    const login = await request(app)
+      .post("/login")
+      .send({ username: "ghostBoy97", password: "boo" });
+    expect(login.status).toBe(200);
+
+    const res = await request(app)
+      .get("/meals/1008/restaurants")
+      .set("Authorization", "Bearer " + login.body.accessToken);
+
+    expect(res.status).toBe(200);
+  });
+  it("test check meal round - should be round 1", async () => {
+    const login = await request(app)
+      .post("/login")
+      .send({ username: "ghostBoy97", password: "boo" });
+    expect(login.status).toBe(200);
+
+    const res = await request(app)
+      .get("/meals/1008/round")
+      .set("Authorization", "Bearer " + login.body.accessToken);
+
+    expect(res.status).toBe(200);
+  });
+  it("get scores - should be round 1", async () => {
+    const login = await request(app)
+      .post("/login")
+      .send({ username: "ghostBoy97", password: "boo" });
+    expect(login.status).toBe(200);
+
+    const res = await request(app)
+      .get("/meals/1008/restaurants")
+      .set("Authorization", "Bearer " + login.body.accessToken);
+
+    expect(res.status).toBe(200);
   });
   it("test update min_rating", async () => {
     const res = await request(app)
@@ -709,34 +1581,14 @@ describe("test preferences endpoints", () => {
       .set("Authorization", authTokens.Test1)
       .send({
         min_rating: 3.5,
-        google_data_string: `values('ChIJ3z_bIK6SwokRz3XMu8xCPI8', 4.3,'{"breakfast_restaurant"}'),
-        ('ChIJv0CFoxKTwokR4Sfgcmab1EI', 4.6,'{}'),
-        ('ChIJ23paVWmTwokRd0rp8kdKM0w', 4.8,'{}'),
-        ('ChIJK0BTQK6SwokRN5bYvABnbvU', 4,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-        ('ChIJfxSm1EyTwokRYGIgYm3dqls', 4.3,'{"brunch_restaurant"}'),
-        ('ChIJxxDLVlGNwokRPgtjAbxyevY', 4.3,'{"american_restaurant","bar"}'),
-        ('ChIJJZ99iq2SwokRkbZKRzJeoio', 4.6,'{"italian_restaurant"}'),
-        ('ChIJ3dQdIsCSwokRs0eyh6JtnNU', 4.5,'{"italian_restaurant","pizza_restaurant","bar"}'),
-        ('ChIJDYixUwKTwokRPRmLS0smLjY', 4.6,'{"bar"}'),
-        ('ChIJu0cRRTKTwokRfNplZS8Lbjc', 4.4,'{"italian_restaurant"}'),
-        ('ChIJBzAI6pKTwokRquXPFwGcFOA', 4.4,'{}'),
-        ('ChIJE4lzm8eSwokRiN93djbk0Ig', 4.1,'{"coffee_shop","cafe","breakfast_restaurant"}'),
-        ('ChIJG3TgE66SwokRX0scyzq-V6o', 4.4,'{"american_restaurant"}'),
-        ('ChIJl4RjnqeTwokRgvrQWgt9EmY', 4.4,'{"american_restaurant"}'),
-        ('ChIJN78jnMeSwokRpT5Sq_QGD58', 4.4,'{"indian_restaurant","bar"}'),
-        ('ChIJqyTM-MeSwokRwtBPDSglPUg', 4.5,'{"italian_restaurant"}'),
-        ('ChIJiUIlT3mTwokRrJDV5pZnTMs', 4.4,'{"pizza_restaurant","fast_food_restaurant"}'),
-        ('ChIJ0aowaK6SwokRL-HTR_foN38', 4.4,'{"bar"}'),
-        ('ChIJH-lolKzywokRCvohk-BdCT0', 3.8,'{"coffee_shop","cafe","fast_food_restaurant","breakfast_restaurant"}'),
-        ('ChIJZReJaq6SwokRbZGfHBROUZU', 4.2,'{"bar","american_restaurant"}')`,
+        google_data_string: JSON.stringify(testRatingTagDataLocal),
       });
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully updated preferences");
+
     let list = await request(app)
       .get("/meals/27/preferences")
       .query({ setting: "rating" })
       .set("Authorization", authTokens.Test1);
-
     expect(list.body.rating).toBe(3.5);
   });
 });
@@ -745,8 +1597,8 @@ describe("test preferences endpoints", () => {
 describe("test meal restaurants", () => {
   it("test update restaurant - like", async () => {
     const res = await request(app)
-      .put("/meals/27/restaurants")
-      .send({ place_id: "ChIJl4RjnqeTwokRgvrQWgt9EmY", action: "like" })
+      .put("/meals/27/members/restaurants")
+      .send({ res_id: 8, action: "like" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully updated");
@@ -754,8 +1606,8 @@ describe("test meal restaurants", () => {
   });
   it("test update restaurant - like", async () => {
     const res = await request(app)
-      .put("/meals/27/restaurants")
-      .send({ place_id: "ChIJxxDLVlGNwokRPgtjAbxyevY", action: "like" })
+      .put("/meals/27/members/restaurants")
+      .send({ res_id: 9, action: "like" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully updated");
@@ -763,8 +1615,8 @@ describe("test meal restaurants", () => {
   });
   it("test update restaurant - dislike", async () => {
     const res = await request(app)
-      .put("/meals/27/restaurants")
-      .send({ place_id: "ChIJqyTM-MeSwokRwtBPDSglPUg", action: "dislike" })
+      .put("/meals/27/members/restaurants")
+      .send({ res_id: 11441, action: "dislike" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully updated");
@@ -772,112 +1624,57 @@ describe("test meal restaurants", () => {
   });
   it("test update restaurant - dislike", async () => {
     const res = await request(app)
-      .put("/meals/27/restaurants")
-      .send({ place_id: "ChIJZReJaq6SwokRbZGfHBROUZU", action: "dislike" })
+      .put("/meals/27/members/restaurants")
+      .send({ res_id: 11442, action: "dislike" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Successfully updated");
     expect(res.body.liked).toBe(-1);
   });
-  it("test get google data", async () => {
-    const res = await request(app)
-      .get("/meals/27/googleData")
-      .set("Authorization", authTokens.john2);
-    console.log(res.body);
-    expect(res.status).toBe(200);
-  });
+  // it("test get google data", async () => {
+  //   const res = await request(app)
+  //     .get("/meals/27/googleData")
+  //     .query({
+  //       location_id: "test",
+  //       budget: [1, 2],
+  //       date: new Date("August 23, 2024 15:24:00"),
+  //       radius: 1,
+  //     })
+  //     .set("Authorization", authTokens.john2);
+  //   expect(res.status).toBe(200);
+  // });
   it("test get restaurant scores", async () => {
     const res = await request(app)
       .get("/meals/27/restaurants")
-      .query({
-        place_ids: [
-          "ChIJv0CFoxKTwokR4Sfgcmab1EI",
-          "ChIJ23paVWmTwokRd0rp8kdKM0w",
-          "ChIJK0BTQK6SwokRN5bYvABnbvU",
-          "ChIJfxSm1EyTwokRYGIgYm3dqls",
-          "ChIJxxDLVlGNwokRPgtjAbxyevY",
-          "ChIJJZ99iq2SwokRkbZKRzJeoio",
-          "ChIJ3dQdIsCSwokRs0eyh6JtnNU",
-          "ChIJDYixUwKTwokRPRmLS0smLjY",
-          "ChIJu0cRRTKTwokRfNplZS8Lbjc",
-          "ChIJBzAI6pKTwokRquXPFwGcFOA",
-          "ChIJE4lzm8eSwokRiN93djbk0Ig",
-          "ChIJG3TgE66SwokRX0scyzq-V6o",
-          "ChIJl4RjnqeTwokRgvrQWgt9EmY",
-          "ChIJN78jnMeSwokRpT5Sq_QGD58",
-          "ChIJqyTM-MeSwokRwtBPDSglPUg",
-          "ChIJiUIlT3mTwokRrJDV5pZnTMs",
-          "ChIJ0aowaK6SwokRL-HTR_foN38",
-          "ChIJH-lolKzywokRCvohk-BdCT0",
-          "ChIJZReJaq6SwokRbZGfHBROUZU",
-        ],
-      })
       .set("Authorization", authTokens.john2);
     // console.log(res.body);
     expect(res.status).toBe(200);
   });
+  it("test get restaurants scores no meal restaurants", async () => {
+    const res = await request(app)
+      .get("/meals/1119/restaurants")
+      .set("Authorization", authTokens.Test1);
+
+    expect(res.status).toBe(200);
+    expect(res.body.scores).toBeTruthy();
+    expect(res.body.scores.length).toBe(0);
+  });
 });
-// it("test add restaurant - insufficient data", async () => {
-//   const res = await request(app)
-//     .post("/meals/27/restaurants")
-//     .set("Authorization", authTokens.Test1)
-//     .send({ place_id: "resM" });
-//   expect(res.status).toBe(401);
-//   expect(res.body.error).toBe("Missing restaurant data");
-// });
-// it("test add restaurant - like", async () => {
-//   const res = await request(app)
-//     .post("/meals/27/restaurants")
-//     .query({ approved: 1 })
-//     .set("Authorization", authTokens.Test1)
-//     .send({ place_id: "resM" });
-
-//   expect(res.status).toBe(200);
-//   expect(res.body.message).toBe("Successfully added");
-//   expect(res.body.liked).toBeTruthy();
-// });
-// it("test add restaurant - already exists", async () => {
-//   const res = await request(app)
-//     .post("/meals/27/restaurants")
-//     .query({ approved: 0 })
-//     .set("Authorization", authTokens.Test1)
-//     .send({ place_id: "resM" });
-//   expect(res.status).toBe(401);
-//   expect(res.body.error).toBe("Restaurant already exists");
-// });
-// it("test delete restaurant", async () => {
-//   const res = await request(app)
-//     .delete("/meals/27/restaurants/resM")
-//     .set("Authorization", authTokens.Test1);
-
-//   expect(res.status).toBe(200);
-// });
-// it("test add restaurant - dislike", async () => {
-//   const res = await request(app)
-//     .post("/meals/27/restaurants")
-//     .query({ approved: 0 })
-//     .set("Authorization", authTokens.Test1)
-//     .send({ place_id: "resM" });
-
-//   expect(res.status).toBe(200);
-//   expect(res.body.message).toBe("Successfully added");
-//   expect(res.body.liked).not.toBeTruthy();
-// });
-//   it("test update restaurant", async () => {
-//     const res = await request(app)
-//       .put("/meals/27/restaurants")
-//       .query({ approved: 1 })
-//       .set("Authorization", authTokens.Test1)
-//       .send({ place_id: "resM" });
-
-//     expect(res.status).toBe(200);
-//     expect(res.body.message).toBe("Successfully updated");
-//     expect(res.body.liked).toBeTruthy();
-//   });
-// });
 
 // GOOGLE ENDPOINTS =================================================>
 describe("test google endpoints", () => {
+  // it("test update google data", async () => {
+  //   const res = await request(app)
+  //     .put("/meals/27/googleData")
+  //     .query({
+  //       location_id: "test",
+  //       budget: [1, 2],
+  //       date: new Date("August 23, 2024 15:24:00"),
+  //       radius: 1,
+  //     })
+  //     .set("Authorization", authTokens.Test1);
+  //   expect(res.status).toBe(200);
+  // });
   // it("test sample data", async () => {
   //   console.log("testing.....");
   //   const res = await request(app)

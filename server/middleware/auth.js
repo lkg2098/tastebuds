@@ -5,6 +5,7 @@ const user_model = require("../models/users");
 
 exports.verifyToken = asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization;
+
   if (token) {
     let tokenArray = token.split(" ");
 

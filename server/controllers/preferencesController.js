@@ -24,6 +24,7 @@ exports.get_preferences_for_meal = asyncHandler(async (req, res, next) => {
     res.status(200).json({
       role: req.decoded.role,
       member_id: req.decoded.member_id,
+      round: settings.round,
       settings: {
         rating: settings.min_rating,
         preferences: settings.bad_tags,
@@ -86,7 +87,8 @@ exports.add_preferences = asyncHandler(async (req, res, next) => {
 
     const scores = await restaurant_model.create_member_restaurants(
       member_id,
-      google_data_string
+      google_data_string,
+      mealId
     );
     res.status(200).json({ scores });
   } else {
@@ -97,7 +99,7 @@ exports.add_preferences = asyncHandler(async (req, res, next) => {
 exports.update_preferences = asyncHandler(async (req, res, next) => {
   const { mealId } = req.params;
   const { member_id } = req.decoded;
-  // console.log(req.body);
+
   const { preferences, min_rating, google_data_string } =
     parse_settings_body(req);
   if (google_data_string && (preferences || min_rating)) {
@@ -105,7 +107,8 @@ exports.update_preferences = asyncHandler(async (req, res, next) => {
 
     let scores = await restaurant_model.update_member_restaurants(
       member_id,
-      google_data_string
+      google_data_string,
+      mealId
     );
 
     res.status(200).json({

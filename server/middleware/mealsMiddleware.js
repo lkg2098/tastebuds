@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const member_model = require("../models/members");
+const meal_model = require("../models/meals");
 
 exports.verify_meal_member = asyncHandler(async (req, res, next) => {
   if (req.decoded) {
@@ -34,10 +35,15 @@ exports.parse_meal_body = (req) => {
     created_at: new Date().toISOString(),
     scheduled_at: req.body.scheduled_at,
     location_id: req.body.location_id,
-    location_coords: req.body.location_coords,
+    location_coords: req.body.location_coords || [],
     radius: req.body.radius,
     budget: req.body.budget,
     chosen_restaurant: req.body.chosen_restaurant,
     liked: req.body.liked,
   };
 };
+
+exports.check_meal_round = asyncHandler(async (req, res, next) => {
+  let updated = await meal_model.meal_check_round(req.params.mealId);
+  res.status(200).json({ meal_round_updated: false });
+});
