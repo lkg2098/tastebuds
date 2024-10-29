@@ -383,7 +383,7 @@ describe("test meal endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.meals).toBeTruthy();
   });
-  it("test get meal by member id", async () => {
+  it("test get meal by meal id", async () => {
     const res = await request(app)
       .get(`/meals/${testMealId}`)
       .set("Authorization", authTokens.Test1);
@@ -587,7 +587,6 @@ describe("test meal endpoints", () => {
       .post("/login")
       .send({ username: "ghostBoy97", password: "boo" });
     expect(login.status).toBe(200);
-
     const res = await request(app)
       .get("/meals/1008/round")
       .set("Authorization", "Bearer " + login.body.accessToken);
