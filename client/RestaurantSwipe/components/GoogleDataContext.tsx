@@ -3,7 +3,12 @@ import React, { createContext, useState } from "react";
 
 type GoogleData = {
   tag_map: { [key: string]: boolean };
-  google_sql_string: string;
+  rating_tag_string: string;
+  budget_date_array: Array<{
+    res_id: number;
+    budget: Array<number>;
+    tags: Array<string>;
+  }>;
 };
 export const GoogleDataContext = createContext<{
   googleData: GoogleData;
@@ -13,7 +18,8 @@ export const GoogleDataContext = createContext<{
 export const GoogleDataProvider = (props: any) => {
   const [googleData, setGoogleData] = useState<GoogleData>({
     tag_map: {},
-    google_sql_string: "",
+    rating_tag_string: "",
+    budget_date_array: [],
   });
 
   return (

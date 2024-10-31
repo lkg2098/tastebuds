@@ -68,7 +68,7 @@ export default function RootLayout() {
   useEffect(() => {
     socket.on("connect_error", (err) => {
       // the reason of the error, for example "xhr poll error"
-      console.log(err.message);
+      console.log("WEBSOCKET ERROR", err.message);
 
       // some additional description, for example the status code of the initial HTTP response
       console.log(err.description);

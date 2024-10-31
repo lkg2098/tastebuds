@@ -26,7 +26,7 @@ export default class RestaurantList {
   head: RestaurantNode | null;
   tail: RestaurantNode | null;
 
-  constructor(headValue: NodeValue | null) {
+  constructor(headValue?: NodeValue) {
     if (headValue) {
       let node = new RestaurantNode(headValue, null, null);
       this.length = 1;
@@ -246,6 +246,21 @@ export default class RestaurantList {
     }
     output += "] length: " + this.length;
     return output;
+  }
+
+  // create a copy of the linked list (all values except head can be the same node object)
+  copy() {
+    if (this.head && this.tail) {
+      let copy = new RestaurantList(this.head.value);
+      if (copy.head && this.head.next) {
+        copy.head.next = this.head.next;
+      }
+      copy.tail = this.tail;
+      copy.length = this.length;
+      return copy;
+    }
+
+    return new RestaurantList();
   }
 }
 

@@ -21,6 +21,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import axiosAuth from "@/api/auth";
 import MealListItem from "@/components/MealListItem";
 import { Meal } from "@/types/Meal";
+import { ThemedButton } from "@/components/ThemedButton";
+import RankList from "@/components/MealComponents/RankList";
 
 export default function UpcomingMeals() {
   const router = useRouter();
@@ -62,17 +64,20 @@ export default function UpcomingMeals() {
               radius: number;
               scheduled_at: Date;
               members: string;
+              round: number;
             }) => ({
               id: item.meal_id,
               meal_name: item.meal_name,
               image: require("../../assets/images/react-logo.png"),
               date: new Date(item.scheduled_at),
               place_id: item.location_id,
+              location_coords: item.location_coords,
               liked: item.liked,
               distance: item.radius,
               budget: item.budget,
               chosen_restaurant: item.chosen_restaurant,
               members: item.members,
+              round: item.round,
             })
           )
         );
@@ -115,17 +120,20 @@ export default function UpcomingMeals() {
                 radius: number;
                 scheduled_at: Date;
                 members: string;
+                round: number;
               }) => ({
                 id: item.meal_id,
                 meal_name: item.meal_name,
                 image: require("../../assets/images/react-logo.png"),
                 date: new Date(item.scheduled_at),
                 place_id: item.location_id,
+                location_coords: item.location_coords,
                 liked: item.liked,
                 distance: item.radius,
                 budget: item.budget,
                 chosen_restaurant: item.chosen_restaurant,
                 members: item.members,
+                round: item.round,
               })
             )
           );
@@ -160,9 +168,11 @@ export default function UpcomingMeals() {
             date={item.date || new Date()}
             radius={item.distance}
             location={item.place_id}
+            coords={item.location_coords}
             budget={item.budget}
             chosen_restaurant={item.chosen_restaurant}
             members={item.members}
+            round={item.round || 0}
           />
         )}
         ListEmptyComponent={
@@ -173,6 +183,11 @@ export default function UpcomingMeals() {
               paddingVertical: 120,
             }}
           >
+            {/* <ThemedButton
+              type="secondary"
+              onPress={() => router.navigate("/matchAnim")}
+              text="Match Route"
+            /> */}
             <ThemedText type="subtitle">No meals yet...</ThemedText>
             <Image
               source={

@@ -22,7 +22,7 @@ export default function ChangePassword() {
 
   const handleSubmit = async () => {
     try {
-      let respose = await axiosAuth.put("/users/account/password", {
+      let response = await axiosAuth.put("/users/account/password", {
         newPassword,
       });
     } catch (err: any) {

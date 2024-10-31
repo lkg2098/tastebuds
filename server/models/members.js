@@ -134,11 +134,11 @@ exports.member_get_round = async (memberId) => {
   }
 };
 
-exports.member_update_round = async (memberId) => {
+exports.member_update_round = async (memberId, round) => {
   try {
     const result = await pool.query(
-      `update meal_members set round = round+1 where member_id = $1 returning round`,
-      [memberId]
+      `update meal_members set round = $2 where member_id = $1 returning round`,
+      [memberId, round]
     );
     return result.rows[0].round;
   } catch (err) {

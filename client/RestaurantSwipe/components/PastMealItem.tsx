@@ -20,6 +20,7 @@ export default function PastMealItem({
   location,
   liked,
   members,
+  chosen_restaurant,
 }: {
   id: number;
   title: string;
@@ -28,6 +29,7 @@ export default function PastMealItem({
   location?: string;
   liked?: boolean;
   members: Array<string>;
+  chosen_restaurant: string;
 }) {
   const [isToday, setIsToday] = useState(
     date.toLocaleDateString() == new Date().toLocaleDateString()
@@ -46,23 +48,28 @@ export default function PastMealItem({
     }
   };
   return (
-    <Link href={`../match`} asChild>
+    <Link
+      href={{
+        pathname: `../match`,
+        params: { mealId: id, name: title, restaurantId: chosen_restaurant },
+      }}
+      asChild
+    >
       <Pressable style={styles.item}>
         {/* <Image source={imageSrc} style={styles.mealImage} /> */}
         <View style={styles.itemContent}>
-          <View style={{ width: "50%" }}>
+          <View style={{ width: "70%" }}>
             <ThemedText type="subtitle">{title}</ThemedText>
             <ThemedText
               numberOfLines={1}
               subdued
-              style={{ fontSize: 14, lineHeight: 16 }}
+              style={{ fontSize: 14, lineHeight: 16, paddingVertical: 5 }}
             >
-              {/* {location} •{" "} */}
               {date.toLocaleDateString("en-US", {
                 month: "numeric",
                 day: "numeric",
                 year: "2-digit",
-              })}{" "}
+              })}
               {members && " • " + members.join(", ")}
             </ThemedText>
           </View>
@@ -103,7 +110,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 15,
-    alignSelf: "stretch",
   },
   mealImage: {
     width: 50,

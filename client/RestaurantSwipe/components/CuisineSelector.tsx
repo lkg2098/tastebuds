@@ -429,6 +429,6 @@ const styles = StyleSheet.create({
     width: 250,
     margin: 0,
     position: "absolute",
-    bottom: "2%",
+    bottom: "4%",
   },
 });

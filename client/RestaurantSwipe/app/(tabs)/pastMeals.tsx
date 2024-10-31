@@ -30,6 +30,7 @@ export default function PastMeals() {
         params: { time: "past" },
       });
       if (response.status == 200) {
+        console.log(response.data.meals[0]);
         setMeals(
           response.data.meals.map(
             (item: {
@@ -42,7 +43,7 @@ export default function PastMeals() {
               meal_photo: string;
               radius: number;
               scheduled_at: Date;
-              members: string;
+              members: Array<string>;
             }) => ({
               id: item.meal_id,
               meal_name: item.meal_name,
@@ -50,7 +51,7 @@ export default function PastMeals() {
               date: new Date(item.scheduled_at),
               place_id: item.location_id,
               liked: item.liked,
-              membersString: item.members,
+              members: item.members,
             })
           )
         );
@@ -94,6 +95,7 @@ export default function PastMeals() {
             date={item.date || new Date()}
             liked={item.liked}
             members={item.members}
+            chosen_restaurant={item.chosen_restaurant || ""}
           />
         )}
         ListEmptyComponent={

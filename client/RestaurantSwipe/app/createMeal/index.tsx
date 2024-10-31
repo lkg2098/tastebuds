@@ -40,7 +40,8 @@ export default function CreateMeal() {
     place_id,
     tagMap,
     badPreferences,
-    google_sql_string,
+    google_data_string,
+    google_price_hours_array,
     memberIds,
     chosen_restaurant,
   } = useLocalSearchParams<{
@@ -48,7 +49,8 @@ export default function CreateMeal() {
     current_address: string;
     place_id: string;
     tagMap: string;
-    google_sql_string: string;
+    google_data_string: string;
+    google_price_hours_array: string;
     badPreferences: string;
     memberIds: string;
     chosen_restaurant: string;
@@ -84,14 +86,17 @@ export default function CreateMeal() {
 
   useEffect(() => {
     if (googleContext) {
-      if (tagMap && google_sql_string) {
+      if (tagMap && google_data_string) {
         googleContext.setGoogleData({
           tag_map: tagMap ? JSON.parse(tagMap) : {},
-          google_sql_string: google_sql_string || "",
+          rating_tag_string: google_data_string || "",
+          budget_date_array: google_price_hours_array
+            ? JSON.parse(google_price_hours_array)
+            : [],
         });
       }
     }
-  }, [tagMap, google_sql_string]);
+  }, [tagMap, google_data_string]);
 
   // useEffect(() => {
   //   console.log("COMPARE");
@@ -99,15 +104,33 @@ export default function CreateMeal() {
   //   console.log(mealContext?.mealData);
   // }, [mealContext?.mealData]);
 
+  // edit existing meal
+  const getSettings = async () => {
+    try {
+      let response = await axiosAuth.get(`/meals/${mealId}`);
+      console.log("settings", response.data);
+      // let memberPreferences = await axiosAuth.get(
+      //   `/meals/${mealId}/preferences`,
+      //   { params: { setting: "all" } }
+      // );
+      if (response.data) {
+        setRole(response.data.userRole);
+        return response.data;
+      } else {
+        return false;
+      }
+    } catch (err) {
+      console.log(err);
+      return false;
+    }
+  };
+
   useEffect(() => {
     if (mealId && mealContext) {
-      console.log(mealId);
       getSettings()
         .then((value) => {
-          console.log(value);
           let meal = value.meal;
-          let memberSettings = value.settings;
-          if (meal && memberSettings) {
+          if (meal) {
             setRole(value.userRole);
             setOldMealData({
               ...oldMealData,
@@ -122,8 +145,9 @@ export default function CreateMeal() {
               member_ids: meal.member_ids || mealContext.mealData.member_ids,
               diets: ["Dairy Free", "Gluten Free"],
               location_coords: meal.location_coords,
-              rating: memberSettings.rating,
-              badPreferences: memberSettings.preferences,
+              rating: meal.min_rating,
+              badPreferences: meal.bad_tags,
+              round: meal.round,
               chosen_restaurant:
                 chosen_restaurant || mealContext.mealData.chosen_restaurant,
             });
@@ -135,19 +159,18 @@ export default function CreateMeal() {
               budget: meal.budget,
               distance: meal.radius,
               address: current_address || mealContext.mealData.address,
-              place_id: meal.location_id || mealContext.mealData.place_id,
+              place_id: meal.location_id || oldMealData.place_id,
               members: meal.members || mealContext.mealData.members,
               member_ids: meal.member_ids || mealContext.mealData.member_ids,
               diets: ["Dairy Free", "Gluten Free"],
               location_coords: meal.location_coords,
-              rating: memberSettings.rating,
-              badPreferences: memberSettings.preferences,
+              rating: meal.min_rating,
+              badPreferences: meal.bad_tags,
+              round: meal.round,
               chosen_restaurant:
                 chosen_restaurant || mealContext.mealData.chosen_restaurant,
             });
             setLoading(false);
-          } else {
-            router.dismiss(1);
           }
         })
         .catch((err) => {
@@ -162,6 +185,7 @@ export default function CreateMeal() {
               : Location.Accuracy.Lowest,
           });
           const coords = [location.coords.latitude, location.coords.longitude];
+          console.log(coords);
           if (!geocodingRan) {
             getAddress(coords).catch((err) => {
               console.log(err);
@@ -221,27 +245,6 @@ export default function CreateMeal() {
     }
   }, []);
 
-  // edit existing meal
-  const getSettings = async () => {
-    try {
-      let response = await axiosAuth.get(`/meals/${mealId}`);
-      console.log(response.data);
-      let memberPreferences = await axiosAuth.get(
-        `/meals/${mealId}/preferences`,
-        { params: { setting: "all" } }
-      );
-      if (response.data && memberPreferences.data) {
-        setRole(memberPreferences.data.role);
-        return { ...response.data, ...memberPreferences.data };
-      } else {
-        return false;
-      }
-    } catch (err) {
-      console.log(err);
-      return false;
-    }
-  };
-
   const checkArraysEqual = (
     arr1?: Array<string | number>,
     arr2?: Array<string | number>
@@ -284,7 +287,14 @@ export default function CreateMeal() {
         if (oldMealData.meal_name != mealContext.mealData.meal_name) {
           params.name = mealContext.mealData.meal_name;
         }
-        if (oldMealData.date != mealContext.mealData.date) {
+        console.log(
+          oldMealData.date.toISOString() ==
+            mealContext.mealData.date.toISOString()
+        );
+        if (
+          oldMealData.date.toISOString() !=
+          mealContext.mealData.date.toISOString()
+        ) {
           params.date = mealContext.mealData.date?.toISOString();
         }
         if (oldMealData.place_id != mealContext.mealData.place_id) {
@@ -339,6 +349,25 @@ export default function CreateMeal() {
               `/meals/${mealContext.mealData.id}`,
               mealBody
             );
+            if (response.status == 200 && (params.budget || params.date)) {
+              if (
+                mealContext.mealData.budget &&
+                mealContext.mealData.date &&
+                googleContext?.googleData.budget_date_array
+              ) {
+                let meal_res_update = await axiosAuth.post(
+                  `/meals/${mealContext.mealData.id}/restaurants`,
+                  {
+                    date: mealContext.mealData.date.toISOString(),
+                    budget: mealContext.mealData.budget,
+                    google_data_array:
+                      googleContext?.googleData.budget_date_array,
+                  }
+                );
+              } else {
+                console.log("INSUFFICIENT DATA FOR MEAL RES UPDATE");
+              }
+            }
           }
 
           if (params.min_rating || params.preferences) {
@@ -347,7 +376,7 @@ export default function CreateMeal() {
               {
                 min_rating: mealContext.mealData.rating,
                 preferences: mealContext.mealData.badPreferences,
-                google_data_string: googleContext?.googleData.google_sql_string,
+                google_data_string: googleContext?.googleData.rating_tag_string,
               }
             );
           }
@@ -370,11 +399,13 @@ export default function CreateMeal() {
           if (response.status == 200) {
             mealContext.setMealData({
               ...mealContext.mealData,
-              id: response?.data.meal_id,
+              id: response.data.meal_id,
+              round: 0,
             });
             setOldMealData({
               ...mealContext.mealData,
               id: response?.data.meal_id,
+              round: 0,
             });
             setRole("admin");
             router.push({
@@ -406,11 +437,30 @@ export default function CreateMeal() {
   }, []);
 
   if (loading) {
-    return <Loading />;
+    return (
+      <ThemedView style={{ flex: 1, backgroundColor }}>
+        <Loading>
+          <SafeAreaView style={{ flex: 1 }}>
+            <HeaderBar
+              headerRight={
+                <Pressable
+                  onPress={() => {
+                    console.log("pressed");
+                    router.back();
+                  }}
+                >
+                  <Ionicons name="close" color={color} size={25} />
+                </Pressable>
+              }
+            />
+          </SafeAreaView>
+        </Loading>
+      </ThemedView>
+    );
   } else if (mealContext) {
     return (
-      <ThemedView style={{ flex: 1 }}>
-        <SafeAreaView style={{ backgroundColor, flex: 1 }}>
+      <ThemedView style={{ flex: 1, backgroundColor }}>
+        <SafeAreaView style={{ flex: 1 }}>
           <HeaderBar
             headerRight={
               <Pressable

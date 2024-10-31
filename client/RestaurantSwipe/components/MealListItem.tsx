@@ -17,20 +17,24 @@ export default function MealListItem({
   imageSrc,
   date,
   location,
+  coords,
   radius,
   budget,
   chosen_restaurant,
   members,
+  round,
 }: {
   id: number;
   title: string;
   imageSrc?: ImageSourcePropType;
   date: Date;
   location: string;
+  coords?: Array<number>;
   radius: number;
   budget: Array<number>;
   chosen_restaurant?: string;
   members: Array<string>;
+  round: number;
 }) {
   const isToday = useMemo(() => {
     return date.toLocaleDateString() == new Date().toLocaleDateString();
@@ -44,16 +48,22 @@ export default function MealListItem({
         chosen_restaurant
           ? {
               pathname: "/match",
-              params: { mealId: id, restaurantId: chosen_restaurant },
+              params: {
+                mealId: id,
+                name: title,
+                restaurantId: chosen_restaurant,
+              },
             }
           : {
               pathname: `../${id}`,
               params: {
                 location_id: location,
+                location_coords: JSON.stringify(coords),
                 radius,
                 date: date.toISOString(),
                 budget: JSON.stringify(budget),
                 name: title,
+                round: round,
               },
             }
       }

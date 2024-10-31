@@ -10,9 +10,9 @@ import React, { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Preferences() {
-  const { mealId, google_sql_string, tag_map, rating } = useLocalSearchParams<{
+  const { mealId, google_data_string, tag_map, rating } = useLocalSearchParams<{
     mealId: string;
-    google_sql_string: string;
+    google_data_string: string;
     tag_map: string;
     rating: string;
   }>();
@@ -20,9 +20,9 @@ export default function Preferences() {
   const background = useThemeColor({}, "background");
   useEffect(() => {
     console.log("GOOGLE DATA");
-    console.log(google_sql_string);
+    console.log(google_data_string);
     console.log(tag_map);
-  }, [google_sql_string, tag_map]);
+  }, [google_data_string, tag_map]);
 
   const handleSubmit = async (preferences: Array<string>) => {
     console.log(preferences);
@@ -30,7 +30,7 @@ export default function Preferences() {
       let response = await axiosAuth.post(`/meals/${mealId}/preferences`, {
         preferences,
         min_rating: rating,
-        google_data_string: google_sql_string,
+        google_data_string: google_data_string,
       });
 
       if (response.status == 200) {
@@ -45,12 +45,12 @@ export default function Preferences() {
   };
 
   return (
-    <SafeAreaView
+    <ThemedView
       style={{
         flex: 1,
         alignItems: "center",
         backgroundColor: background,
-        paddingTop: 20,
+        paddingVertical: 10,
       }}
     >
       <ThemedText type="title">What don't you want to eat?</ThemedText>
@@ -59,6 +59,6 @@ export default function Preferences() {
         tagMap={tag_map ? JSON.parse(tag_map) : {}}
         handleSubmit={handleSubmit}
       />
-    </SafeAreaView>
+    </ThemedView>
   );
 }

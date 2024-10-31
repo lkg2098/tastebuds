@@ -79,7 +79,8 @@ exports.meal_member_get_round = asyncHandler(async (req, res, next) => {
 
 exports.meal_member_update_round = asyncHandler(async (req, res, next) => {
   let memberRound = await member_model.member_update_round(
-    req.decoded.member_id
+    req.decoded.member_id,
+    req.body.round
   );
   res.status(200).json({ message: "Updated successfully", round: memberRound });
 });

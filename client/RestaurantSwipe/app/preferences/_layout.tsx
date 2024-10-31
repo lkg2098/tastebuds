@@ -30,6 +30,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { ThemedText } from "@/components/ThemedText";
 import * as Linking from "expo-linking";
+import HeaderBar from "@/components/HeaderBar";
 // // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
@@ -41,17 +42,27 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <SafeAreaProvider>
-        <Stack>
-          <Stack.Screen
-            name="index"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="cuisineSelection"
-            options={{ headerShown: false }}
-          />
+        <Stack
+          screenOptions={{
+            headerLeft: () => (
+              <Pressable onPress={() => router.navigate("/(tabs)")}>
+                <Ionicons
+                  name="chevron-back"
+                  size={20}
+                  color={Colors[colorScheme ?? "light"].text}
+                />
+              </Pressable>
+            ),
+            headerTitle: "Your Preferences",
+            headerTitleStyle: { fontSize: 20, fontWeight: "semibold" },
+            headerShadowVisible: false,
+            headerStyle: {
+              backgroundColor: Colors[colorScheme ?? "light"].background,
+            },
+          }}
+        >
+          <Stack.Screen name="index" />
+          <Stack.Screen name="cuisineSelection" />
         </Stack>
       </SafeAreaProvider>
     </ThemeProvider>

@@ -1,5 +1,4 @@
 import { useThemeColor } from "@/hooks/useThemeColor";
-import Restaurant from "@/utils/restaurant";
 import RestaurantList, { RestaurantNode } from "@/utils/restaurantList";
 import { transform } from "@babel/core";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -26,6 +25,9 @@ import {
 import StarRating from "react-native-star-rating-widget";
 import RestaurantCard from "./RestaurantCard";
 import { ThemedText } from "../ThemedText";
+import { MealRestaurant, Photo, Restaurant } from "@/types/Restaurant";
+import { ThemedButton } from "../ThemedButton";
+import { ThemedView } from "../ThemedView";
 
 export default function SwipeCard({
   topCard,
@@ -33,12 +35,18 @@ export default function SwipeCard({
   next,
   handleSwipe,
   totalCards,
+  handleNewPhotoData,
+  canUpdate,
+  handleNextRound,
 }: {
-  topCard?: { id: string; score: number };
-  dataMap: { [key: string]: Restaurant };
-  next?: RestaurantNode;
+  topCard?: { id: string; score: number } | null;
+  dataMap: MealRestaurant;
+  next?: RestaurantNode | null;
   handleSwipe: Function;
   totalCards: number;
+  handleNewPhotoData: (id: string, photos: Array<Photo>) => void;
+  canUpdate: boolean;
+  handleNextRound: () => Promise<void>;
 }) {
   const { width, height } = Dimensions.get("screen");
   const backgroundColor = useThemeColor({}, "background");
@@ -47,34 +55,17 @@ export default function SwipeCard({
 
   const swipe = useRef(new Animated.ValueXY()).current;
   const sticky = useRef(new Animated.ValueXY()).current;
+  const slideOut = useRef(new Animated.Value(0)).current;
 
   const [swiped, setSwiped] = useState(0 | 1 | 2);
-  const [topCardData, setTopCardData] = useState<Restaurant | null>();
-  const [nextCardData, setNextCardData] = useState<Restaurant | null>();
+  const [topCardData, setTopCardData] = useState<Restaurant>();
+  const [nextCardData, setNextCardData] = useState<Restaurant>();
 
-  useEffect(() => {
-    if (topCard) {
-      if (dataMap[topCard.id]) {
-        setTopCardData(dataMap[topCard.id]);
-      } else {
-        setTopCardData(null);
-      }
-    } else {
-      setTopCardData(null);
-    }
-  }, [topCard, dataMap]);
+  const fadeOut = slideOut.interpolate({
+    inputRange: [-30, 0],
+    outputRange: [0, 1.0],
+  });
 
-  useEffect(() => {
-    if (next?.value) {
-      if (dataMap[next.value.id]) {
-        setNextCardData(dataMap[next.value.id]);
-      } else {
-        setNextCardData(null);
-      }
-    } else {
-      setNextCardData(null);
-    }
-  }, [next, dataMap]);
   const rotate = swipe.x.interpolate({
     inputRange: [-100, 0, 100],
     outputRange: ["-8deg", "0deg", "8deg"],
@@ -101,6 +92,40 @@ export default function SwipeCard({
     outputRange: [-30, 0, -30],
     extrapolate: "clamp",
   });
+
+  useEffect(() => {
+    if (topCard) {
+      if (dataMap[topCard.id]) {
+        setTopCardData(dataMap[topCard.id]);
+      } else {
+        setTopCardData(undefined);
+      }
+    } else {
+      setTopCardData(undefined);
+    }
+  }, [topCard, dataMap]);
+
+  useEffect(() => {
+    if (next?.value) {
+      if (dataMap[next.value.id]) {
+        setNextCardData(dataMap[next.value.id]);
+      } else {
+        setNextCardData(undefined);
+      }
+    } else {
+      setNextCardData(undefined);
+    }
+  }, [next, dataMap]);
+
+  useEffect(() => {
+    if (swiped == 1) {
+      if (topCard) handleSwipe(true, topCard.id, topCard.score);
+      setSwiped(0);
+    } else if (swiped == 2) {
+      if (topCard) handleSwipe(false, topCard.id, topCard.score);
+      setSwiped(0);
+    }
+  }, [swiped]);
 
   const removeTopCard = useCallback(
     (yes: boolean) => {
@@ -148,21 +173,33 @@ export default function SwipeCard({
     });
   };
 
-  useEffect(() => {
-    if (swiped == 1) {
-      if (topCard) handleSwipe(true, topCard.id, topCard.score);
-      setSwiped(0);
-    } else if (swiped == 2) {
-      if (topCard) handleSwipe(false, topCard.id, topCard.score);
-      setSwiped(0);
-    }
-  }, [swiped]);
+  const transitionOut = async () => {
+    Animated.timing(slideOut, {
+      duration: 500,
+      toValue: -30,
+      useNativeDriver: true,
+    }).start(async () => {
+      try {
+        await handleNextRound();
+      } catch (err) {
+        console.log(err);
+        Animated.timing(slideOut, {
+          duration: 500,
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    });
+  };
 
   const panresponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         //return true if user is swiping, return false if it's a single click
-        return !(gestureState.dx === 0 && gestureState.dy === 0);
+        return !(
+          (gestureState.dx === 0 && gestureState.dy === 0) ||
+          (gestureState.dx < 2 && gestureState.dx > -2)
+        );
       },
       onPanResponderMove: (_, { dx, dy, y0 }) => {
         swipe.setValue({ x: dx, y: dy });
@@ -188,49 +225,88 @@ export default function SwipeCard({
     })
   ).current;
 
+  const emptyCardMarkup = canUpdate ? (
+    <View
+      style={{
+        position: "absolute",
+        width: "100%",
+        height: "100%",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <ThemedText>Looks like you couldn't find a match!</ThemedText>
+      <ThemedText>
+        Let's see what restaurants people could mostly agree on!
+      </ThemedText>
+      <ThemedButton text="OK!" onPress={transitionOut} type="primary" />
+    </View>
+  ) : (
+    <View
+      style={{
+        position: "absolute",
+        width: "100%",
+        height: "100%",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <ThemedText type="title">You're out of options!</ThemedText>
+      <Image
+        source={require("../../assets/images/emptyPlate.png")}
+        style={{ width: 180, height: 50, resizeMode: "stretch", margin: 25 }}
+      />
+      <ThemedText style={{ textAlign: "center", width: "75%" }}>
+        You've voted on all the available restaurants!{" "}
+      </ThemedText>
+      <ThemedText
+        style={{ textAlign: "center", width: "75%", paddingVertical: 15 }}
+      >
+        Now you just need to wait for the other guests to cast their votes
+      </ThemedText>
+      {/* <Pressable
+    onPress={() => {}}
+    style={[styles.button, { backgroundColor: tintColor }]}
+  >
+    <ThemedText type="defaultSemiBold">Remind Other Guests</ThemedText>
+  </Pressable> */}
+    </View>
+  );
+
   const frontCardMarkup =
     // (topCard && totalCards > 0) ||
-    topCardData ? (
+    topCard && topCardData ? (
       <Animated.View
-        style={{
-          ...styles.card,
-          backgroundColor: backgroundColor,
-          zIndex: 3,
-          transform: [...swipe.getTranslateTransform(), { rotate }],
-        }}
+        style={[
+          styles.card,
+          {
+            transform: [...swipe.getTranslateTransform(), { rotate }],
+            zIndex: 3,
+          },
+        ]}
         {...panresponder.panHandlers}
       >
-        <RestaurantCard data={topCardData} />
-        {/* <ThemedText style={{ color: "black" }}>{topCard.id}</ThemedText>
-        <ThemedText style={{ color: "black" }}>
-          cards left: {totalCards}
-        </ThemedText> */}
+        <RestaurantCard
+          data={topCardData}
+          handleNewPhotos={(photos) => handleNewPhotoData(topCard.id, photos)}
+        />
       </Animated.View>
     ) : (
-      <View
-        style={{
-          ...styles.card,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: backgroundColor,
-          padding: 20,
-        }}
+      <Animated.View
+        style={[
+          {
+            ...styles.card,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: backgroundColor,
+            padding: 20,
+            opacity: fadeOut,
+          },
+          { transform: [{ translateY: slideOut }] },
+        ]}
       >
-        <ThemedText type="title">You're out of options!</ThemedText>
-        <ThemedText
-          type="subtitle"
-          style={{ textAlign: "center", paddingVertical: 30 }}
-        >
-          You've voted on all the available restaurants! Now you just need to
-          wait for your guests to cast their votes
-        </ThemedText>
-        <Pressable
-          onPress={() => {}}
-          style={[styles.button, { backgroundColor: tintColor }]}
-        >
-          <ThemedText type="defaultSemiBold">Remind Other Guests</ThemedText>
-        </Pressable>
-      </View>
+        {emptyCardMarkup}
+      </Animated.View>
     );
   const backCardMarkup = totalCards > 0 && (
     <Animated.View
@@ -252,47 +328,27 @@ export default function SwipeCard({
         }}
         {...panresponder.panHandlers}
       ></Animated.View>
-      <View
-        style={{
-          position: "absolute",
-          width: "100%",
-          height: "100%",
-          backgroundColor: backgroundColor,
-        }}
-      >
-        {next ? (
-          <>
-            <RestaurantCard data={nextCardData} />
-          </>
-        ) : (
-          <View
-            style={{
-              ...styles.card,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: backgroundColor,
-              padding: 20,
-            }}
-          >
-            <ThemedText type="title">You're out of options!</ThemedText>
-            <ThemedText
-              type="subtitle"
-              style={{ textAlign: "center", paddingVertical: 30 }}
-            >
-              You've voted on all the available restaurants! Now you just need
-              to wait for your guests to cast their votes
-            </ThemedText>
-            <Pressable
-              onPress={() => {}}
-              style={[styles.button, { backgroundColor: tintColor }]}
-            >
-              <ThemedText type="defaultSemiBold">
-                Remind Other Guests
-              </ThemedText>
-            </Pressable>
-          </View>
-        )}
-      </View>
+
+      {next ? (
+        <RestaurantCard
+          data={nextCardData}
+          handleNewPhotos={(photos) =>
+            handleNewPhotoData(next.value.id, photos)
+          }
+        />
+      ) : (
+        <View
+          style={{
+            ...styles.card,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: backgroundColor,
+            padding: 20,
+          }}
+        >
+          {emptyCardMarkup}
+        </View>
+      )}
     </Animated.View>
   );
 

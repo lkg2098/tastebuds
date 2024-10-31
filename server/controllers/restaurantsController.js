@@ -45,7 +45,11 @@ exports.restaurants_set_ranks = asyncHandler(async (req, res, next) => {
       req.params.mealId,
       rankArray
     );
-    res.status(200).json({ message: "Successfully updated" });
+    let member_round = await member_model.member_update_round(
+      req.decoded.member_id,
+      2
+    );
+    res.status(200).json({ message: "Successfully updated", member_round });
   }
 });
 

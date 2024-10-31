@@ -65,25 +65,30 @@ export default function RestaurantWebView() {
               <Ionicons
                 name="chevron-back"
                 color={browserData.canGoBack ? "black" : subduedColor}
-                size={32}
+                size={25}
               />
             </Pressable>
             <Pressable onPress={() => handleForward()}>
               <Ionicons
                 name="chevron-forward"
                 color={browserData.canGoForward ? "black" : subduedColor}
-                size={32}
+                size={25}
               />
             </Pressable>
           </View>
           <ThemedText
             type="defaultSemiBold"
-            style={{ color: "black", marginLeft: -32 }}
+            style={{
+              color: "black",
+              alignSelf: "center",
+              textAlign: "center",
+              fontSize: 14,
+            }}
           >
             {title || "Website"}
           </ThemedText>
           <Pressable onPress={() => handleDismiss()}>
-            <Ionicons name="close" color="black" size={32} />
+            <Ionicons name="close" color="black" size={25} />
           </Pressable>
         </View>
         <Animated.View
@@ -135,7 +140,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     textAlign: "center",
     justifyContent: "space-between",
-    marginTop: "10%",
+    marginTop: "5%",
     padding: 10,
     flexDirection: "row",
     borderTopLeftRadius: 10,

@@ -48,6 +48,6 @@ const styles = StyleSheet.create({
     width: "60%",
   },
   title: {
-    width: 95,
+    width: "45%",
   },
 });

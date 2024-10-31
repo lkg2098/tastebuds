@@ -60,6 +60,7 @@ export default function SelectLocation() {
         ...mealContext.mealData,
         address: value.address,
         place_id: value.place_id,
+        location_coords: [],
       });
     }
     setChoice(value);
@@ -116,103 +117,104 @@ export default function SelectLocation() {
     <ThemedView
       style={{
         flex: 1,
-        paddingTop: 10,
       }}
     >
-      <HeaderBar
-        headerLeft={
-          <Pressable onPress={() => router.dismiss(1)}>
-            <Ionicons name="chevron-back" color={color} size={18} />
-          </Pressable>
-        }
-        headerCenter={
-          <ThemedText type="defaultSemiBold">Choose a Location</ThemedText>
-        }
-      />
-      <GooglePlacesAutocomplete
-        ref={(ref) => {
-          googleInput = ref;
-        }}
-        placeholder="Current Location"
-        onPress={(data, details = null) => {
-          // 'details' is provided when fetchDetails = true
-          console.log(data, details);
-          let address = "";
-          if (
-            details?.name &&
-            details?.formatted_address.includes(details.name)
-          ) {
-            address = details.formatted_address;
-          } else if (details?.name && details?.formatted_address) {
-            address = `${details.name}, ${details.formatted_address}`;
+      <SafeAreaView style={{ flex: 1 }}>
+        <HeaderBar
+          headerLeft={
+            <Pressable onPress={() => router.dismiss(1)}>
+              <Ionicons name="chevron-back" color={color} size={18} />
+            </Pressable>
           }
-          handleChoice({
-            address: address,
-            place_id: data.place_id,
-            location_coords: [
-              details?.geometry.location.lat || 100000,
-              details?.geometry.location.lng || 100000,
-            ],
-          });
-        }}
-        minLength={4}
-        fetchDetails={true}
-        query={{
-          key: Constants.expoConfig?.ios?.config?.googleMapsApiKey,
-          language: "en",
-        }}
-        GooglePlacesDetailsQuery={{
-          fields: "geometry,formatted_address,name",
-        }}
-        renderLeftButton={() => (
-          <Ionicons
-            name="disc-outline"
-            color={tintColor}
-            size={14}
-            style={{
-              margin: "auto",
-            }}
-          />
-        )}
-        renderRow={renderResult}
-        styles={{
-          container: { padding: 10 },
-          textInput: {
-            color,
-            backgroundColor: "transparent",
-            height: "100%",
-          },
-          textInputContainer: {
-            backgroundColor: "transparent",
-            paddingHorizontal: 15,
-            paddingVertical: 10,
-            borderColor: color,
-            borderWidth: 1,
-            borderRadius: 10,
-          },
-          description: { color, fontSize: 14 },
-          predefinedPlacesDescription: {
-            color,
-          },
-          row: {
-            backgroundColor: "transparent",
-            color: "white",
-            marginVertical: 5,
-          },
-          poweredContainer: { backgroundColor: "transparent" },
-        }}
-      />
+          headerCenter={
+            <ThemedText type="defaultSemiBold">Choose a Location</ThemedText>
+          }
+        />
+        <GooglePlacesAutocomplete
+          ref={(ref) => {
+            googleInput = ref;
+          }}
+          placeholder="Current Location"
+          onPress={(data, details = null) => {
+            // 'details' is provided when fetchDetails = true
+            console.log(data, details);
+            let address = "";
+            if (
+              details?.name &&
+              details?.formatted_address.includes(details.name)
+            ) {
+              address = details.formatted_address;
+            } else if (details?.name && details?.formatted_address) {
+              address = `${details.name}, ${details.formatted_address}`;
+            }
+            handleChoice({
+              address: address,
+              place_id: data.place_id,
+              location_coords: [
+                details?.geometry.location.lat || 100000,
+                details?.geometry.location.lng || 100000,
+              ],
+            });
+          }}
+          minLength={4}
+          fetchDetails={true}
+          query={{
+            key: Constants.expoConfig?.ios?.config?.googleMapsApiKey,
+            language: "en",
+          }}
+          GooglePlacesDetailsQuery={{
+            fields: "geometry,formatted_address,name",
+          }}
+          renderLeftButton={() => (
+            <Ionicons
+              name="disc-outline"
+              color={tintColor}
+              size={14}
+              style={{
+                margin: "auto",
+              }}
+            />
+          )}
+          renderRow={renderResult}
+          styles={{
+            container: { padding: 10 },
+            textInput: {
+              color,
+              backgroundColor: "transparent",
+              height: "100%",
+            },
+            textInputContainer: {
+              backgroundColor: "transparent",
+              paddingHorizontal: 15,
+              paddingVertical: 10,
+              borderColor: color,
+              borderWidth: 1,
+              borderRadius: 10,
+            },
+            description: { color, fontSize: 14 },
+            predefinedPlacesDescription: {
+              color,
+            },
+            row: {
+              backgroundColor: "transparent",
+              color: "white",
+              marginVertical: 5,
+            },
+            poweredContainer: { backgroundColor: "transparent" },
+          }}
+        />
 
-      {/* <GetLocation /> */}
-      <GradientButton
-        buttonText="Confirm"
-        style={{ position: "absolute", bottom: "10%" }}
-        handlePress={() => {
-          router.navigate({
-            pathname: "../createMeal",
-          });
-        }}
-      />
+        {/* <GetLocation /> */}
+        <GradientButton
+          buttonText="Confirm"
+          style={{ position: "absolute", bottom: "10%" }}
+          handlePress={() => {
+            router.navigate({
+              pathname: "../createMeal",
+            });
+          }}
+        />
+      </SafeAreaView>
     </ThemedView>
   );
 }

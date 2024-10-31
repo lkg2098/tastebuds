@@ -205,6 +205,7 @@ export default function AddUsers() {
                       radius: mealContext.mealData.distance,
                       budget: JSON.stringify(mealContext.mealData.budget),
                       date: mealContext.mealData.date?.toISOString(),
+                      round: mealContext.mealData.round || 0,
                     },
                   });
                 }, 0);

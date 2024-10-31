@@ -444,6 +444,7 @@ describe("test meal endpoints", () => {
   it("test update member round", async () => {
     const res = await request(app)
       .put(`/meals/${testMealId}/members/round`)
+      .send({ round: 1 })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.round).toBe(1);

@@ -175,23 +175,18 @@ export default function MealSettings({
             }}
             title="Location"
             content={
-              <View>
+              <View style={{ width: "100%" }}>
                 <ThemedText
                   type="defaultSemiBold"
                   interactive
                   numberOfLines={1}
-                  style={{ width: "60%" }}
                 >
                   {!data?.id && data?.location_coords?.length != 0
                     ? "Current Location"
                     : data?.address}
                 </ThemedText>
                 {!data?.id && data?.location_coords?.length != 0 && (
-                  <ThemedText
-                    subdued
-                    numberOfLines={1}
-                    style={{ width: "60%" }}
-                  >
+                  <ThemedText subdued numberOfLines={1}>
                     {data?.address}
                   </ThemedText>
                 )}
@@ -257,7 +252,7 @@ export default function MealSettings({
             handleScroll={handleScroll}
           />
           <LinkSettingsItem
-            title="Cuisine Preferences"
+            title="Prefers Not to Eat"
             href={{
               pathname: "../createMeal/preferences",
               params: {
