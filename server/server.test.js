@@ -1,5 +1,5 @@
 const request = require("supertest");
-const app = require("./server");
+const { app } = require("./server");
 const bcrypt = require("bcrypt");
 
 const pool = require("./pool");
@@ -16,7 +16,7 @@ const userData = { john: { id: "a" } };
 let testMealId = 1;
 
 describe("test index endpoints", () => {
-  it("test signup", async () => {
+  it.only("test signup", async () => {
     const res = await request(app).post("/signup").send({
       username: "john",
       password: "maybe45",

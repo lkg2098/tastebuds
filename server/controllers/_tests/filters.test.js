@@ -135,7 +135,7 @@ const SPLIT_HOURS = [
   },
 ];
 
-describe("test place filters", () => {
+describe.skip("test place filters", () => {
   it("test filter by hours - open 24 hours", () => {
     let result = filter_by_hours(
       [

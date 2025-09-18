@@ -30,13 +30,8 @@ export function ThemedTextInput({
 
   const [focused, setFocused] = useState(false);
   const handleFocused = (value: boolean) => {
-    console.log("help");
     setFocused(value);
   };
-
-  useEffect(() => {
-    console.log(focused);
-  }, [focused]);
 
   return (
     <ThemedView style={styles.container}>

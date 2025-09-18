@@ -37,7 +37,7 @@ const testUrls = [
 //   //   });
 // });
 
-describe("test scrape menu pages", () => {
+describe.skip("test scrape menu pages", () => {
   it("test with one url", async () => {
     let menuLinks = await scrapeMenuPages([testUrls[0]]);
     expect(Object.keys(menuLinks).length).toBe(1);

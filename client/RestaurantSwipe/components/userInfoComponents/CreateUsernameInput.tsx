@@ -45,6 +45,7 @@ export function CreateUsernameInput({
       clearTimeout(timeoutFunc);
     }
     if (!Boolean(value.match("^[a-zA-Z0-9_]{0,10}$"))) {
+      console.log(value);
       if (!error) setError(true);
     } else if (error) {
       setError(false);
@@ -86,8 +87,7 @@ export function CreateUsernameInput({
   };
 
   useEffect(() => {
-    console.log(`unique: ${unique}`);
-    setValid(!error && unique);
+    setValid(!!(!error && unique));
   }, [error, unique]);
 
   return (
@@ -108,6 +108,7 @@ export function CreateUsernameInput({
         ]}
       >
         <TextInput
+          testID="create-username-input"
           placeholderTextColor={subduedColor}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -118,6 +119,7 @@ export function CreateUsernameInput({
 
         {!error && unique != undefined && (
           <Ionicons
+            data-testid="unique-icon"
             name={unique ? "checkmark" : "close"}
             size={16}
             color={unique ? "green" : tintColor}

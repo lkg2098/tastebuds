@@ -124,7 +124,10 @@ export default function Login() {
             style={{ width: "75%", margin: 10 }}
           />
           <Pressable
-            onPress={() => slideOut("./forgotPassword", { username: true })}
+            onPress={() => {
+              console.log("clicked");
+              slideOut("./forgotPassword", { username: true });
+            }}
           >
             <ThemedText interactive type="defaultSemiBold">
               Forgot Password?

@@ -28,7 +28,7 @@ export default function ChangeDisplayName({
           setTimeout(() => {
             router.dismiss(1);
           }, 200);
-          console.log("succesfully changed username");
+          console.log("succesfully changed display name");
         } else {
           console.log("something went wrong");
         }
@@ -67,12 +67,17 @@ export default function ChangeDisplayName({
         <ThemedText type="defaultSemiBold" style={styles.label}>
           Name
         </ThemedText>
-        <ThemedTextInput value={inputValue} onChangeText={handleName} />
+        <ThemedTextInput
+          value={inputValue}
+          onChangeText={handleName}
+          testID="display-name-input"
+        />
       </View>
       <ThemedButton
         style={styles.button}
         text="Update Username"
         type="primary"
+        testID="display-name-submit"
         disabled={inputValue == "" || inputValue == previousName}
         onPress={() => handleSubmit()}
       />
