@@ -4,6 +4,11 @@ const bodyParser = require("body-parser");
 const { exit } = require("process");
 const http = require("http");
 const cors = require("cors");
+const db = require("./config/database");
+
+db.authenticate()
+  .then(() => console.log("Database connected"))
+  .catch((err) => console.error("Error connecting to database:", err));
 
 const indexRouter = require("./routes/index");
 const usersRouter = require("./routes/users");
