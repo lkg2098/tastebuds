@@ -1,12 +1,12 @@
-const pool = require("../pool");
+import pool from "../pool.js";
 
-exports.member_create = async (mealId, userId, role) => {
+export const member_create = async (mealId, userId, role) => {
   try {
     let result = await pool.query(
       `insert into meal_members(user_id, meal_id, role) values ($1,$2,$3)
       on conflict(user_id, meal_id) do nothing
       returning member_id`,
-      [userId, mealId, role]
+      [userId, mealId, role],
     );
     return result.rows;
   } catch (err) {
@@ -15,7 +15,7 @@ exports.member_create = async (mealId, userId, role) => {
   }
 };
 
-exports.member_create_many = async (mealId, userIds) => {
+export const member_create_many = async (mealId, userIds) => {
   let values = userIds
     .map((userId) => `(${userId},${mealId},'guest')`)
     .join(",");
@@ -26,7 +26,7 @@ exports.member_create_many = async (mealId, userIds) => {
       values ${values} 
       on conflict(user_id, meal_id) do nothing
       returning member_id`,
-      []
+      [],
     );
     return result.rows;
   } catch (err) {
@@ -35,11 +35,11 @@ exports.member_create_many = async (mealId, userIds) => {
   }
 };
 
-exports.get_valid_meal_member = async (mealId, userId) => {
+export const get_valid_meal_member = async (mealId, userId) => {
   try {
     const result = await pool.query(
       "select member_id, role from meal_members where meal_id = $1 and user_id = $2",
-      [mealId, userId]
+      [mealId, userId],
     );
     return result.rows[0];
   } catch (err) {
@@ -48,7 +48,7 @@ exports.get_valid_meal_member = async (mealId, userId) => {
   }
 };
 
-exports.get_meal_members = async (mealId, memberId) => {
+export const get_meal_members = async (mealId, memberId) => {
   try {
     const result = await pool.query(
       `select users.user_id, users.name, users.username, meal_members.role
@@ -56,7 +56,7 @@ exports.get_meal_members = async (mealId, memberId) => {
   join meal_members
   on users.user_id = meal_members.user_id
   where meal_members.meal_id = $1 and meal_members.member_id != $2`,
-      [mealId, memberId]
+      [mealId, memberId],
     );
     return result.rows;
   } catch (err) {
@@ -65,14 +65,14 @@ exports.get_meal_members = async (mealId, memberId) => {
   }
 };
 
-exports.get_members_count = async (mealId) => {
+export const get_members_count = async (mealId) => {
   try {
     const result = await pool.query(
       `select count(distinct user_id) as member_count
     from meal_members
     group by meal_id
     having meal_id = $1`,
-      [mealId]
+      [mealId],
     );
     return result.rows[0].member_count;
   } catch (err) {
@@ -81,11 +81,11 @@ exports.get_members_count = async (mealId) => {
   }
 };
 
-exports.get_existing_member_ids = async (mealId) => {
+export const get_existing_member_ids = async (mealId) => {
   try {
     const result = await pool.query(
       "select user_id from meal_members where meal_id=$1",
-      [mealId]
+      [mealId],
     );
     return result.rows;
   } catch (err) {
@@ -94,11 +94,11 @@ exports.get_existing_member_ids = async (mealId) => {
   }
 };
 
-exports.get_bad_tags = async (mealId, userId) => {
+export const get_bad_tags = async (mealId, userId) => {
   try {
     const result = await pool.query(
       `select bad_tags from meal_members where meal_id = $1 and user_id = $2`,
-      [mealId, userId]
+      [mealId, userId],
     );
     return result.rows[0].bad_tags;
   } catch (err) {
@@ -107,11 +107,11 @@ exports.get_bad_tags = async (mealId, userId) => {
   }
 };
 
-exports.get_min_rating = async (mealId, userId) => {
+export const get_min_rating = async (mealId, userId) => {
   try {
     const result = await pool.query(
       `select min_rating from meal_members where meal_id = $1 and user_id = $2`,
-      [mealId, userId]
+      [mealId, userId],
     );
     return result.rows[0].min_rating;
   } catch (err) {
@@ -120,12 +120,12 @@ exports.get_min_rating = async (mealId, userId) => {
   }
 };
 
-exports.member_get_round = async (memberId) => {
+export const member_get_round = async (memberId) => {
   try {
     const result = await pool.query(
       `select round from meal_members 
       where member_id = $1`,
-      [memberId]
+      [memberId],
     );
     return result.rows[0].round;
   } catch (err) {
@@ -134,11 +134,11 @@ exports.member_get_round = async (memberId) => {
   }
 };
 
-exports.member_update_round = async (memberId, round) => {
+export const member_update_round = async (memberId, round) => {
   try {
     const result = await pool.query(
       `update meal_members set round = $2 where member_id = $1 returning round`,
-      [memberId, round]
+      [memberId, round],
     );
     return result.rows[0].round;
   } catch (err) {
@@ -147,11 +147,11 @@ exports.member_update_round = async (memberId, round) => {
   }
 };
 
-exports.member_get_settings = async (mealId, userId) => {
+export const member_get_settings = async (mealId, userId) => {
   try {
     const result = await pool.query(
       `select min_rating, bad_tags, round from meal_members where meal_id = $1 and user_id = $2`,
-      [mealId, userId]
+      [mealId, userId],
     );
     return result.rows[0];
   } catch (err) {
@@ -160,11 +160,11 @@ exports.member_get_settings = async (mealId, userId) => {
   }
 };
 
-exports.member_update_bad_tags = async (memberId, tagList) => {
+export const member_update_bad_tags = async (memberId, tagList) => {
   try {
     const result = await pool.query(
       `update meal_members set bad_tags = $1 where member_id=$2 returning bad_tags`,
-      [tagList, memberId]
+      [tagList, memberId],
     );
     return result.rows[0].bad_tags;
   } catch (err) {
@@ -173,11 +173,11 @@ exports.member_update_bad_tags = async (memberId, tagList) => {
   }
 };
 
-exports.member_update_min_rating = async (memberId, rating) => {
+export const member_update_min_rating = async (memberId, rating) => {
   try {
     const result = await pool.query(
       `update meal_members set min_rating = $1 where member_id=$2 returning min_rating`,
-      [rating, memberId]
+      [rating, memberId],
     );
     return result.rows[0].min_rating;
   } catch (err) {
@@ -186,11 +186,11 @@ exports.member_update_min_rating = async (memberId, rating) => {
   }
 };
 
-exports.member_delete = async (mealId, userId) => {
+export const member_delete = async (mealId, userId) => {
   try {
     await pool.query(
       "delete from meal_members where meal_id = $1 and user_id = $2",
-      [mealId, userId]
+      [mealId, userId],
     );
     return;
   } catch (err) {

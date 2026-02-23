@@ -1,11 +1,19 @@
-const pool = require("../pool");
+import pool from "../pool.js";
+import { Sequelize, DataTypes } from "@sequelize/core";
+import db from "../config/database.js";
 
-exports.add_restaurants = async (ids) => {
+const Restaurant = db.define("restaurant", {
+  place_id: { type: DataTypes.STRING, allowNull: false },
+});
+
+export default Restaurant;
+
+export const add_restaurants = async (ids) => {
   try {
     const response = await pool.query(
       `insert into restaurants (place_id) 
       select place_id from unnest($1::text[]) as place_id on conflict do nothing returning *`,
-      [ids]
+      [ids],
     );
     console.log(response.rows);
     return response.rows;
@@ -15,7 +23,7 @@ exports.add_restaurants = async (ids) => {
   }
 };
 
-exports.get_restaurants_by_place_ids = async (place_ids) => {
+export const get_restaurants_by_place_ids = async (place_ids) => {
   try {
     let rows = [];
     let count = 15;
@@ -23,7 +31,7 @@ exports.get_restaurants_by_place_ids = async (place_ids) => {
       console.log("try fetching ids: ", count);
       const result = await pool.query(
         `select * from restaurants where place_id = any ($1::text[])`,
-        [place_ids]
+        [place_ids],
       );
       rows = result.rows;
       count -= 1;
@@ -35,11 +43,11 @@ exports.get_restaurants_by_place_ids = async (place_ids) => {
   }
 };
 
-exports.meal_restaurants_exist = async (meal_id) => {
+export const meal_restaurants_exist = async (meal_id) => {
   try {
     let result = await pool.query(
       `select 1 from meal_restaurants where meal_id = $1 limit 1`,
-      [meal_id]
+      [meal_id],
     );
     return result.rows.length > 0;
   } catch (err) {
@@ -48,7 +56,7 @@ exports.meal_restaurants_exist = async (meal_id) => {
   }
 };
 
-exports.all_member_restaurants_exist = async (meal_id) => {
+export const all_member_restaurants_exist = async (meal_id) => {
   try {
     let result = await pool.query(
       `
@@ -59,7 +67,7 @@ exports.all_member_restaurants_exist = async (meal_id) => {
 join member_restaurants as mem_r on mem_r.meal_res_id = me_r.meal_res_id 
 cross join(select count(member_id) as member_count from meal_members where meal_id = $1) as mem
 group by member_count;`,
-      [meal_id]
+      [meal_id],
     );
 
     return result.rows[0].valid;
@@ -69,7 +77,7 @@ group by member_count;`,
   }
 };
 
-exports.upsert_meal_restaurants = async (json_data) => {
+export const upsert_meal_restaurants = async (json_data) => {
   try {
     let result = await pool.query(
       `insert into meal_restaurants (meal_id, res_id, is_open, in_budget)
@@ -78,7 +86,7 @@ exports.upsert_meal_restaurants = async (json_data) => {
         do update set
         in_budget = excluded.in_budget,
         is_open = excluded.is_open`,
-      [JSON.stringify(json_data)]
+      [JSON.stringify(json_data)],
     );
   } catch (err) {
     console.log(err);
@@ -86,11 +94,11 @@ exports.upsert_meal_restaurants = async (json_data) => {
   }
 };
 
-exports.delete_meal_restaurants = async (meal_id, res_ids) => {
+export const delete_meal_restaurants = async (meal_id, res_ids) => {
   try {
     let result = await pool.query(
       `delete from meal_restaurants where meal_id = $1 and res_id = any ($2::int[])`,
-      [meal_id, res_ids]
+      [meal_id, res_ids],
     );
     return;
   } catch (err) {
@@ -98,11 +106,11 @@ exports.delete_meal_restaurants = async (meal_id, res_ids) => {
     throw err;
   }
 };
-exports.pare_old_meal_restaurants = async (meal_id, res_ids) => {
+export const pare_old_meal_restaurants = async (meal_id, res_ids) => {
   try {
     let result = await pool.query(
       `delete from meal_restaurants where meal_id = $1 and not (res_id = any ($2::int[]))`,
-      [meal_id, res_ids]
+      [meal_id, res_ids],
     );
     return;
   } catch (err) {
@@ -111,14 +119,14 @@ exports.pare_old_meal_restaurants = async (meal_id, res_ids) => {
   }
 };
 
-exports.member_restaurant_create = async (data) => {
+export const member_restaurant_create = async (data) => {
   let { meal_id, place_id, user_id, approved } = data;
   try {
     const result = await pool.query(
       `insert into member_restaurants
     (place_id, meal_id, user_id, approved)
     values($1,$2,$3,$4) returning place_id`,
-      [place_id, meal_id, user_id, approved]
+      [place_id, meal_id, user_id, approved],
     );
     return result.rows[0];
   } catch (err) {
@@ -133,10 +141,10 @@ exports.member_restaurant_create = async (data) => {
  * [{res_id: int, rating: numeric, tags: string[]}]
  *
  */
-exports.create_member_restaurants = async (
+export const create_member_restaurants = async (
   member_id,
   google_data_string,
-  meal_id
+  meal_id,
 ) => {
   try {
     const result = await pool.query(
@@ -174,7 +182,7 @@ join (select * from json_populate_recordset(null::resMemberData,$2))
     pref.bad_tags,
     meal_restaurants.meal_res_id) as data
       on conflict(member_id, meal_res_id) do update set score = excluded.score, hidden_from_user = excluded.hidden_from_user`,
-      [member_id, google_data_string, meal_id]
+      [member_id, google_data_string, meal_id],
     );
     return result.rows;
   } catch (err) {
@@ -183,10 +191,10 @@ join (select * from json_populate_recordset(null::resMemberData,$2))
   }
 };
 
-exports.update_member_restaurants = async (
+export const update_member_restaurants = async (
   member_id,
   google_data_string,
-  meal_id
+  meal_id,
 ) => {
   console.log(member_id, google_data_string);
   try {
@@ -228,7 +236,7 @@ join (select * from json_populate_recordset(null::resMemberData,$2))
           where member_restaurants.member_id = newScores.member_id 
           and member_restaurants.meal_res_id = newScores.meal_res_id 
           returning member_restaurants.*`,
-      [member_id, google_data_string, meal_id]
+      [member_id, google_data_string, meal_id],
     );
     return result.rows;
   } catch (err) {
@@ -237,7 +245,7 @@ join (select * from json_populate_recordset(null::resMemberData,$2))
   }
 };
 
-exports.update_google_restaurants = async (mealId, google_data) => {
+export const update_google_restaurants = async (mealId, google_data) => {
   try {
     console.log(google_data);
     // add all new restaurants
@@ -273,7 +281,7 @@ exports.update_google_restaurants = async (mealId, google_data) => {
       in_budget, 
       members.bad_tags)as data
              on conflict(meal_res_id, member_id) do update set score = excluded.score, hidden_from_user=excluded.hidden_from_user`,
-      [mealId, JSON.stringify(google_data)]
+      [mealId, JSON.stringify(google_data)],
     );
   } catch (err) {
     console.log(err);
@@ -281,7 +289,7 @@ exports.update_google_restaurants = async (mealId, google_data) => {
   }
 };
 
-// exports.update_all_member_scores = async (mealId, google_data_string) => {
+// export const update_all_member_scores = async (mealId, google_data_string) => {
 //   try {
 //     const result = await pool.query(
 //       `update member_restaurants set score = newScores.score, hidden_from_user= newScores.hidden_from_user from(select member_id,
@@ -312,7 +320,7 @@ exports.update_google_restaurants = async (mealId, google_data) => {
 //   }
 // };
 
-exports.get_member_restaurants = async (mealId, memberId) => {
+export const get_member_restaurants = async (mealId, memberId) => {
   try {
     let result = await pool.query(
       `select * from (select res_id,
@@ -341,7 +349,7 @@ exports.get_member_restaurants = async (mealId, memberId) => {
       then data.total_score when not data.unseen then data.user_raw_score end
       `,
 
-      [memberId, mealId]
+      [memberId, mealId],
     );
     // console.log(result.rows);
     return result.rows;
@@ -351,7 +359,7 @@ exports.get_member_restaurants = async (mealId, memberId) => {
   }
 };
 
-exports.get_member_restaurant_dislikes = async (memberId) => {
+export const get_member_restaurant_dislikes = async (memberId) => {
   try {
     let result = await pool.query(
       `select 
@@ -384,7 +392,7 @@ exports.get_member_restaurant_dislikes = async (memberId) => {
       where total_vetoed = 0
       group by res_id, meal_res_id
       order by total_score, user_raw_score limit 5`,
-      [memberId]
+      [memberId],
     );
     return result.rows;
   } catch (err) {
@@ -393,7 +401,7 @@ exports.get_member_restaurant_dislikes = async (memberId) => {
   }
 };
 
-exports.restaurants_set_ranks = async (member_id, meal_id, rankArray) => {
+export const restaurants_set_ranks = async (member_id, meal_id, rankArray) => {
   try {
     console.log(rankArray, meal_id, member_id);
     const result = await pool.query(
@@ -411,7 +419,7 @@ exports.restaurants_set_ranks = async (member_id, meal_id, rankArray) => {
       where member_restaurants.member_id = $4 
       and member_restaurants.meal_res_id = newData.meal_res_id
       returning member_restaurants.meal_res_id;`,
-      [rankArray, rankArray.length + 1, meal_id, member_id]
+      [rankArray, rankArray.length + 1, meal_id, member_id],
     );
     const deleteResult = await pool.query(
       `update member_restaurants 
@@ -421,7 +429,7 @@ exports.restaurants_set_ranks = async (member_id, meal_id, rankArray) => {
             1
             from unnest($1::int[]) as data(meal_res_id)
             where data.meal_res_id = member_restaurants.meal_res_id)`,
-      [result.rows.map((item) => item.meal_res_id), member_id]
+      [result.rows.map((item) => item.meal_res_id), member_id],
     );
     console.log(result.rows);
     console.log(result.rows.map((item) => item.meal_res_id));
@@ -431,7 +439,7 @@ exports.restaurants_set_ranks = async (member_id, meal_id, rankArray) => {
   }
 };
 
-exports.restaurants_get_rank_count = async () => {
+export const restaurants_get_rank_count = async () => {
   try {
   } catch (err) {
     console.log(err);
@@ -439,14 +447,14 @@ exports.restaurants_get_rank_count = async () => {
   }
 };
 
-exports.get_restaurant_by_ids = async (member_id, res_id) => {
+export const get_restaurant_by_ids = async (member_id, res_id) => {
   try {
     const result = await pool.query(
       `select mem_res_id from member_restaurants 
       join meal_restaurants 
       on member_restaurants.meal_res_id = meal_restaurants.meal_res_id
     where member_id = $1 and res_id = $2`,
-      [member_id, res_id]
+      [member_id, res_id],
     );
     // console.log(result.rows);
     return result.rows[0];
@@ -456,11 +464,11 @@ exports.get_restaurant_by_ids = async (member_id, res_id) => {
   }
 };
 
-exports.member_restaurants_get_by_user = async (memberId) => {
+export const member_restaurants_get_by_user = async (memberId) => {
   try {
     const result = await pool.query(
       `select place_id, approved from member_restaurants where member_id=$1`,
-      [memberId]
+      [memberId],
     );
     return result.rows;
   } catch (err) {
@@ -469,12 +477,12 @@ exports.member_restaurants_get_by_user = async (memberId) => {
   }
 };
 
-exports.meal_restaurant_delete = async (memberId, place_id) => {
+export const meal_restaurant_delete = async (memberId, place_id) => {
   try {
     await pool.query(
       `delete from member_restaurants
     where member_id = $1 and place_id = $3`,
-      [memberId, place_id]
+      [memberId, place_id],
     );
     return;
   } catch (err) {
@@ -483,7 +491,7 @@ exports.meal_restaurant_delete = async (memberId, place_id) => {
   }
 };
 
-exports.clear_member_restaurants = async (mealId) => {
+export const clear_member_restaurants = async (mealId) => {
   try {
     await pool.query(`delete from meal_restaurants where meal_id = $1`, [
       mealId,
@@ -495,7 +503,7 @@ exports.clear_member_restaurants = async (mealId) => {
   }
 };
 
-exports.meal_restaurant_like = async (member_id, res_id) => {
+export const meal_restaurant_like = async (member_id, res_id) => {
   try {
     const result = await pool.query(
       `update member_restaurants set
@@ -503,7 +511,7 @@ exports.meal_restaurant_like = async (member_id, res_id) => {
       join meal_restaurants on meal_restaurants.meal_res_id = member_restaurants.meal_res_id 
       join meals on meal_restaurants.meal_id = meals.meal_id where member_id = $1 and res_id = $2) as oldData
       where member_restaurants.mem_res_id = oldData.mem_res_id returning approved`,
-      [member_id, res_id]
+      [member_id, res_id],
     );
     // console.log(result.rows[0]);
     return result.rows[0];
@@ -513,7 +521,7 @@ exports.meal_restaurant_like = async (member_id, res_id) => {
   }
 };
 
-exports.meal_restaurant_dislike = async (member_id, res_id) => {
+export const meal_restaurant_dislike = async (member_id, res_id) => {
   try {
     const result = await pool.query(
       `update member_restaurants 
@@ -523,7 +531,7 @@ exports.meal_restaurant_dislike = async (member_id, res_id) => {
       where member_id = $1 and res_id = $2) as oldData
       where member_restaurants.mem_res_id = oldData.mem_res_id returning approved
       `,
-      [member_id, res_id]
+      [member_id, res_id],
     );
 
     return result.rows[0];

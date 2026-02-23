@@ -1,6 +1,39 @@
-const pool = require("../pool");
+import pool from "../pool.js";
+import { Sequelize, DataTypes } from "@sequelize/core";
+import db from "../config/database.js";
 
-exports.get_meals_by_user_id = async (id) => {
+const Meal = db.define("meal", {
+  meal_name: { type: DataTypes.STRING, allowNull: true },
+  scheduled_at: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: Sequelize.NOW,
+  },
+  location_id: { type: DataTypes.STRING, allowNull: false },
+  latitude: { type: DataTypes.FLOAT, allowNull: true },
+  longitude: { type: DataTypes.FLOAT, allowNull: true },
+  radius: { type: DataTypes.INTEGER, allowNull: true },
+  budget: {
+    type: DataTypes.ARRAY(DataTypes.INTEGER),
+    allowNull: true,
+    validate: {
+      hasLength2(value) {
+        return value.length === 2;
+      },
+    },
+  },
+  chosen_restaurant: { type: DataTypes.INTEGER, allowNull: true },
+  liked: { type: DataTypes.BOOLEAN, allowNull: true },
+  round: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    validate: { min: 0, max: 2 },
+  },
+});
+
+export default Meal;
+export const get_meals_by_user_id = async (id) => {
   try {
     const result = await pool.query(
       `select my_meals.*, 
@@ -28,7 +61,7 @@ exports.get_meals_by_user_id = async (id) => {
       my_meals.liked,
       my_meals.round
       order by my_meals.scheduled_at`,
-      [id]
+      [id],
     );
     return result.rows;
   } catch (err) {
@@ -37,7 +70,7 @@ exports.get_meals_by_user_id = async (id) => {
   }
 };
 
-exports.get_past_meals_by_user_id = async (id) => {
+export const get_past_meals_by_user_id = async (id) => {
   try {
     const result = await pool.query(
       `select my_meals.*, 
@@ -66,7 +99,7 @@ exports.get_past_meals_by_user_id = async (id) => {
       my_meals.liked,
       my_meals.round
       order by my_meals.scheduled_at`,
-      [id]
+      [id],
     );
     return result.rows;
   } catch (err) {
@@ -75,7 +108,7 @@ exports.get_past_meals_by_user_id = async (id) => {
   }
 };
 
-// exports.update_meal_round = async (meal_id) => {
+// export const update_meal_round = async (meal_id) => {
 //   try {
 //     const result = await pool.query(
 //       `update meals set round = (oldData.round + 1)
@@ -99,7 +132,7 @@ exports.get_past_meals_by_user_id = async (id) => {
 //   }
 // };
 
-exports.meal_unseen_rows = async (meal_id, member_id) => {
+export const meal_unseen_rows = async (meal_id, member_id) => {
   try {
     const result = await pool.query(
       `select 1 from (select meal_id, meal_res_id 
@@ -114,7 +147,7 @@ exports.meal_unseen_rows = async (meal_id, member_id) => {
               or (approved = 0 
                   and vetoed is null 
                   and not hidden_from_user)) limit 1;`,
-      [meal_id, member_id]
+      [meal_id, member_id],
     );
     console.log("CHECKING ROUND", meal_id, member_id);
     console.log(result.rows);
@@ -124,7 +157,7 @@ exports.meal_unseen_rows = async (meal_id, member_id) => {
   }
 };
 
-exports.choose_best_ranked = async (meal_id) => {
+export const choose_best_ranked = async (meal_id) => {
   try {
     let result = await pool.query(
       `update meals set chosen_restaurant = best.res_id from (select res_id, mul(case when rank is not null then (5/rank::numeric)
@@ -151,7 +184,7 @@ exports.choose_best_ranked = async (meal_id) => {
                group by res_id, meal_res_id
                order by ranked_score, dislikes, raw_score
                limit 1) as best where meals.meal_id = $1 returning chosen_restaurant`,
-      [meal_id]
+      [meal_id],
     );
     return result.rows[0].chosen_restaurant;
   } catch (err) {
@@ -160,11 +193,11 @@ exports.choose_best_ranked = async (meal_id) => {
   }
 };
 
-exports.meal_check_round = async (meal_id) => {
+export const meal_check_round = async (meal_id) => {
   try {
     const result = await pool.query(
       `select round from meals where meal_id = $1`,
-      [meal_id]
+      [meal_id],
     );
     return result.rows[0].round;
   } catch (err) {
@@ -173,12 +206,12 @@ exports.meal_check_round = async (meal_id) => {
   }
 };
 
-exports.update_meal_round = async (meal_id) => {
+export const update_meal_round = async (meal_id) => {
   try {
     const result = await pool.query(
       `update meals set round = round + 1 where meal_id = $1 returning round
      `,
-      [meal_id]
+      [meal_id],
     );
     console.log(result);
     return result.rows[0].round;
@@ -187,7 +220,7 @@ exports.update_meal_round = async (meal_id) => {
   }
 };
 
-exports.get_remaining_unranked_members = async (meal_id) => {
+export const get_remaining_unranked_members = async (meal_id) => {
   try {
     let result = await pool.query(
       `select member_id
@@ -205,7 +238,7 @@ from (select mm.member_id, count(case when rank is not null then 1 end) as ranke
   where case when dislikes < 5  
 then ranked < dislikes 
 else ranked != 5 end`,
-      [meal_id]
+      [meal_id],
     );
     return result.rows;
   } catch (err) {
@@ -214,7 +247,7 @@ else ranked != 5 end`,
   }
 };
 
-exports.get_future_meals_by_user_id = async (id) => {
+export const get_future_meals_by_user_id = async (id) => {
   try {
     const result = await pool.query(
       `select my_meals.*, 
@@ -243,7 +276,7 @@ exports.get_future_meals_by_user_id = async (id) => {
       my_meals.liked,
       my_meals.round 
       order by my_meals.scheduled_at`,
-      [id]
+      [id],
     );
     return result.rows;
   } catch (err) {
@@ -252,7 +285,7 @@ exports.get_future_meals_by_user_id = async (id) => {
   }
 };
 
-exports.meals_search = async (queryTerm, currentUser) => {
+export const meals_search = async (queryTerm, currentUser) => {
   try {
     const result = await pool.query(
       `select meal_name,
@@ -261,7 +294,7 @@ exports.meals_search = async (queryTerm, currentUser) => {
         join meal_members
         on meals.meal_id = meal_members.meal_id
         where meal_members.user_id = $2 and meal_name like $1`,
-      [`%${queryTerm}%`, currentUser]
+      [`%${queryTerm}%`, currentUser],
     );
     return result.rows;
   } catch (err) {
@@ -270,7 +303,7 @@ exports.meals_search = async (queryTerm, currentUser) => {
   }
 };
 
-// exports.meal_members_search = async (queryTerm, currentUser) => {
+// export const meal_members_search = async (queryTerm, currentUser) => {
 //   return new Promise((resolve, reject) => {
 //     db.all(
 //       `
@@ -298,7 +331,7 @@ exports.meals_search = async (queryTerm, currentUser) => {
 //   });
 // };
 
-exports.meal_create = async (
+export const meal_create = async (
   meal_name,
   meal_photo,
   created_at,
@@ -306,7 +339,7 @@ exports.meal_create = async (
   location_id,
   location_coords,
   radius,
-  budget
+  budget,
 ) => {
   try {
     let result = await pool.query(
@@ -329,7 +362,7 @@ exports.meal_create = async (
         location_coords,
         radius,
         budget,
-      ]
+      ],
     );
     return result.rows[0].meal_id;
   } catch (err) {
@@ -338,7 +371,7 @@ exports.meal_create = async (
   }
 };
 
-exports.meal_update_meal = async (mealId, mealData) => {
+export const meal_update_meal = async (mealId, mealData) => {
   try {
     const result = await pool.query(
       `
@@ -359,7 +392,7 @@ exports.meal_update_meal = async (mealId, mealData) => {
         mealData.radius,
         mealData.budget,
         mealId,
-      ]
+      ],
     );
     return result.rows[0];
   } catch (err) {
@@ -368,11 +401,11 @@ exports.meal_update_meal = async (mealId, mealData) => {
   }
 };
 
-exports.meal_update_chosen_restaurant = async (mealId, restaurant) => {
+export const meal_update_chosen_restaurant = async (mealId, restaurant) => {
   try {
     const result = await pool.query(
       `update meals set chosen_restaurant = $1 where meal_id = $2 returning chosen_restaurant`,
-      [restaurant, mealId]
+      [restaurant, mealId],
     );
     return result.rows[0];
   } catch (err) {
@@ -381,11 +414,11 @@ exports.meal_update_chosen_restaurant = async (mealId, restaurant) => {
   }
 };
 
-exports.meal_update_liked = async (mealId, liked) => {
+export const meal_update_liked = async (mealId, liked) => {
   try {
     const result = await pool.query(
       `update meals set liked = $1 where meal_id = $2 returning liked`,
-      [liked, mealId]
+      [liked, mealId],
     );
     return result.rows[0];
   } catch (err) {
@@ -394,7 +427,7 @@ exports.meal_update_liked = async (mealId, liked) => {
   }
 };
 
-exports.meal_get_by_id = async (mealId, memberId) => {
+export const meal_get_by_id = async (mealId, memberId) => {
   try {
     const result = await pool.query(
       `select m.*, memList.members, memList.member_ids, mem.min_rating, mem.bad_tags
@@ -411,7 +444,7 @@ join users as u on mm.user_id = u.user_id
 group by meal_id) as memList
 on memList.meal_id = m.meal_id
 `,
-      [mealId, memberId]
+      [mealId, memberId],
     );
     return result.rows[0];
   } catch (err) {
@@ -420,11 +453,11 @@ on memList.meal_id = m.meal_id
   }
 };
 
-exports.meal_get_scheduled_time = async (mealId) => {
+export const meal_get_scheduled_time = async (mealId) => {
   try {
     const result = await pool.query(
       "select scheduled_at from meals where meal_id = $1",
-      [mealId]
+      [mealId],
     );
     return result.rows[0].scheduled_at;
   } catch (err) {
@@ -433,7 +466,7 @@ exports.meal_get_scheduled_time = async (mealId) => {
   }
 };
 
-exports.meal_delete = async (mealId) => {
+export const meal_delete = async (mealId) => {
   try {
     const result = await pool.query(`delete from meals where meal_id = $1`, [
       mealId,
@@ -445,14 +478,14 @@ exports.meal_delete = async (mealId) => {
   }
 };
 
-exports.get_chosen_restaurant_place_id = async (meal_id) => {
+export const get_chosen_restaurant_place_id = async (meal_id) => {
   try {
     let result = await pool.query(
       `select place_id from meals 
       join restaurants 
       on meals.chosen_restaurant = restaurants.res_id 
       where meals.meal_id = $1`,
-      [meal_id]
+      [meal_id],
     );
     return result.rows[0];
   } catch (err) {

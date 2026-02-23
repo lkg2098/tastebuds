@@ -1,12 +1,20 @@
-const pool = require("../pool");
+import db from "../config/database.js";
+import { Sequelize, DataTypes } from "@sequelize/core";
+import pool from "../pool.js";
 
-exports.get_preferences = async (meal_id, user_id) => {
+const Preference = db.define("preference", {
+  tag_name: { type: DataTypes.STRING, allowNull: false },
+});
+
+export default Preference;
+
+export const get_preferences = async (meal_id, user_id) => {
   try {
     const result = await pool.query(
       `select preference_tag, want_to_eat
     from member_preferences
     where meal_id = $1 and user_id = $2`,
-      [meal_id, user_id]
+      [meal_id, user_id],
     );
     return result.rows;
   } catch (err) {
@@ -15,12 +23,12 @@ exports.get_preferences = async (meal_id, user_id) => {
   }
 };
 
-exports.get_wanted_preferences = async (meal_id, user_id) => {
+export const get_wanted_preferences = async (meal_id, user_id) => {
   try {
     const result = await pool.query(
       `select preference_tag from member_preferences
     where meal_id = $1 and user_id = $2 and want_to_eat = 'true'`,
-      [meal_id, user_id]
+      [meal_id, user_id],
     );
     return result.rows;
   } catch (err) {
@@ -29,12 +37,12 @@ exports.get_wanted_preferences = async (meal_id, user_id) => {
   }
 };
 
-exports.get_unwanted_preferences = async (meal_id, user_id) => {
+export const get_unwanted_preferences = async (meal_id, user_id) => {
   try {
     const result = await pool.query(
       `select preference_tag from member_preferences
     where meal_id = $1 and user_id = $2 and want_to_eat = 'false'`,
-      [meal_id, user_id]
+      [meal_id, user_id],
     );
     return result.rows;
   } catch (err) {
@@ -43,12 +51,12 @@ exports.get_unwanted_preferences = async (meal_id, user_id) => {
   }
 };
 
-exports.update_preferences = async (
+export const update_preferences = async (
   toAdd,
   toDelete,
   wanted,
   meal_id,
-  user_id
+  user_id,
 ) => {
   let input = "";
   // add values to input string and list of tags that will stay
@@ -74,13 +82,13 @@ exports.update_preferences = async (
     const result = await pool.query(
       `insert into member_preferences (meal_id, user_id, preference_tag, want_to_eat)
     values ${input} returning preference_tag, want_to_eat`,
-      []
+      [],
     );
     if (tagsToDelete.length > 2) {
       await pool.query(
         `delete from member_preferences where meal_id = $1 and user_id = $2
     and preference_tag in ${tagsToDelete}`,
-        [meal_id, user_id]
+        [meal_id, user_id],
       );
     }
     return result.rows;
