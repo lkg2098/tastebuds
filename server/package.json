@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "nodemon server.js",
-    "test": "jest --detectOpenHandles"
+    "test": "NODE_ENV=\"test\" mocha controllers/test"
   },
   "author": "Lauren Gray",
   "license": "ISC",
@@ -20,16 +21,21 @@
     "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
     "nodemon": "^3.1.0",
-    "pg": "^8.12.0",
+    "pg": "^8.16.3",
+    "pg-hstore": "^2.3.4",
     "puppeteer": "^23.3.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sequelize": "^6.37.7",
     "socket.io": "^4.7.5",
     "sqlite3": "^5.1.7",
     "supertest": "^7.0.0",
     "twilio": "^5.2.2"
   },
   "devDependencies": {
-    "jest": "^29.7.0"
+    "@faker-js/faker": "^10.3.0",
+    "chai": "^6.2.2",
+    "mocha": "^11.7.5",
+    "sequelize-cli": "^6.6.3"
   }
 }

@@ -1,9 +1,9 @@
-const asyncHandler = require("express-async-handler");
-const restaurant_model = require("../models/restaurants");
-const member_model = require("../models/members");
-const google_controller = require("./googleController");
+import asyncHandler from "express-async-handler";
+import * as restaurant_model from "../models/restaurants.js";
+import * as member_model from "../models/members.js";
+import * as google_controller from "./googleController.js";
 
-exports.restaurants_get_by_meal = asyncHandler(async (req, res, next) => {
+export const restaurants_get_by_meal = asyncHandler(async (req, res, next) => {
   // get restaurant scores - separate column for this member's scores
   // scores data should be sorted by disliked, not seen, and then by score, low to high
   // go through scores, update google data map with score, user raw score, disliked, and seen by user
@@ -12,7 +12,7 @@ exports.restaurants_get_by_meal = asyncHandler(async (req, res, next) => {
 
   const member_restaurants = await restaurant_model.get_member_restaurants(
     req.params.mealId,
-    req.decoded.member_id
+    req.decoded.member_id,
   );
   // console.log(req.decoded.member_id);
   // console.log(member_restaurants);
@@ -28,14 +28,16 @@ exports.restaurants_get_by_meal = asyncHandler(async (req, res, next) => {
   // });
 });
 
-exports.restaurants_get_top_dislikes = asyncHandler(async (req, res, next) => {
-  const dislikes = await restaurant_model.get_member_restaurant_dislikes(
-    req.decoded.member_id
-  );
-  res.status(200).json({ restaurants: dislikes.map((item) => item.res_id) });
-});
+export const restaurants_get_top_dislikes = asyncHandler(
+  async (req, res, next) => {
+    const dislikes = await restaurant_model.get_member_restaurant_dislikes(
+      req.decoded.member_id,
+    );
+    res.status(200).json({ restaurants: dislikes.map((item) => item.res_id) });
+  },
+);
 
-exports.restaurants_set_ranks = asyncHandler(async (req, res, next) => {
+export const restaurants_set_ranks = asyncHandler(async (req, res, next) => {
   let rankArray = req.body.ranks;
   if (rankArray.length < 1 || rankArray.length > 5) {
     res.status(401).json({ error: "Invalid input array" });
@@ -43,24 +45,26 @@ exports.restaurants_set_ranks = asyncHandler(async (req, res, next) => {
     await restaurant_model.restaurants_set_ranks(
       req.decoded.member_id,
       req.params.mealId,
-      rankArray
+      rankArray,
     );
     let member_round = await member_model.member_update_round(
       req.decoded.member_id,
-      2
+      2,
     );
     res.status(200).json({ message: "Successfully updated", member_round });
   }
 });
 
-exports.check_meal_restaurants_exist = asyncHandler(async (req, res, next) => {
-  let restaurantsExist = await restaurant_model.meal_restaurants_exist(
-    req.params.mealId
-  );
-  res.status(200).json({ restaurantsExist });
-});
+export const check_meal_restaurants_exist = asyncHandler(
+  async (req, res, next) => {
+    let restaurantsExist = await restaurant_model.meal_restaurants_exist(
+      req.params.mealId,
+    );
+    res.status(200).json({ restaurantsExist });
+  },
+);
 
-// exports.restaurant_add = asyncHandler(async (req, res, next) => {
+// export const restaurant_add = asyncHandler(async (req, res, next) => {
 //   const { place_id } = req.body;
 //   const { approved } = req.query;
 //   if (place_id && (approved == 0 || approved == 1)) {
@@ -93,12 +97,12 @@ exports.check_meal_restaurants_exist = asyncHandler(async (req, res, next) => {
 //   }
 // });
 
-exports.restaurant_update = asyncHandler(async (req, res, next) => {
+export const restaurant_update = asyncHandler(async (req, res, next) => {
   const { res_id, action } = req.body;
   if (res_id && (action == "like" || action == "dislike" || action == "veto")) {
     let restaurant = await restaurant_model.get_restaurant_by_ids(
       req.decoded.member_id,
-      res_id
+      res_id,
     );
 
     if (restaurant) {
@@ -106,7 +110,7 @@ exports.restaurant_update = asyncHandler(async (req, res, next) => {
       } else if (action == "like") {
         let updated = await restaurant_model.meal_restaurant_like(
           req.decoded.member_id,
-          res_id
+          res_id,
         );
         if (updated) {
           res
@@ -118,7 +122,7 @@ exports.restaurant_update = asyncHandler(async (req, res, next) => {
       } else {
         let updated = await restaurant_model.meal_restaurant_dislike(
           req.decoded.member_id,
-          res_id
+          res_id,
         );
         if (updated) {
           res
@@ -136,18 +140,18 @@ exports.restaurant_update = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.create_restaurants = asyncHandler(async (req, res, next) => {
+export const create_restaurants = asyncHandler(async (req, res, next) => {
   const places_data_string = req.body.tags;
 
   const restaurants = await restaurant_model.create_member_restaurants(
     req.body.member_id,
     places_data_string,
-    req.params.mealId
+    req.params.mealId,
   );
   res.status(200).json({ restaurants: [] });
 });
 
-exports.update_meal_restaurants = asyncHandler(async (req, res, next) => {
+export const update_meal_restaurants = asyncHandler(async (req, res, next) => {
   let google_data_array; // {res_id: int, regularOpeningHours: [], priceLevel: string}
   let { date, budget } = req.body; // date: ISO string, budget: [int,int]
 
@@ -164,7 +168,7 @@ exports.update_meal_restaurants = asyncHandler(async (req, res, next) => {
       is_open: res.regularOpeningHours
         ? google_controller.filter_by_hours(
             res.regularOpeningHours,
-            new Date(date)
+            new Date(date),
           )
         : true,
       in_budget: google_controller.filter_by_budget(res.priceLevel, budget),
@@ -178,7 +182,7 @@ exports.update_meal_restaurants = asyncHandler(async (req, res, next) => {
   }
 });
 
-// exports.member_restaurant_delete = asyncHandler(async (req, res, next) => {
+// export const member_restaurant_delete = asyncHandler(async (req, res, next) => {
 //   if (req.params.mealId && req.decoded.user_id && req.params.placeId) {
 //     await restaurant_model.meal_restaurant_delete(
 //       req.params.mealId,
@@ -191,7 +195,7 @@ exports.update_meal_restaurants = asyncHandler(async (req, res, next) => {
 //   }
 // });
 
-// exports.clear_member_restaurants = asyncHandler(async (req, res, next) => {
+// export const clear_member_restaurants = asyncHandler(async (req, res, next) => {
 //   if (req.params.mealId) {
 //     await restaurant_model.clear_member_restaurants(req.params.mealId);
 //     res.status(200).json({ message: "Successfully deleted" });

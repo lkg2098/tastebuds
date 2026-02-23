@@ -1,21 +1,21 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
 
-const { verifyToken } = require("../middleware/auth");
-const {
+import { verifyToken } from "../middleware/auth.js";
+import {
   verify_meal_member,
   check_meal_round,
-} = require("../middleware/mealsMiddleware");
-const {
+} from "../middleware/mealsMiddleware.js";
+import {
   prevent_duplicate_preferences,
   validate_preference_data,
-} = require("../middleware/preferencesMiddleware");
+} from "../middleware/preferencesMiddleware.js";
 
-const meal_controller = require("../controllers/mealsController");
-const member_controller = require("../controllers/membersController");
-const restaurant_controller = require("../controllers/restaurantsController");
-const preference_controller = require("../controllers/preferencesController");
-const google_controller = require("../controllers/googleController");
+import * as meal_controller from "../controllers/mealsController.js";
+import * as member_controller from "../controllers/membersController.js";
+import * as restaurant_controller from "../controllers/restaurantsController.js";
+import * as preference_controller from "../controllers/preferencesController.js";
+import * as google_controller from "../controllers/googleController.js";
 
 // list meals
 router.get("/", verifyToken, meal_controller.meals_list_by_user_id);
@@ -33,7 +33,7 @@ router.get(
   "/:mealId",
   verifyToken,
   verify_meal_member,
-  meal_controller.meal_get_by_id
+  meal_controller.meal_get_by_id,
 );
 
 // update meal
@@ -41,7 +41,7 @@ router.put(
   "/:mealId",
   verifyToken,
   verify_meal_member,
-  meal_controller.meal_update
+  meal_controller.meal_update,
 );
 
 // delete meal
@@ -49,7 +49,7 @@ router.delete(
   "/:mealId",
   verifyToken,
   verify_meal_member,
-  meal_controller.meal_delete
+  meal_controller.meal_delete,
 );
 
 // meal members
@@ -57,7 +57,7 @@ router.get(
   "/:mealId/members",
   verifyToken,
   verify_meal_member,
-  member_controller.meal_members_get
+  member_controller.meal_members_get,
 );
 
 // add member
@@ -65,7 +65,7 @@ router.post(
   "/:mealId/members/new",
   verifyToken,
   verify_meal_member,
-  member_controller.meal_member_add
+  member_controller.meal_member_add,
 );
 
 // get member round
@@ -73,7 +73,7 @@ router.get(
   "/:mealId/members/round",
   verifyToken,
   verify_meal_member,
-  member_controller.meal_member_get_round
+  member_controller.meal_member_get_round,
 );
 
 // update member round
@@ -81,21 +81,21 @@ router.put(
   "/:mealId/members/round",
   verifyToken,
   verify_meal_member,
-  member_controller.meal_member_update_round
+  member_controller.meal_member_update_round,
 );
 
 router.get(
   "/:mealId/restaurants/dislikes",
   verifyToken,
   verify_meal_member,
-  restaurant_controller.restaurants_get_top_dislikes
+  restaurant_controller.restaurants_get_top_dislikes,
 );
 
 router.post(
   "/:mealId/restaurants/rank",
   verifyToken,
   verify_meal_member,
-  restaurant_controller.restaurants_set_ranks
+  restaurant_controller.restaurants_set_ranks,
 );
 
 // get member preferences
@@ -103,7 +103,7 @@ router.get(
   "/:mealId/preferences",
   verifyToken,
   verify_meal_member,
-  preference_controller.get_preferences_for_meal
+  preference_controller.get_preferences_for_meal,
 );
 
 // update preferences
@@ -112,7 +112,7 @@ router.put(
   verifyToken,
   verify_meal_member,
   validate_preference_data,
-  preference_controller.update_preferences
+  preference_controller.update_preferences,
 );
 
 // add preferences
@@ -121,35 +121,35 @@ router.post(
   verifyToken,
   verify_meal_member,
   validate_preference_data,
-  preference_controller.add_preferences
+  preference_controller.add_preferences,
 );
 
 router.get(
   "/:mealId/round",
   verifyToken,
   verify_meal_member,
-  meal_controller.meal_check_round
+  meal_controller.meal_check_round,
 );
 
 router.put(
   "/:mealId/round",
   verifyToken,
   verify_meal_member,
-  meal_controller.meal_update_round
+  meal_controller.meal_update_round,
 );
 
 router.delete(
   "/:mealId/members/:userId",
   verifyToken,
   verify_meal_member,
-  member_controller.meal_members_delete
+  member_controller.meal_members_delete,
 );
 
 router.delete(
   "/:mealId/members",
   verifyToken,
   verify_meal_member,
-  member_controller.leave_meal
+  member_controller.leave_meal,
 );
 
 // meal restaurants
@@ -158,7 +158,7 @@ router.get(
   "/:mealId/restaurants/check",
   verifyToken,
   verify_meal_member,
-  restaurant_controller.check_meal_restaurants_exist
+  restaurant_controller.check_meal_restaurants_exist,
 );
 
 // get all meal scores
@@ -166,7 +166,7 @@ router.get(
   "/:mealId/restaurants",
   verifyToken,
   verify_meal_member,
-  restaurant_controller.restaurants_get_by_meal
+  restaurant_controller.restaurants_get_by_meal,
 );
 
 // update restaurant data (like or dislike)
@@ -174,7 +174,7 @@ router.put(
   "/:mealId/members/restaurants",
   verifyToken,
   verify_meal_member,
-  restaurant_controller.restaurant_update
+  restaurant_controller.restaurant_update,
 );
 
 // update restaurants according to new preferences
@@ -182,7 +182,7 @@ router.post(
   "/:mealId/restaurants",
   verifyToken,
   verify_meal_member,
-  restaurant_controller.update_meal_restaurants
+  restaurant_controller.update_meal_restaurants,
 );
 
 //get chosen restaurant data
@@ -190,7 +190,7 @@ router.get(
   "/:mealId/chosen_restaurant",
   verifyToken,
   verify_meal_member,
-  google_controller.get_chosen_restaurant_details
+  google_controller.get_chosen_restaurant_details,
 );
 
 // router.delete(
@@ -227,7 +227,7 @@ router.get(
       tag_map: tag_map,
       locationInfo: locationInfo,
     });
-  }
+  },
 );
 
 router.put(
@@ -235,7 +235,7 @@ router.put(
   verifyToken,
   verify_meal_member,
   google_controller.sample_google_data,
-  google_controller.update_google_data
+  google_controller.update_google_data,
 );
 
-module.exports = router;
+export default router;

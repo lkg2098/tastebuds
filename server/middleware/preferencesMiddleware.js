@@ -1,50 +1,52 @@
-const asyncHandler = require("express-async-handler");
-const preference_model = require("../models/preferences");
+import asyncHandler from "express-async-handler";
+import preference_model from "../models/preferences.js";
 
-exports.prevent_duplicate_preferences = asyncHandler(async (req, res, next) => {
-  const { mealId } = req.params;
-  const { user_id } = req.decoded;
-  const { toAdd } = req.body;
-  const wanted = req.query.wanted;
+export const prevent_duplicate_preferences = asyncHandler(
+  async (req, res, next) => {
+    const { mealId } = req.params;
+    const { user_id } = req.decoded;
+    const { toAdd } = req.body;
+    const wanted = req.query.wanted;
 
-  if (!wanted) {
-    res.status(401).json({ error: "Missing query parameter" });
-  } else if (wanted === "1") {
-    if (toAdd.length) {
-      let oldPreferences = await preference_model.get_wanted_preferences(
-        mealId,
-        user_id
-      );
-      let oldPrefSet = new Set(oldPreferences.map((p) => p.preference_tag));
-      let newPrefSet = new Set(toAdd);
-      let cleaned = newPrefSet.difference(oldPrefSet);
-      req.toAddCleaned = [...cleaned];
-      next();
+    if (!wanted) {
+      res.status(401).json({ error: "Missing query parameter" });
+    } else if (wanted === "1") {
+      if (toAdd.length) {
+        let oldPreferences = await preference_model.get_wanted_preferences(
+          mealId,
+          user_id,
+        );
+        let oldPrefSet = new Set(oldPreferences.map((p) => p.preference_tag));
+        let newPrefSet = new Set(toAdd);
+        let cleaned = newPrefSet.difference(oldPrefSet);
+        req.toAddCleaned = [...cleaned];
+        next();
+      } else {
+        req.toAddCleaned = toAdd;
+        next();
+      }
+    } else if (wanted === "0") {
+      if (toAdd.length) {
+        let oldPreferences = await preference_model.get_unwanted_preferences(
+          mealId,
+          user_id,
+        );
+        let oldPrefSet = new Set(oldPreferences.map((p) => p.preference_tag));
+        let newPrefSet = new Set(toAdd);
+        let cleaned = newPrefSet.difference(oldPrefSet);
+        req.toAddCleaned = [...cleaned];
+        next();
+      } else {
+        req.toAddCleaned = toAdd;
+        next();
+      }
     } else {
-      req.toAddCleaned = toAdd;
-      next();
+      res.status(401).json({ error: "Invalid query value" });
     }
-  } else if (wanted === "0") {
-    if (toAdd.length) {
-      let oldPreferences = await preference_model.get_unwanted_preferences(
-        mealId,
-        user_id
-      );
-      let oldPrefSet = new Set(oldPreferences.map((p) => p.preference_tag));
-      let newPrefSet = new Set(toAdd);
-      let cleaned = newPrefSet.difference(oldPrefSet);
-      req.toAddCleaned = [...cleaned];
-      next();
-    } else {
-      req.toAddCleaned = toAdd;
-      next();
-    }
-  } else {
-    res.status(401).json({ error: "Invalid query value" });
-  }
-});
+  },
+);
 
-exports.validate_preference_data = asyncHandler(async (req, res, next) => {
+export const validate_preference_data = asyncHandler(async (req, res, next) => {
   if (req.body.preferences) {
     let preferenceList = req.body.preferences;
     // console.log(preferenceList);
@@ -94,7 +96,7 @@ exports.validate_preference_data = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.parse_settings_body = (req) => {
+export const parse_settings_body = (req) => {
   return {
     preferences: req.body.preferences || null,
     min_rating: req.body.min_rating || null,

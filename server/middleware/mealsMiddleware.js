@@ -1,8 +1,8 @@
-const asyncHandler = require("express-async-handler");
-const member_model = require("../models/members");
-const meal_model = require("../models/meals");
+import asyncHandler from "express-async-handler";
+import * as member_model from "../models/members.js";
+import * as meal_model from "../models/meals.js";
 
-exports.verify_meal_member = asyncHandler(async (req, res, next) => {
+export const verify_meal_member = asyncHandler(async (req, res, next) => {
   if (req.decoded) {
     const mealId = req.params.mealId;
     const member = await member_model
@@ -28,7 +28,7 @@ exports.verify_meal_member = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.parse_meal_body = (req) => {
+export const parse_meal_body = (req) => {
   return {
     meal_name: req.body.meal_name,
     meal_photo: req.body.meal_photo,
@@ -43,7 +43,7 @@ exports.parse_meal_body = (req) => {
   };
 };
 
-exports.check_meal_round = asyncHandler(async (req, res, next) => {
+export const check_meal_round = asyncHandler(async (req, res, next) => {
   let updated = await meal_model.meal_check_round(req.params.mealId);
   res.status(200).json({ meal_round_updated: false });
 });

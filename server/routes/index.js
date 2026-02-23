@@ -1,14 +1,14 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
-const pool = require("../pool");
-const bcrypt = require("bcrypt");
-const sms = require("../sms");
+import pool from "../pool.js";
+import bcrypt from "bcrypt";
+import sms from "../sms.js";
 
 // require user controller
-const user_controller = require("../controllers/usersController");
-const sms_controller = require("../controllers/smsController");
-const auth = require("../controllers/auth");
-const { verifyToken, refreshToken } = require("../middleware/auth");
+import * as user_controller from "../controllers/usersController.js";
+import * as sms_controller from "../controllers/smsController.js";
+import * as auth from "../controllers/auth.js";
+import { verifyToken, refreshToken } from "../middleware/auth.js";
 
 router.get("/", verifyToken, auth.user_is_logged_in);
 
@@ -27,7 +27,7 @@ router.post("/refresh", refreshToken);
 router.get(
   "/forgotPassword",
   user_controller.user_get_recovery_phone,
-  sms_controller.sendCode
+  sms_controller.sendCode,
 );
 
 // verify sms code when existing user forgot account and is logged out
@@ -40,7 +40,7 @@ router.put(
     let phone_number = req.phone;
     let passwordToken = auth.generate_password_auth_token(phone_number);
     res.status(200).json({ passwordToken });
-  }
+  },
 );
 
 // send sms code for phone number validation on create account
@@ -56,7 +56,7 @@ router.get(
       res.status(401).json({ error: "No phone number provided" });
     }
   },
-  sms_controller.sendCode
+  sms_controller.sendCode,
 );
 
 // router.post(
@@ -73,4 +73,4 @@ router.get(
 //   sms_controller.verifyCode
 // );
 
-module.exports = router;
+export default router;

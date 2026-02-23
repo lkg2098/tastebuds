@@ -1,8 +1,8 @@
-const sms = require("../sms");
-const asyncHandler = require("express-async-handler");
-const { generate_password_auth_token } = require("./auth");
+import sms from "../sms.js";
+import asyncHandler from "express-async-handler";
+import { generate_password_auth_token } from "./auth.js";
 
-exports.sendCode = asyncHandler(async (req, res, next) => {
+export const sendCode = asyncHandler(async (req, res, next) => {
   const phone_number = req.phone;
 
   sms.verify.v2
@@ -14,7 +14,7 @@ exports.sendCode = asyncHandler(async (req, res, next) => {
         res.status(200).json({
           message: `Sent code to ${phone_number.replace(
             /\d(?=.*\d{2,}$)/g,
-            "X"
+            "X",
           )}`,
         });
       } else {
@@ -26,7 +26,7 @@ exports.sendCode = asyncHandler(async (req, res, next) => {
     .catch((err) => res.status(500).json({ error: err }));
 });
 
-exports.verifyCode = asyncHandler(async (req, res, next) => {
+export const verifyCode = asyncHandler(async (req, res, next) => {
   if (
     req.url == "/signup" &&
     req.body.phone_number.replace(/\-| /g, "") != process.env.TEST_PHONE

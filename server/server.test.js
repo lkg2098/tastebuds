@@ -1,9 +1,9 @@
-const request = require("supertest");
-const { app } = require("./server");
-const bcrypt = require("bcrypt");
+import request from "supertest";
+import { app } from "./server";
+import bcrypt from "bcrypt";
 
-const pool = require("./pool");
-const { password } = require("pg/lib/defaults");
+import pool from "./pool.js";
+import { password } from "pg/lib/defaults";
 
 afterAll(async () => {
   await pool.clearTestData();

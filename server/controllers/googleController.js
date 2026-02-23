@@ -1,12 +1,12 @@
-const axios = require("axios");
-const asyncHandler = require("express-async-handler");
-const pool = require("../pool");
-const restaurants_model = require("../models/restaurants");
-const meals_model = require("../models/meals");
+import axios from "axios";
+import asyncHandler from "express-async-handler";
+import pool from "../pool.js";
+import restaurants_model from "../models/restaurants.js";
+import meals_model from "../models/meals.js";
 
 const KEY = process.env.PLACES_API_KEY;
 
-exports.nearby_search = async (req, res, next) => {
+export const nearby_search = async (req, res, next) => {
   try {
     let { data } = await axios.post(
       "https://places.googleapis.com/v1/places:searchNearby",
@@ -29,7 +29,7 @@ exports.nearby_search = async (req, res, next) => {
           "X-Goog-FieldMask":
             "places.accessibilityOptions,places.addressComponents,places.formattedAddress,places.id,places.displayName,places.location,places.photos,places.types,places.primaryType,places.priceLevel,places.regularOpeningHours,places.currentOpeningHours,places.regularSecondaryOpeningHours,places.currentSecondaryOpeningHours,places.rating,places.userRatingCount,places.websiteUri",
         },
-      }
+      },
     );
     console.log(data.places);
     res.status(200).json({ message: "this is working" });
@@ -39,7 +39,7 @@ exports.nearby_search = async (req, res, next) => {
   }
 };
 
-exports.get_google_photo = async (req, res, next) => {
+export const get_google_photo = async (req, res, next) => {
   try {
     const { photo_name } = req.body;
     console.log(photo_name);
@@ -69,7 +69,7 @@ exports.get_google_photo = async (req, res, next) => {
   }
 };
 
-exports.get_geocoding_info = async (coords) => {
+export const get_geocoding_info = async (coords) => {
   try {
     // let { data } = await axios.get(
     //   "https://maps.googleapis.com/maps/api/geocode/json",
@@ -96,7 +96,7 @@ exports.get_geocoding_info = async (coords) => {
   }
 };
 
-exports.get_address = asyncHandler(async (req, res, next) => {
+export const get_address = asyncHandler(async (req, res, next) => {
   const coords = `${req.query.coords[0]},${req.query.coords[1]}`;
 
   let response = await this.get_geocoding_info(coords);
@@ -118,7 +118,7 @@ function process_google_place(place, tag_map) {
   let cleanTagList = place.types.reduce((types, type, index) => {
     if (
       type.match(
-        /^.+restaurant$|bar|cafe|coffee\_shop|ice\_cream\_shop|sandwich\_shop|steak\_house/
+        /^.+restaurant$|bar|cafe|coffee\_shop|ice\_cream\_shop|sandwich\_shop|steak\_house/,
       )
     ) {
       let styledType = type.replace(/\_|restaurant/g, " ").trim();
@@ -166,7 +166,7 @@ function process_google_place(place, tag_map) {
   return formattedPlace;
 }
 
-exports.process_google_data = (places, budget, date) => {
+export const process_google_data = (places, budget, date) => {
   const tag_map = {};
 
   // const place_ids = [];
@@ -178,7 +178,7 @@ exports.process_google_data = (places, budget, date) => {
       ...place,
       is_open: this.filter_by_hours(
         res.regularOpeningHours?.periods || [],
-        new Date(date)
+        new Date(date),
       ),
       in_budget: this.filter_by_budget(res.priceLevel, budget),
     };
@@ -6645,13 +6645,13 @@ let places = [
   },
 ];
 
-exports.sample_google_data = asyncHandler(async (req, res, next) => {
+export const sample_google_data = asyncHandler(async (req, res, next) => {
   //get lat and long and get address info if we don't already have it
   try {
     const { date, budget } = req.query;
     // need lat, long, and radius
     const { location_id, location_coords, radius } = parse_location_data(
-      req.query
+      req.query,
     );
     let locationInfo = {
       location_id: location_id || "",
@@ -6716,13 +6716,12 @@ exports.sample_google_data = asyncHandler(async (req, res, next) => {
     let { tag_map, place_ids, places_data } = this.process_google_data(
       places,
       budget,
-      date
+      date,
     );
     await restaurants_model.add_restaurants(place_ids);
 
-    let db_ids = await restaurants_model.get_restaurants_by_place_ids(
-      place_ids
-    );
+    let db_ids =
+      await restaurants_model.get_restaurants_by_place_ids(place_ids);
 
     req.googleData = { tag_map, db_ids, places_data };
     req.locationInfo = locationInfo;
@@ -10046,7 +10045,7 @@ const GOOGLE_UPDATE_2 = [
   },
 ];
 
-exports.update_google_data = async (req, res, next) => {
+export const update_google_data = async (req, res, next) => {
   try {
     let { tag_map, places_data, db_ids } = req.googleData;
     console.log("GOOGLE DATA", req.googleData);
@@ -10080,13 +10079,13 @@ exports.update_google_data = async (req, res, next) => {
     await restaurants_model.upsert_meal_restaurants(price_hours_data);
     await restaurants_model.update_google_restaurants(
       req.params.mealId,
-      rating_tags_data
+      rating_tags_data,
     );
 
     // then delete all old restaurants
     await restaurants_model.pare_old_meal_restaurants(
       req.params.mealId,
-      res_ids
+      res_ids,
     );
 
     res.status(200).json({
@@ -10100,10 +10099,10 @@ exports.update_google_data = async (req, res, next) => {
   }
 };
 
-exports.get_chosen_restaurant_details = async (req, res, next) => {
+export const get_chosen_restaurant_details = async (req, res, next) => {
   try {
     let { place_id } = await meals_model.get_chosen_restaurant_place_id(
-      req.params.mealId
+      req.params.mealId,
     );
     console.log(place_id);
 
@@ -10378,7 +10377,7 @@ exports.get_chosen_restaurant_details = async (req, res, next) => {
   }
 };
 
-exports.filter_by_hours = (periods, date) => {
+export const filter_by_hours = (periods, date) => {
   // never open
   if (periods.length == 0) {
     return false;
@@ -10453,7 +10452,7 @@ exports.filter_by_hours = (periods, date) => {
   return false;
 };
 
-exports.filter_by_budget = (res_budget, budget) => {
+export const filter_by_budget = (res_budget, budget) => {
   if (!res_budget || res_budget == "PRICE_LEVEL_UNSPECIFIED") {
     return true;
   }
@@ -10487,20 +10486,20 @@ function calculate_coord(latitude, longitude, distance) {
 
   const lat2 = Math.asin(
     Math.sin(lat1) * Math.cos(distance / R) +
-      Math.cos(lat1) * Math.sin(distance / R) * Math.cos((4 * Math.PI) / 3)
+      Math.cos(lat1) * Math.sin(distance / R) * Math.cos((4 * Math.PI) / 3),
   );
 
   const long2 =
     long1 +
     Math.atan2(
       Math.sin((4 * Math.PI) / 3) * Math.sin(distance / R) * Math.cos(lat1),
-      Math.cos(distance / R) - Math.sin(lat1) * Math.sin(lat2)
+      Math.cos(distance / R) - Math.sin(lat1) * Math.sin(lat2),
     );
 
   console.log(`${(lat2 * 180) / Math.PI}, ${(long2 * 180) / Math.PI}`);
 }
 
-exports.more_results = asyncHandler(async (req, res, next) => {
+export const more_results = asyncHandler(async (req, res, next) => {
   // concentric
   const test = new Set([
     "Bronxville Diner",

@@ -1,9 +1,9 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
 
-const geocoding_controller = require("../controllers/geocodingController");
-const { verifyToken, refreshToken } = require("../middleware/auth");
+import * as geocoding_controller from "../controllers/geocodingController.js";
+import { verifyToken, refreshToken } from "../middleware/auth.js";
 
 router.get("/", verifyToken, geocoding_controller.autocomplete);
 
-module.exports = router;
+export default router;

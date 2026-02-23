@@ -1,10 +1,10 @@
-const asyncHandler = require("express-async-handler");
-const preferences_model = require("../models/preferences");
-const member_model = require("../models/members");
-const restaurant_model = require("../models/restaurants");
-const { parse_settings_body } = require("../middleware/preferencesMiddleware");
+import asyncHandler from "express-async-handler";
+import preferences_model from "../models/preferences.js";
+import * as member_model from "../models/members.js";
+import restaurant_model from "../models/restaurants.js";
+import { parse_settings_body } from "../middleware/preferencesMiddleware.js";
 
-exports.get_preferences_for_meal = asyncHandler(async (req, res, next) => {
+export const get_preferences_for_meal = asyncHandler(async (req, res, next) => {
   const { mealId } = req.params;
   const { user_id } = req.decoded;
   const { setting } = req.query;
@@ -56,26 +56,26 @@ exports.get_preferences_for_meal = asyncHandler(async (req, res, next) => {
   // }
 });
 
-async function update_preferences(
+async function update_member_preferences(
   member_id,
   preferences = null,
-  min_rating = null
+  min_rating = null,
 ) {
   if (preferences) {
     let tagList = await member_model.member_update_bad_tags(
       member_id,
-      preferences
+      preferences,
     );
   }
   if (min_rating) {
     let updatedRating = await member_model.member_update_min_rating(
       member_id,
-      min_rating
+      min_rating,
     );
   }
 }
 
-exports.add_preferences = asyncHandler(async (req, res, next) => {
+export const add_preferences = asyncHandler(async (req, res, next) => {
   const { mealId } = req.params;
   const { member_id } = req.decoded;
 
@@ -83,12 +83,12 @@ exports.add_preferences = asyncHandler(async (req, res, next) => {
     parse_settings_body(req);
   // console.log(req.body);
   if (google_data_string && (preferences || min_rating)) {
-    await update_preferences(member_id, preferences, min_rating);
+    await update_member_preferences(member_id, preferences, min_rating);
 
     const scores = await restaurant_model.create_member_restaurants(
       member_id,
       google_data_string,
-      mealId
+      mealId,
     );
     res.status(200).json({ scores });
   } else {
@@ -96,19 +96,19 @@ exports.add_preferences = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.update_preferences = asyncHandler(async (req, res, next) => {
+export const update_preferences = asyncHandler(async (req, res, next) => {
   const { mealId } = req.params;
   const { member_id } = req.decoded;
 
   const { preferences, min_rating, google_data_string } =
     parse_settings_body(req);
   if (google_data_string && (preferences || min_rating)) {
-    await update_preferences(member_id, preferences, min_rating);
+    await update_member_preferences(member_id, preferences, min_rating);
 
     let scores = await restaurant_model.update_member_restaurants(
       member_id,
       google_data_string,
-      mealId
+      mealId,
     );
 
     res.status(200).json({

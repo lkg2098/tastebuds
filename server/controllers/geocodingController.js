@@ -1,7 +1,7 @@
-const axios = require("axios");
-const asyncHandler = require("express-async-handler");
+import axios from "axios";
+import asyncHandler from "express-async-handler";
 
-exports.autocomplete = asyncHandler(async (req, res, next) => {
+export const autocomplete = asyncHandler(async (req, res, next) => {
   let query = req.query.text;
   let latitude = Number(req.query.latitude);
   let longitude = Number(req.query.longitude);
@@ -9,14 +9,14 @@ exports.autocomplete = asyncHandler(async (req, res, next) => {
     const encodedQuery = encodeURIComponent(query);
     console.log(encodeURIComponent(query));
     console.log(
-      `${latitude - 1},${longitude - 1},${latitude + 1},${longitude + 1}`
+      `${latitude - 1},${longitude - 1},${latitude + 1},${longitude + 1}`,
     );
     const { data } = await axios.get(
       `https://us1.locationiq.com/v1/autocomplete?key=${
         process.env.LOCATION_IQ_TOKEN
       }&q=${encodedQuery}&normalizecity=1&viewbox='${latitude - 1},${
         longitude - 1
-      },${latitude + 1},${longitude + 1}'`
+      },${latitude + 1},${longitude + 1}'`,
     );
 
     console.log(data);

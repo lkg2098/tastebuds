@@ -1,13 +1,13 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
 
 // require user controller
-const user_controller = require("../controllers/usersController");
-const meal_controller = require("../controllers/mealsController");
-const member_controller = require("../controllers/membersController");
-const sms_controller = require("../controllers/smsController");
-const { generate_password_auth_token } = require("../controllers/auth");
-const { verifyToken } = require("../middleware/auth");
+import * as user_controller from "../controllers/usersController.js";
+import * as meal_controller from "../controllers/mealsController.js";
+import * as member_controller from "../controllers/membersController.js";
+import * as sms_controller from "../controllers/smsController.js";
+import { generate_password_auth_token } from "../controllers/auth.js";
+import { verifyToken } from "../middleware/auth.js";
 
 //user info
 router.get("/", verifyToken, user_controller.users_list);
@@ -25,7 +25,7 @@ router.get("/:username", user_controller.user_get_by_username);
 router.put(
   "/account/username",
   verifyToken,
-  user_controller.user_update_username
+  user_controller.user_update_username,
 );
 
 // send sms code when user is logged in
@@ -34,7 +34,7 @@ router.get(
   "/account/passwordCode",
   verifyToken,
   user_controller.user_get_recovery_phone,
-  sms_controller.sendCode
+  sms_controller.sendCode,
 );
 
 // verify sms code when user is logged in
@@ -48,7 +48,7 @@ router.put(
     let phone_number = req.phone;
     let passwordToken = generate_password_auth_token(phone_number);
     res.status(200).json({ passwordToken });
-  }
+  },
 );
 
 router.get("/account/password", verifyToken, (req, res, next) => {
@@ -59,9 +59,9 @@ router.get("/account/password", verifyToken, (req, res, next) => {
 router.put(
   "/account/password",
   verifyToken,
-  user_controller.user_update_password
+  user_controller.user_update_password,
 );
 
 router.delete("/", verifyToken, user_controller.user_delete);
 
-module.exports = router;
+export default router;

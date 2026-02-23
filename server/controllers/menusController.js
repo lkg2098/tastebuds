@@ -4,7 +4,7 @@
 // const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 // puppeteer.use(StealthPlugin());
 
-// exports.fetchAndLocateMenu = async (restaurantUrl) => {
+// export const fetchAndLocateMenu = async (restaurantUrl) => {
 //   try {
 //     // Fetch the website HTML
 //     const { data } = await axios.get(restaurantUrl).catch(async (err) => {
@@ -46,7 +46,7 @@
 //   }
 // };
 
-// exports.scrapeMenuPages = async (urls) => {
+// export const scrapeMenuPages = async (urls) => {
 //   const browser = await puppeteer.launch();
 //   const page = await browser.newPage();
 //   await page.setViewport({ width: 1920, height: 1080 });

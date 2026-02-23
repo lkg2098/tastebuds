@@ -1,22 +1,78 @@
-const express = require("express");
-require("dotenv").config();
-const bodyParser = require("body-parser");
-const { exit } = require("process");
-const http = require("http");
-const cors = require("cors");
-const db = require("./config/database");
+import express from "express";
+import "dotenv/config";
+import bodyParser from "body-parser";
+import { exit } from "process";
+import http from "http";
+import cors from "cors";
+import db from "./config/database.js";
 
 db.authenticate()
   .then(() => console.log("Database connected"))
   .catch((err) => console.error("Error connecting to database:", err));
 
-const indexRouter = require("./routes/index");
-const usersRouter = require("./routes/users");
-const mealsRouter = require("./routes/meals");
-const restaurantsRouter = require("./routes/restaurants");
-const locationsRouter = require("./routes/location");
+import indexRouter from "./routes/index.js";
+import usersRouter from "./routes/users.js";
+import mealsRouter from "./routes/meals.js";
+import restaurantsRouter from "./routes/restaurants.js";
+import locationsRouter from "./routes/location.js";
 
-const member_model = require("./models/members");
+import User from "./models/users.js";
+import Restaurant from "./models/restaurants.js";
+import Meal from "./models/meals.js";
+import MealUser from "./models/guests.js";
+import MealUserRestaurant from "./models/guest_restaurants.js";
+import MealRestaurant from "./models/meal_restaurants.js";
+import Preference from "./models/preferences.js";
+import MealUserPreference from "./models/guest_preferences.js";
+import setupAssociations from "./models/relations.js";
+
+MealUserRestaurant.sync({ alter: true })
+  .then(() =>
+    console.log(
+      "The table for the MealUserRestaurant model was just (re)created!",
+    ),
+  )
+  .catch((err) => console.log(err));
+MealUser.sync({ alter: true })
+  .then(() =>
+    console.log("The table for the MealUser model was just (re)created!"),
+  )
+  .catch((err) => console.log(err));
+
+MealRestaurant.sync({ alter: true })
+  .then(() =>
+    console.log("The table for the MealRestaurant model was just (re)created!"),
+  )
+  .catch((err) => console.log(err));
+User.sync({ alter: true })
+  .then(() => console.log("The table for the User model was just (re)created!"))
+  .catch((err) => console.log(err));
+
+Restaurant.sync({ alter: true })
+  .then(() =>
+    console.log("The table for the Restaurant model was just (re)created!"),
+  )
+  .catch((err) => console.log(err));
+
+Meal.sync({ alter: true })
+  .then(() => console.log("The table for the Meal model was just (re)created!"))
+  .catch((err) => console.log(err));
+
+Preference.sync()
+  .then(() =>
+    console.log("The table for the Preference model was just (re)created!"),
+  )
+  .catch((err) => console.log(err));
+
+MealUserPreference.sync()
+  .then(() =>
+    console.log(
+      "The table for the MealUserPreference model was just (re)created!",
+    ),
+  )
+  .catch((err) => console.log(err));
+
+setupAssociations();
 
 const app = express();
 
@@ -45,4 +101,4 @@ server.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
 });
 
-module.exports = { app, server };
+export default { app, server };

@@ -1,0 +1,9 @@
+{
+  "development": {
+    "username": "lauren",
+    "password": "4fR2!dm3n",
+    "database": "api",
+    "host": "localhost",
+    "dialect": "postgresql"
+  }
+}

@@ -1,41 +1,41 @@
-const asyncHandler = require("express-async-handler");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+import asyncHandler from "express-async-handler";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
-const user_model = require("../models/users");
-const user_controller = require("./usersController");
+import user_model from "../models/users.js";
+import * as user_controller from "./usersController.js";
 
-exports.user_is_logged_in = (req, res, next) => {
+export const user_is_logged_in = (req, res, next) => {
   console.log("checking...");
   res.status(200).json({ message: "Successfully logged in!" });
 };
-exports.generate_auth_tokens = (user_id, username) => {
+export const generate_auth_tokens = (user_id, username) => {
   let accessToken = jwt.sign(
     { user_id: user_id, username: username },
     process.env.JWT_SECRET,
-    { expiresIn: "2d" }
+    { expiresIn: "2d" },
   );
   let refreshToken = jwt.sign(
     { username: username },
     process.env.REFRESH_SECRET,
     {
       expiresIn: "10d",
-    }
+    },
   );
 
   return { accessToken, refreshToken };
 };
 
-exports.generate_password_auth_token = (phone_number) => {
+export const generate_password_auth_token = (phone_number) => {
   let passwordToken = jwt.sign(
     { phone_number: phone_number },
     process.env.JWT_SECRET,
-    { expiresIn: "20m" }
+    { expiresIn: "20m" },
   );
   return passwordToken;
 };
 
-exports.register = asyncHandler(async (req, res, next) => {
+export const register = asyncHandler(async (req, res, next) => {
   const { username, password, phone_number } = req.body;
   console.log(req.body);
   const { usernameExists, phoneNumberExists } =
@@ -56,7 +56,7 @@ exports.register = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.login = asyncHandler(async (req, res, next) => {
+export const login = asyncHandler(async (req, res, next) => {
   const { username, password } = req.body;
 
   let user = await user_model.get_user_by_username(username);
@@ -81,7 +81,7 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.get_verification_code = asyncHandler(async (req, res, next) => {
+export const get_verification_code = asyncHandler(async (req, res, next) => {
   const code = Math.floor(Math.random() * 9000 + 1000);
   res.status(200).json({ smsCode: code });
 });

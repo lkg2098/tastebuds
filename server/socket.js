@@ -1,5 +1,5 @@
-const { server } = require("./server");
-const { Server } = require("socket.io");
+import { server } from "./server";
+import { Server } from "socket.io";
 
 const io = new Server(server, {
   cors: {
