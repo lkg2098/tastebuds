@@ -4,24 +4,19 @@ import jwt from "jsonwebtoken";
 
 import user_model from "../models/users.js";
 import * as user_controller from "./usersController.js";
+import User from "../models/users.js";
 
 export const user_is_logged_in = (req, res, next) => {
   console.log("checking...");
   res.status(200).json({ message: "Successfully logged in!" });
 };
 export const generate_auth_tokens = (user_id, username) => {
-  let accessToken = jwt.sign(
-    { user_id: user_id, username: username },
-    process.env.JWT_SECRET,
-    { expiresIn: "2d" },
-  );
-  let refreshToken = jwt.sign(
-    { username: username },
-    process.env.REFRESH_SECRET,
-    {
-      expiresIn: "10d",
-    },
-  );
+  let accessToken = jwt.sign({ user_id, username }, process.env.JWT_SECRET, {
+    expiresIn: "2d",
+  });
+  let refreshToken = jwt.sign({ username }, process.env.REFRESH_SECRET, {
+    expiresIn: "10d",
+  });
 
   return { accessToken, refreshToken };
 };
@@ -37,7 +32,7 @@ export const generate_password_auth_token = (phone_number) => {
 
 export const register = asyncHandler(async (req, res, next) => {
   const { username, password, phone_number } = req.body;
-  console.log(req.body);
+
   const { usernameExists, phoneNumberExists } =
     await user_controller.verifyCredentials(username, phone_number);
   if (usernameExists) {
@@ -46,9 +41,11 @@ export const register = asyncHandler(async (req, res, next) => {
     res.status(401).json({ error: "This phone number is taken" });
   } else {
     let passwordHash = await bcrypt.hash(password, 8);
-    let userId = await user_model
-      .create_user(username, passwordHash, phone_number)
-      .catch((err) => res.status(500).json({ error: err }));
+    let userId = await User.create({
+      username,
+      passwordHash,
+      phone_number,
+    }).catch((err) => res.status(500).json({ error: err }));
     let accessTokens = this.generate_auth_tokens(userId, username);
     res
       .status(200)
@@ -57,27 +54,31 @@ export const register = asyncHandler(async (req, res, next) => {
 });
 
 export const login = asyncHandler(async (req, res, next) => {
-  const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-  let user = await user_model.get_user_by_username(username);
+    let user = await User.findOne({ where: { username } });
 
-  if (user) {
-    bcrypt.compare(password, user.password, (err, result) => {
-      if (err) {
-        res.status(500).json({ error: err });
-      } else {
-        if (result) {
-          let accessTokens = this.generate_auth_tokens(user.user_id, username);
-          res
-            .status(200)
-            .json({ ...accessTokens, message: "Login successful" });
+    if (user) {
+      bcrypt.compare(password, user.password, (err, result) => {
+        if (err) {
+          res.status(500).json({ error: err });
         } else {
-          res.status(401).json({ error: "Incorrect password" });
+          if (result) {
+            let accessTokens = generate_auth_tokens(user.id, username);
+            res
+              .status(200)
+              .json({ ...accessTokens, message: "Login successful" });
+          } else {
+            res.status(401).json({ error: "Incorrect password" });
+          }
         }
-      }
-    });
-  } else {
-    res.status(401).json({ error: "Invalid username" });
+      });
+    } else {
+      res.status(401).json({ error: "Invalid username" });
+    }
+  } catch (err) {
+    console.log(err);
   }
 });
 

@@ -101,4 +101,4 @@ server.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
 });
 
-export default { app, server };
+export { app, server };

@@ -6,7 +6,13 @@ import { Op } from "sequelize";
 
 const User = db.define("user", {
   username: { type: DataTypes.STRING, allowNull: false },
-  password: { type: DataTypes.STRING, allowNull: false },
+  password: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    set(value) {
+      this.setDataValue("password", bcrypt.hashSync(value, 8));
+    },
+  },
   name: { type: DataTypes.STRING, allowNull: true },
   phone_number: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: true },
@@ -15,6 +21,12 @@ const User = db.define("user", {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW,
+  },
+  guest_name: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      return this.name || this.username;
+    },
   },
 });
 

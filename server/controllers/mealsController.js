@@ -7,6 +7,7 @@ import { parse_meal_body } from "../middleware/mealsMiddleware.js";
 import User from "../models/users.js";
 import Meal from "../models/meals.js";
 import { Op } from "sequelize";
+import moment from "moment";
 
 export const meals_list_by_user_id = asyncHandler(async (req, res, next) => {
   if (req.decoded) {
@@ -14,24 +15,65 @@ export const meals_list_by_user_id = asyncHandler(async (req, res, next) => {
     const { user_id } = req.decoded;
 
     try {
-      let meals;
-      if (!time) {
-        meals = await Meal.findAll({ where: { user_id } });
-      } else if (time == "past") {
-        meals = await Meal.findAll({ where: { user_id } });
+      const user = await User.findByPk(user_id);
+      let mealFilters = {};
+
+      if (time == "past") {
+        mealFilters = {
+          where: { scheduled_at: { [Op.lt]: moment().toDate() } },
+        };
       } else if (time == "future") {
-        meals = await Meal.findAll({ where: { user_id } });
-      } else {
+        mealFilters = {
+          where: { scheduled_at: { [Op.gte]: moment().toDate() } },
+        };
+      } else if (time) {
         res.status(401).json({ error: "Invalid time specified" });
       }
 
-      const result = meals.map((meal) => {
-        const guests = meal.getGuests({ where: { [Op.not]: { user_id } } });
-        return { ...meal, guests };
-      });
+      const meals = await user
+        .getMeals({
+          include: [
+            {
+              model: User,
+              where: { [Op.not]: { id: user_id } },
+              required: false,
+            },
+          ],
+          ...mealFilters,
+        })
+        .catch((err) => console.log(err));
 
-      res.status(200).json({ meals: result });
+      const mealsInfo = meals.map((meal) => {
+        const {
+          meal_name,
+          scheduled_at,
+          location_id,
+          latitude,
+          longitude,
+          radius,
+          budget,
+          chosen_restaurant,
+          liked,
+          users,
+        } = meal;
+
+        const guests = users.map((user) => user.guest_name);
+        return {
+          meal_name,
+          scheduled_at,
+          location_id,
+          latitude,
+          longitude,
+          radius,
+          budget,
+          chosen_restaurant,
+          liked,
+          guests,
+        };
+      });
+      res.status(200).json({ meals: mealsInfo });
     } catch (err) {
+      console.log(err);
       res.status(500).json({ error: err });
     }
   } else {
