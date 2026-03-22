@@ -1,8 +1,6 @@
 import * as factories from "../../models/factories/index.js";
 import Meal from "../../models/meals.js";
-import { request } from "chai-http";
 import { expect } from "chai";
-import { app } from "../../server.js";
 import User from "../../models/users.js";
 import Guest from "../../models/guests.js";
 import moment from "moment/moment.js";
@@ -47,7 +45,7 @@ describe("Meals Controller", () => {
     await Guest.truncate();
   });
 
-  describe.only("meals_list_by_user_id", () => {
+  describe("meals_list_by_user_id", () => {
     it("returns the meal data", async () => {
       const { pastMeal, authenticatedServer } = await setUpTest();
 
