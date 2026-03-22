@@ -1,5 +1,5 @@
 import pool from "../pool.js";
-import { Sequelize, DataTypes } from "@sequelize/core";
+import { Sequelize, DataTypes } from "sequelize";
 import db from "../config/database.js";
 
 const Restaurant = db.define("restaurant", {

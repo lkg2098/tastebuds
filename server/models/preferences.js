@@ -1,5 +1,5 @@
 import db from "../config/database.js";
-import { Sequelize, DataTypes } from "@sequelize/core";
+import { Sequelize, DataTypes } from "sequelize";
 import pool from "../pool.js";
 
 const Preference = db.define("preference", {

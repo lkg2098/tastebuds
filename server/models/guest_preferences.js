@@ -1,5 +1,5 @@
 import db from "../config/database.js";
-import { Sequelize, DataTypes } from "@sequelize/core";
+import { Sequelize, DataTypes } from "sequelize";
 
 const GuestPreference = db.define("guest_preference", {
   preference_id: { type: DataTypes.INTEGER, allowNull: false },

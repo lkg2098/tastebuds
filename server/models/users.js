@@ -1,8 +1,7 @@
 import pool from "../pool.js";
 
-import { Sequelize, DataTypes } from "@sequelize/core";
 import db from "../config/database.js";
-import { Op } from "sequelize";
+import { Op, Sequelize, DataTypes } from "sequelize";
 import bcrypt from "bcrypt";
 
 const User = db.define("user", {

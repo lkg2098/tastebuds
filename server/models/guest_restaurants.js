@@ -1,4 +1,4 @@
-import { Sequelize, DataTypes } from "@sequelize/core";
+import { Sequelize, DataTypes } from "sequelize";
 import db from "../config/database.js";
 
 const GuestRestaurant = db.define("guest_restaurant", {

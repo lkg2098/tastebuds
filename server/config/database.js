@@ -1,5 +1,4 @@
-import { Sequelize } from "@sequelize/core";
-import { PostgresDialect } from "@sequelize/postgres";
+import { Sequelize } from "sequelize";
 
 const dbConfigs = {
   development: {
@@ -8,7 +7,7 @@ const dbConfigs = {
     database: "api",
     password: process.env.POSTGRESQL_PASSWORD,
     port: 5432,
-    dialect: PostgresDialect,
+    dialect: "postgres",
   },
   test: {
     user: "lauren",
@@ -16,12 +15,13 @@ const dbConfigs = {
     database: "testApi",
     password: process.env.POSTGRESQL_PASSWORD,
     port: 5432,
-    dialect: PostgresDialect,
+    dialect: "postgres",
+    logging: false,
   },
   production: {
     url: process.env.POSTGRES_CONFIG_LINK,
     ssl: { rejectUnauthorized: false },
-    dialect: PostgresDialect,
+    dialect: "postgres",
   },
 };
 

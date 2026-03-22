@@ -40,9 +40,8 @@ describe("Meals Controller", () => {
   };
 
   afterEach(async () => {
-    await Meal.truncate();
-    await User.truncate();
-    await Guest.truncate();
+    await Meal.destroy({ truncate: { cascade: true } });
+    await User.destroy({ truncate: { cascade: true } });
   });
 
   describe("meals_list_by_user_id", () => {
