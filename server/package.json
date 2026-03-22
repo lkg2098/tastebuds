@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "nodemon server.js",
-    "test": "NODE_ENV=\"test\" mocha controllers/test"
+    "test": "NODE_ENV=\"test\" mocha */test"
   },
   "author": "Lauren Gray",
   "license": "ISC",
