@@ -9,11 +9,10 @@ export async function user({ username, password, name }) {
     phone_number: faker.phone.number({ style: "national" }),
     name: faker.internet.displayName(),
   };
-  let passwordHash = await bcrypt.hash(password || defaults.password, 8);
   return await User.create({
     ...defaults,
     username: username || defaults.username,
     name: name || defaults.name,
-    password: passwordHash,
+    password: password || defaults.password,
   });
 }

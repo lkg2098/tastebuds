@@ -33,23 +33,25 @@ export const generate_password_auth_token = (phone_number) => {
 export const register = asyncHandler(async (req, res, next) => {
   const { username, password, phone_number } = req.body;
 
-  const { usernameExists, phoneNumberExists } =
-    await user_controller.verifyCredentials(username, phone_number);
-  if (usernameExists) {
+  const userWithUsername = await User.findOne({ username });
+  const userWithPhoneNumber = await User.findOne({ phone_number });
+
+  if (userWithUsername) {
     res.status(401).json({ error: "This username is taken" });
-  } else if (phoneNumberExists) {
+  } else if (userWithPhoneNumber) {
     res.status(401).json({ error: "This phone number is taken" });
   } else {
-    let passwordHash = await bcrypt.hash(password, 8);
-    let userId = await User.create({
+    let newUser = await User.create({
       username,
-      passwordHash,
+      password,
       phone_number,
     }).catch((err) => res.status(500).json({ error: err }));
-    let accessTokens = this.generate_auth_tokens(userId, username);
-    res
-      .status(200)
-      .json({ ...accessTokens, message: "Registered successfully", userId });
+    let accessTokens = this.generate_auth_tokens(newUser.id, username);
+    res.status(200).json({
+      ...accessTokens,
+      message: "Registered successfully",
+      userId: newUser.id,
+    });
   }
 });
 

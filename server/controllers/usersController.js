@@ -10,22 +10,15 @@ export const user_register_page = asyncHandler(async (req, res, next) => {
     .json({ message: "Not implemented: user registration GET page" });
 });
 
-export const verifyCredentials = async (username, phone) => {
+export const verifyCredentials = async (username, phone_number) => {
   try {
-    let existingUsername = false;
-    let existingPhoneNumber = false;
+    const userWithUsername = await User.findOne({ username });
 
-    if (username) {
-      existingUsername = await user_model.get_user_by_username(username);
-    }
-
-    if (phone) {
-      existingPhoneNumber = await user_model.check_existing_phone(phone);
-    }
+    const userWithPhoneNumber = await User.findOne({ phone_number });
 
     return {
-      usernameExists: Boolean(existingUsername),
-      phoneNumberExists: Boolean(existingPhoneNumber),
+      usernameExists: !!userWithUsername,
+      phoneNumberExists: !!userWithPhoneNumber,
     };
   } catch (err) {
     console.log(err);
