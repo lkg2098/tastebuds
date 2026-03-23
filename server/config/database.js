@@ -2,18 +2,18 @@ import { Sequelize } from "sequelize";
 
 const dbConfigs = {
   development: {
-    user: "lauren",
-    host: "localhost",
+    user: null,
+    host: "127.0.0.1",
     database: "api",
-    password: process.env.POSTGRESQL_PASSWORD,
+    password: null,
     port: 5432,
     dialect: "postgres",
   },
   test: {
-    user: "lauren",
-    host: "localhost",
+    user: null,
+    host: "127.0.0.1",
     database: "testApi",
-    password: process.env.POSTGRESQL_PASSWORD,
+    password: null,
     port: 5432,
     dialect: "postgres",
     logging: false,
