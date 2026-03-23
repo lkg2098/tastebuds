@@ -78,7 +78,7 @@ describe("Meals Controller", () => {
 
       const res = await authenticatedServer.get("/meals");
       const { guests } = res.body.meals[0];
-
+      expect(guests.length).to.eql(1);
       expect(guests.filter((guest) => guest !== user.name).length).to.eql(
         guests.length,
       );

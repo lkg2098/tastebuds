@@ -31,47 +31,10 @@ export const meals_list_by_user_id = asyncHandler(async (req, res, next) => {
       }
 
       const meals = await user
-        .getMeals({
-          include: [
-            {
-              model: User,
-              where: { [Op.not]: { id: user_id } },
-              required: false,
-            },
-          ],
-          ...mealFilters,
-        })
+        .getMeals(mealFilters)
         .catch((err) => console.log(err));
 
-      const mealsInfo = meals.map((meal) => {
-        const {
-          meal_name,
-          scheduled_at,
-          location_id,
-          latitude,
-          longitude,
-          radius,
-          budget,
-          chosen_restaurant,
-          liked,
-          users,
-        } = meal;
-
-        const guests = users.map((user) => user.guest_name);
-        return {
-          meal_name,
-          scheduled_at,
-          location_id,
-          latitude,
-          longitude,
-          radius,
-          budget,
-          chosen_restaurant,
-          liked,
-          guests,
-        };
-      });
-      res.status(200).json({ meals: mealsInfo });
+      res.status(200).json({ meals });
     } catch (err) {
       console.log(err);
       res.status(500).json({ error: err });
