@@ -14,9 +14,6 @@ function setupAssociations() {
     });
     MealRestaurant.belongsTo(Meal, { foreignKey: "meal_id" });
 
-    GuestRestaurant.belongsTo(MealRestaurant, {
-      foreignKey: "meal_restaurant_id",
-    });
     GuestRestaurant.belongsTo(Guest, { foreignKey: "guest_id" });
 
     User.belongsToMany(Meal, {
