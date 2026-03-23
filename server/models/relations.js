@@ -16,26 +16,16 @@ function setupAssociations() {
 
     GuestRestaurant.belongsTo(Guest, { foreignKey: "guest_id" });
 
-    User.belongsToMany(Meal, {
-      through: Guest,
-      as: "Meals",
-      foreignKey: "user_id",
-      otherKey: "meal_id",
-    });
-
     Meal.hasOne(Restaurant, { foreignKey: "chosen_restaurant" });
     Meal.hasMany(MealRestaurant, { foreignKey: "meal_id" });
     Meal.hasMany(Guest, { as: "Guests", foreignKey: "meal_id" });
-    Meal.belongsToMany(User, {
-      through: Guest,
-      foreignKey: "meal_id",
-      otherKey: "user_id",
-    });
 
     GuestPreference.belongsTo(Guest);
     Guest.hasMany(GuestPreference);
     Guest.hasMany(GuestRestaurant, { foreignKey: "guest_id" });
     Guest.belongsTo(Meal, { foreignKey: "meal_id" });
+    Guest.belongsTo(User, { foreignKey: "user_id" });
+    User.hasMany(Guest, { foreignKey: "user_id" });
   } catch (err) {
     console.log("RELATIONS ERROR", err);
   }
