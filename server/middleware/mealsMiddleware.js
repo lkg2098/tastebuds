@@ -5,9 +5,12 @@ import * as meal_model from "../models/meals.js";
 export const verify_meal_guest = asyncHandler(async (req, res, next) => {
   if (req.decoded) {
     const mealId = req.params.mealId;
-    const guest = await guest_model
-      .get_valid_meal_guest(mealId, req.decoded.user_id)
-      .catch((err) => res.status(500).json({ error: err }));
+    let guest;
+    try {
+      guest = await guest_model.get_valid_meal_guest(mealId, req.decoded.user_id);
+    } catch (err) {
+      return res.status(500).json({ error: err });
+    }
 
     if (guest) {
       req.decoded = {

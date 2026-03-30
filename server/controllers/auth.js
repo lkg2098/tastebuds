@@ -33,8 +33,8 @@ export const generate_password_auth_token = (phone_number) => {
 export const register = asyncHandler(async (req, res, next) => {
   const { username, password, phone_number } = req.body;
 
-  const userWithUsername = await User.findOne({ username });
-  const userWithPhoneNumber = await User.findOne({ phone_number });
+  const userWithUsername = await User.findOne({ where: { username } });
+  const userWithPhoneNumber = await User.findOne({ where: { phone_number } });
 
   if (userWithUsername) {
     res.status(401).json({ error: "This username is taken" });
@@ -81,6 +81,7 @@ export const login = asyncHandler(async (req, res, next) => {
     }
   } catch (err) {
     console.log(err);
+    res.status(500).json({ error: "Server internal error" });
   }
 });
 

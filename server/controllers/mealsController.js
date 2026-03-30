@@ -24,7 +24,7 @@ export const meals_list_by_user_id = asyncHandler(async (req, res, next) => {
           where: { scheduled_at: { [Op.gte]: moment().toDate() } },
         };
       } else if (time) {
-        res.status(401).json({ error: "Invalid time specified" });
+        return res.status(401).json({ error: "Invalid time specified" });
       }
 
       const meals = await user

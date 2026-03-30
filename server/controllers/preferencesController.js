@@ -1,6 +1,6 @@
 import asyncHandler from "express-async-handler";
 import * as guest_model from "../models/guests.js";
-import restaurant_model from "../models/restaurants.js";
+import * as restaurant_model from "../models/restaurants.js";
 import { parse_settings_body } from "../middleware/preferencesMiddleware.js";
 
 export const get_preferences_for_meal = asyncHandler(async (req, res, next) => {
