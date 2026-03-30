@@ -6659,7 +6659,7 @@ export const sample_google_data = asyncHandler(async (req, res, next) => {
       address: "",
     };
 
-    console.log(req.decoded.member_id);
+    console.log(req.decoded.guest_id);
     if (location_id) {
       locationInfo = {
         location_id: "ChIJ-b2RmVlZwokRpb1pwEQjss0",

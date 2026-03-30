@@ -4,7 +4,6 @@ const router = express.Router();
 // require user controller
 import * as user_controller from "../controllers/usersController.js";
 import * as meal_controller from "../controllers/mealsController.js";
-import * as member_controller from "../controllers/membersController.js";
 import * as sms_controller from "../controllers/smsController.js";
 import { generate_password_auth_token } from "../controllers/auth.js";
 import { verifyToken } from "../middleware/auth.js";

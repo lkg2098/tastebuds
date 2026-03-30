@@ -27,17 +27,17 @@ pool.clearTestData = async () => {
   await pool.query("DELETE FROM meals WHERE location_id = $1", [
     "100 Cherry Ln Brewster, NY 10000",
   ]);
-  await pool.query(`DELETE FROM member_restaurants WHERE member_id =138`, []);
+  await pool.query(`DELETE FROM guest_restaurants WHERE guest_id =138`, []);
   await pool.query(
     `UPDATE meals SET round = 0, chosen_restaurant= null WHERE meal_id = $1`,
     [1008],
   );
   await pool.query(
-    `update meal_members set bad_tags = $1, min_rating = $2 where meal_id = $3 and user_id = $4`,
+    `update meal_guests set bad_tags = $1, min_rating = $2 where meal_id = $3 and user_id = $4`,
     [[], 4, 27, 1],
   );
   await pool.query(
-    `update member_restaurants set rank = null where member_id = $1`,
+    `update guest_restaurants set rank = null where guest_id = $1`,
     [4149],
   );
 };

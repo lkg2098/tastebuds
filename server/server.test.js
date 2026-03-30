@@ -387,7 +387,7 @@ describe("test meal endpoints", () => {
     const res = await request(app)
       .get(`/meals/${testMealId}`)
       .set("Authorization", authTokens.Test1);
-    console.log("GET BY MEMBER ID:", res.body);
+    console.log("GET BY GUEST ID:", res.body);
     expect(res.status).toBe(200);
     expect(res.body.meal.meal_id).toBe(testMealId);
     expect(res.body.meal.location_coords).toEqual([200, 300]);
@@ -401,49 +401,49 @@ describe("test meal endpoints", () => {
     expect(res.body.meal.bad_tags).toBe(null);
   });
 
-  it("test add member - already in meal", async () => {
+  it("test add guest - already in meal", async () => {
     const res = await request(app)
-      .post(`/meals/27/members/new`)
+      .post(`/meals/27/guests/new`)
       .set("Authorization", authTokens.Test1)
       .send({ user_id: 2, role: "guest" });
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Member already in meal");
+    expect(res.body.error).toBe("Guest already in meal");
   });
-  it("test add member - test meal", async () => {
+  it("test add guest - test meal", async () => {
     const res = await request(app)
-      .post(`/meals/${testMealId}/members/new`)
+      .post(`/meals/${testMealId}/guests/new`)
       .set("Authorization", authTokens.Test1)
       .send({ user_id: 2, role: "guest" });
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully added member");
+    expect(res.body.message).toBe("Successfully added guest");
   });
-  it("test add member", async () => {
+  it("test add guest", async () => {
     const res = await request(app)
-      .post(`/meals/27/members/new`)
+      .post(`/meals/27/guests/new`)
       .set("Authorization", authTokens.Test1)
       .send({ user_id: userData.john.id, role: "guest" });
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Successfully added member");
+    expect(res.body.message).toBe("Successfully added guest");
   });
-  it("test list meal members", async () => {
+  it("test list meal guests", async () => {
     const res = await request(app)
-      .get(`/meals/${testMealId}/members`)
+      .get(`/meals/${testMealId}/guests`)
       .set("Authorization", authTokens.Test1);
 
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body.members)).toBeTruthy();
-    expect(res.body.members.length).toBe(1);
+    expect(Array.isArray(res.body.guests)).toBeTruthy();
+    expect(res.body.guests.length).toBe(1);
   });
-  it("test get member round", async () => {
+  it("test get guest round", async () => {
     const res = await request(app)
-      .get(`/meals/${testMealId}/members/round`)
+      .get(`/meals/${testMealId}/guests/round`)
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
     expect(res.body.round).toBe(0);
   });
-  it("test update member round", async () => {
+  it("test update guest round", async () => {
     const res = await request(app)
-      .put(`/meals/${testMealId}/members/round`)
+      .put(`/meals/${testMealId}/guests/round`)
       .send({ round: 1 })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
@@ -458,9 +458,9 @@ describe("test meal endpoints", () => {
 
     expect(res.status).toBe(200);
   });
-  it("test delete member from meal", async () => {
+  it("test delete guest from meal", async () => {
     const res = await request(app)
-      .delete(`/meals/${testMealId}/members/4`)
+      .delete(`/meals/${testMealId}/guests/4`)
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
   });
@@ -606,7 +606,7 @@ describe("test meal endpoints", () => {
       .set("Authorization", "Bearer " + login.body.accessToken);
     console.log(res.body);
     expect(res.status).toBe(200);
-    expect(res.body.remainingMembers).toEqual([4149]);
+    expect(res.body.remainingGuests).toEqual([4149]);
   });
   it("test get best ranked in round 1 - not all votes in", async () => {
     const login = await request(app)
@@ -1597,7 +1597,7 @@ describe("test preferences endpoints", () => {
 describe("test meal restaurants", () => {
   it("test update restaurant - like", async () => {
     const res = await request(app)
-      .put("/meals/27/members/restaurants")
+      .put("/meals/27/guests/restaurants")
       .send({ res_id: 8, action: "like" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
@@ -1606,7 +1606,7 @@ describe("test meal restaurants", () => {
   });
   it("test update restaurant - like", async () => {
     const res = await request(app)
-      .put("/meals/27/members/restaurants")
+      .put("/meals/27/guests/restaurants")
       .send({ res_id: 9, action: "like" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
@@ -1615,7 +1615,7 @@ describe("test meal restaurants", () => {
   });
   it("test update restaurant - dislike", async () => {
     const res = await request(app)
-      .put("/meals/27/members/restaurants")
+      .put("/meals/27/guests/restaurants")
       .send({ res_id: 11441, action: "dislike" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);
@@ -1624,7 +1624,7 @@ describe("test meal restaurants", () => {
   });
   it("test update restaurant - dislike", async () => {
     const res = await request(app)
-      .put("/meals/27/members/restaurants")
+      .put("/meals/27/guests/restaurants")
       .send({ res_id: 11442, action: "dislike" })
       .set("Authorization", authTokens.Test1);
     expect(res.status).toBe(200);

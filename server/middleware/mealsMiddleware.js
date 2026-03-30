@@ -1,29 +1,29 @@
 import asyncHandler from "express-async-handler";
-import * as member_model from "../models/members.js";
+import * as guest_model from "../models/guests.js";
 import * as meal_model from "../models/meals.js";
 
-export const verify_meal_member = asyncHandler(async (req, res, next) => {
+export const verify_meal_guest = asyncHandler(async (req, res, next) => {
   if (req.decoded) {
     const mealId = req.params.mealId;
-    const member = await member_model
-      .get_valid_meal_member(mealId, req.decoded.user_id)
+    const guest = await guest_model
+      .get_valid_meal_guest(mealId, req.decoded.user_id)
       .catch((err) => res.status(500).json({ error: err }));
 
-    if (member) {
+    if (guest) {
       req.decoded = {
         ...req.decoded,
-        role: member.role,
-        member_id: member.member_id,
+        role: guest.role,
+        guest_id: guest.guest_id,
       };
       next();
     } else {
-      console.log("Not authorized, user not in meal");
+      console.log("Not authorized, guest not in meal");
       return res
         .status(401)
-        .json({ error: "Not authorized, user not in meal" });
+        .json({ error: "Not authorized, guest not in meal" });
     }
   } else {
-    console.log("Not authorized");
+    console.log("Not authorized, guest not found");
     return res.status(401).json({ error: "Not authorized" });
   }
 });
