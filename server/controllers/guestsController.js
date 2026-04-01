@@ -51,6 +51,15 @@ export const meal_guest_get_round = asyncHandler(async (req, res, next) => {
 });
 
 export const meal_guest_update_round = asyncHandler(async (req, res, next) => {
+  if (
+    !Number.isInteger(req.body.round) ||
+    req.body.round < 0 ||
+    req.body.round > 2
+  ) {
+    res.status(400).json({ error: "Invalid round" });
+    return;
+  }
+
   const [, updatedRows] = await Guest.update(
     { round: req.body.round },
     {
