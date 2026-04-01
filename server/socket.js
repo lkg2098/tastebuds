@@ -18,7 +18,7 @@ io.engine.on("connection_error", (err) => {
 
 io.on("connection", (socket) => {
   console.log("user connected");
-  socket.on("joinMeal", (mealId, memberId) => {
+  socket.on("joinMeal", (mealId, guestId) => {
     console.log("joining meal");
     socket.join(mealId);
   });
@@ -27,7 +27,7 @@ io.on("connection", (socket) => {
     socket.emit("test succeeded");
   });
 
-  socket.on("leaveMeal", (mealId, memberId) => {
+  socket.on("leaveMeal", (mealId, guestId) => {
     console.log("leaving meal");
     socket.leave(mealId);
   });

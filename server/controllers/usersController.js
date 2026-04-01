@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import User from "../models/users.js";
 import { generate_auth_tokens } from "./auth.js";
 import bcrypt from "bcrypt";
+import { Op } from "sequelize";
 
 // displays user registrations page
 export const user_register_page = asyncHandler(async (req, res, next) => {
@@ -12,9 +13,9 @@ export const user_register_page = asyncHandler(async (req, res, next) => {
 
 export const verifyCredentials = async (username, phone_number) => {
   try {
-    const userWithUsername = await User.findOne({ username });
+    const userWithUsername = await User.findOne({ where: { username } });
 
-    const userWithPhoneNumber = await User.findOne({ phone_number });
+    const userWithPhoneNumber = await User.findOne({ where: { phone_number } });
 
     return {
       usernameExists: !!userWithUsername,
@@ -60,9 +61,8 @@ export const user_update_username = asyncHandler(async (req, res, next) => {
     let existingUser = await User.findOne({ where: { username: newUsername } });
 
     if (!existingUser) {
-      await existingUser.update({
-        username: newUsername,
-      });
+      const currentUser = await User.findByPk(req.decoded.user_id);
+      await currentUser.update({ username: newUsername });
 
       let accessTokens = generate_auth_tokens(req.decoded.user_id, newUsername);
 
@@ -85,7 +85,7 @@ export const user_update_password = asyncHandler(async (req, res, next) => {
   } else {
     let passwordHash = await bcrypt.hash(newPassword, 8);
 
-    const user = User.findOne({ where: { phone_number } });
+    const user = await User.findOne({ where: { phone_number } });
 
     await user.update({ password: passwordHash });
 
@@ -148,16 +148,18 @@ export const users_list = asyncHandler(async (req, res, next) => {
 // query users by username autocomplete
 export const users_query_username = asyncHandler(async (req, res, next) => {
   const queryTerm = req.body.queryTerm;
+  const searcher = req.decoded?.username;
   try {
-    const users = await User.findAll({
-      where: {
-        [Op.not]: { username: searcher },
-        [Op.or]: {
-          username: { [Op.like]: `%${queryTerm}%` },
-          name: { [Op.like]: `%${queryTerm}%` },
-        },
+    const where = {
+      [Op.or]: {
+        username: { [Op.like]: `%${queryTerm}%` },
+        name: { [Op.like]: `%${queryTerm}%` },
       },
-    });
+    };
+    if (searcher) {
+      where[Op.not] = { username: searcher };
+    }
+    const users = await User.findAll({ where });
 
     res.status(200).json({ users: users });
   } catch (err) {
@@ -178,9 +180,11 @@ export const user_get_recovery_phone = asyncHandler(async (req, res, next) => {
   if (username) {
     const user = await User.findOne({ where: { username: username } });
 
-    if (user.phone_number) {
+    if (user && user.phone_number) {
       req.phone = user.phone_number;
       next();
+    } else if (!user) {
+      res.status(404).json({ error: "User not found" });
     } else {
       res
         .status(404)

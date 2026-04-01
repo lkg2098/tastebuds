@@ -1,7 +1,7 @@
 import asyncHandler from "express-async-handler";
 import jwt from "jsonwebtoken";
 
-import user_model from "../models/users.js";
+import User from "../models/users.js";
 
 export const verifyToken = asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization;
@@ -38,13 +38,13 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
           // wrong refresh token
           res.status(401).json({ error: "Not authorized" });
         } else {
-          const user = await user_model.get_user_by_username(
-            decodedToken.username,
-          );
+          const user = await User.findOne({
+            where: { username: decodedToken.username },
+          });
 
           if (user) {
             const newAccessToken = jwt.sign(
-              { user_id: user.user_id, username: decodedToken.username },
+              { user_id: user.id, username: decodedToken.username },
               process.env.JWT_SECRET,
               { expiresIn: "1000m" },
             );

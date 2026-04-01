@@ -1,11 +1,8 @@
 import asyncHandler from "express-async-handler";
 import * as meal_model from "../models/meals.js";
-import * as member_model from "../models/members.js";
-import * as user_model from "../models/users.js";
-import * as restaurant_model from "../models/restaurants.js";
+import * as guest_model from "../models/guests.js";
 import { parse_meal_body } from "../middleware/mealsMiddleware.js";
 import User from "../models/users.js";
-import Meal from "../models/meals.js";
 import { Op } from "sequelize";
 import moment from "moment";
 
@@ -27,7 +24,7 @@ export const meals_list_by_user_id = asyncHandler(async (req, res, next) => {
           where: { scheduled_at: { [Op.gte]: moment().toDate() } },
         };
       } else if (time) {
-        res.status(401).json({ error: "Invalid time specified" });
+        return res.status(401).json({ error: "Invalid time specified" });
       }
 
       const meals = await user
@@ -50,7 +47,7 @@ export const meal_search = asyncHandler(async (req, res, next) => {
       req.body.queryTerm,
       req.decoded.user_id,
     );
-    // const users = await meal_model.meal_members_search(
+    // const users = await meal_model.meal_guests_search(
     //   req.body.queryTerm,
     //   req.decoded.user_id
     // );
@@ -94,7 +91,7 @@ export const meal_create = asyncHandler(async (req, res, next) => {
       );
 
       // add admin user
-      let testAdmin = await member_model.member_create(meal, adminId, "admin");
+      let testAdmin = await guest_model.guest_create(meal, adminId, "admin");
       console.log(testAdmin);
       if (meal) {
         res.status(200).json({ meal_id: meal });
@@ -112,10 +109,13 @@ export const meal_create = asyncHandler(async (req, res, next) => {
 });
 
 export const meal_get_by_id = asyncHandler(async (req, res, next) => {
-  //verifies membership
-  console.log(req.params.mealId, req.decoded.member_id);
+  // verifies guest participation
+  const guestLinkId = await guest_model.get_guest_link_id_by_guest(
+    req.decoded.guest_id,
+  );
+  console.log(req.params.mealId, req.decoded.guest_id);
   const meal = await meal_model
-    .meal_get_by_id(req.params.mealId, req.decoded.member_id)
+    .meal_get_by_id(req.params.mealId, guestLinkId)
     .catch((err) => {
       console.log(err);
     });
@@ -124,7 +124,7 @@ export const meal_get_by_id = asyncHandler(async (req, res, next) => {
 });
 
 export const meal_delete = asyncHandler(async (req, res, next) => {
-  //checks if admin
+  // checks if admin
   if (req.decoded.role && req.decoded.role == "admin") {
     await meal_model.meal_delete(req.params.mealId).catch((err) => {
       console.log(err);
@@ -137,7 +137,7 @@ export const meal_delete = asyncHandler(async (req, res, next) => {
 });
 
 export const meal_update = asyncHandler(async (req, res, next) => {
-  // verifies membership
+  // verifies guest participation
   const meal = parse_meal_body(req);
   console.log(meal);
   if (meal.chosen_restaurant) {
@@ -180,21 +180,24 @@ export const meal_update = asyncHandler(async (req, res, next) => {
 export const meal_check_round = asyncHandler(async (req, res, next) => {
   let meal_round = await meal_model.meal_check_round(req.params.mealId);
   if (meal_round == 0) {
-    let unseenResRows = await meal_model.meal_unseen_rows(
+    const guestLinkId = await guest_model.get_guest_link_id_by_guest(
+      req.decoded.guest_id,
+    );
+    let unseenResRows = await meal_model.meal_unseen_rows_for_guest(
       req.params.mealId,
-      req.decoded.member_id,
+      guestLinkId,
     );
     if (unseenResRows.length == 0) {
       meal_round = await meal_model.update_meal_round(req.params.mealId);
     }
     res.status(200).json({ meal_round });
   } else {
-    let unrankedMembers = await meal_model.get_remaining_unranked_members(
+    let unrankedGuests = await meal_model.get_remaining_unranked_guests(
       req.params.mealId,
     );
-    if (unrankedMembers.length > 0) {
+    if (unrankedGuests.length > 0) {
       res.status(200).json({
-        remainingMembers: unrankedMembers.map((item) => item.member_id),
+        remainingGuests: unrankedGuests.map((item) => item.guest_id),
       });
     } else {
       let chosen_restaurant = await meal_model.choose_best_ranked(

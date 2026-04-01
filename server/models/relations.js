@@ -20,8 +20,8 @@ function setupAssociations() {
     Meal.hasMany(MealRestaurant, { foreignKey: "meal_id" });
     Meal.hasMany(Guest, { as: "Guests", foreignKey: "meal_id" });
 
-    GuestPreference.belongsTo(Guest);
-    Guest.hasMany(GuestPreference);
+    GuestPreference.belongsTo(Guest, { foreignKey: "guest_id" });
+    Guest.hasMany(GuestPreference, { foreignKey: "guest_id" });
     Guest.hasMany(GuestRestaurant, { foreignKey: "guest_id" });
     Guest.belongsTo(Meal, { foreignKey: "meal_id" });
     Guest.belongsTo(User, { foreignKey: "user_id" });

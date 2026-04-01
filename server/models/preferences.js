@@ -12,7 +12,7 @@ export const get_preferences = async (meal_id, user_id) => {
   try {
     const result = await pool.query(
       `select preference_tag, want_to_eat
-    from member_preferences
+    from guest_preferences
     where meal_id = $1 and user_id = $2`,
       [meal_id, user_id],
     );
@@ -26,7 +26,7 @@ export const get_preferences = async (meal_id, user_id) => {
 export const get_wanted_preferences = async (meal_id, user_id) => {
   try {
     const result = await pool.query(
-      `select preference_tag from member_preferences
+      `select preference_tag from guest_preferences
     where meal_id = $1 and user_id = $2 and want_to_eat = 'true'`,
       [meal_id, user_id],
     );
@@ -40,7 +40,7 @@ export const get_wanted_preferences = async (meal_id, user_id) => {
 export const get_unwanted_preferences = async (meal_id, user_id) => {
   try {
     const result = await pool.query(
-      `select preference_tag from member_preferences
+      `select preference_tag from guest_preferences
     where meal_id = $1 and user_id = $2 and want_to_eat = 'false'`,
       [meal_id, user_id],
     );
@@ -80,13 +80,13 @@ export const update_preferences = async (
     }, "(") + ")";
   try {
     const result = await pool.query(
-      `insert into member_preferences (meal_id, user_id, preference_tag, want_to_eat)
+      `insert into guest_preferences (meal_id, user_id, preference_tag, want_to_eat)
     values ${input} returning preference_tag, want_to_eat`,
       [],
     );
     if (tagsToDelete.length > 2) {
       await pool.query(
-        `delete from member_preferences where meal_id = $1 and user_id = $2
+        `delete from guest_preferences where meal_id = $1 and user_id = $2
     and preference_tag in ${tagsToDelete}`,
         [meal_id, user_id],
       );

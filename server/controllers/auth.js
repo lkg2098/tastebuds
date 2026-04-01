@@ -32,9 +32,13 @@ export const generate_password_auth_token = (phone_number) => {
 
 export const register = asyncHandler(async (req, res, next) => {
   const { username, password, phone_number } = req.body;
+  if (!username || username.trim() === "") {
+    res.status(401).json({ error: "Invalid username" });
+    return;
+  }
 
-  const userWithUsername = await User.findOne({ username });
-  const userWithPhoneNumber = await User.findOne({ phone_number });
+  const userWithUsername = await User.findOne({ where: { username } });
+  const userWithPhoneNumber = await User.findOne({ where: { phone_number } });
 
   if (userWithUsername) {
     res.status(401).json({ error: "This username is taken" });
@@ -58,6 +62,10 @@ export const register = asyncHandler(async (req, res, next) => {
 export const login = asyncHandler(async (req, res, next) => {
   try {
     const { username, password } = req.body;
+    if (!password) {
+      res.status(401).json({ error: "Incorrect password" });
+      return;
+    }
 
     let user = await User.findOne({ where: { username } });
 
@@ -81,6 +89,7 @@ export const login = asyncHandler(async (req, res, next) => {
     }
   } catch (err) {
     console.log(err);
+    res.status(500).json({ error: "Server internal error" });
   }
 });
 
