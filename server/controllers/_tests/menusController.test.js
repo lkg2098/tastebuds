@@ -1,4 +1,4 @@
-const { fetchAndLocateMenu, scrapeMenuPages } = require("../menusController");
+const { scrapeMenuPages } = require("../menusController");
 
 const testUrls = [
   "http://thebronxvillediner.com/",
